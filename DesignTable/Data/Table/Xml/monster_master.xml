@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<monster_master xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="mon_id" Type="Int16" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_name" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_atk" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_def" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_hp" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_speed" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_type" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="1010" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_searchAngle" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_searchRange" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_keppRange" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+	<verify ColumnName="mon_prefab" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1016"/>
+</monster_master>

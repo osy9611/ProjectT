@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<quest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="quest_Id" Type="Int16" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1020"/>
+	<verify ColumnName="quest_type" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1020"/>
+	<verify ColumnName="reward" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1020"/>
+	<verify ColumnName="quest_target" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1020"/>
+	<verify ColumnName="quest_description" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1020"/>
+	<verify ColumnName="reward_auto" Type="bool" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1020"/>
+</quest>

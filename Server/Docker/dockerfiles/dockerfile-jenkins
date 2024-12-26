@@ -1,0 +1,17 @@
+#Jenkins Base Image
+FROM jenkins/jenkins:lts
+LABEL maintainer = "osy9611@gmail.com"
+
+USER root
+
+#Jenkins 관리자 비밀번호 설정을 위한 Groovy 스크립트 복사
+COPY dockerfiles/Jenkins/security.groovy /usr/share/jenkins/ref/init.groovy.d/security.groovy
+
+#Jenkins 플러그인을 설치하기 위한 CLI JAR 파일 다운로드
+#RUN curl -O http://localhost:8081/jnlpJars/jenkins-cli.jar
+
+#Unity 3D 플러그인 설치
+#RUN java -jar jenkins-cli.jar -s http://localhost:8081/ install-plugin unity3d
+
+USER jenkins
+

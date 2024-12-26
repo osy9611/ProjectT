@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\Project\\ProjectT\\Tools\\DesignGenerator\\DesignGenerator\\DesignTool\\DesignTool.csproj": {}
+  },
+  "projects": {
+    "D:\\Project\\ProjectT\\Tools\\DesignGenerator\\DesignGenerator\\DesignTool\\DesignTool.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Project\\ProjectT\\Tools\\DesignGenerator\\DesignGenerator\\DesignTool\\DesignTool.csproj",
+        "projectName": "DesignTool",
+        "projectPath": "D:\\Project\\ProjectT\\Tools\\DesignGenerator\\DesignGenerator\\DesignTool\\DesignTool.csproj",
+        "packagesPath": "C:\\Users\\oh\\.nuget\\packages\\",
+        "outputPath": "D:\\Project\\ProjectT\\Tools\\DesignGenerator\\DesignGenerator\\DesignTool\\obj\\",
+        "projectStyle": "PackageReference",
+        "skipContentFileWrite": true,
+        "configFilePaths": [
+          "C:\\Users\\oh\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net472"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net472": {
+            "projectReferences": {}
+          }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net472": {
+          "dependencies": {
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.3, )"
+            },
+            "WindowsAPICodePack": {
+              "target": "Package",
+              "version": "[7.0.4, )"
+            }
+          }
+        }
+      },
+      "runtimes": {
+        "win": {
+          "#import": []
+        },
+        "win-arm64": {
+          "#import": []
+        },
+        "win-x64": {
+          "#import": []
+        },
+        "win-x86": {
+          "#import": []
+        }
+      }
+    }
+  }
+}

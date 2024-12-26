@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  gitlab:
+    image: "gitlab/gitlab-ee:14.7.2-ee.0"
+    container_name: gitlab
+    restart: always
+    hostname: "localhost"
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "8022:22"
+    volumes:
+      - "C:/gitlab/config:/etc/gitlab"
+      - "C:/gitlab/logs:/var/log/gitlab"
+      - "C:/gitlab/data:/var/opt/gitlab"

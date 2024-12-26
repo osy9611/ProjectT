@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<monster_deploy xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="mon_fieldType" Type="Int16" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="{&quot;UseListRule&quot;:true,&quot;FindPKId&quot; : [&quot;mon_fieldType&quot;],&quot;PKIds&quot;:[&quot;mon_fieldType&quot;,&quot;mon_id&quot;]}" StringHashIds="-" TableId="1019"/>
+	<verify ColumnName="mon_id" Type="Int16" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1019"/>
+	<verify ColumnName="mon_type" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1019"/>
+</monster_deploy>

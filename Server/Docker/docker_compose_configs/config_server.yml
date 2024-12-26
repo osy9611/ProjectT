@@ -1,0 +1,82 @@
+version: '3.3'
+services:
+  ubuntu20:
+    image: ${REGISTRY_SERVER}/ubuntu20
+    privileged: true
+    container_name: ubuntu20
+    environment:
+      - SERVER_ENV=${BUILD_STAGE}  
+    build:
+      context: ../
+      dockerfile: ./dockerfiles/dockerfile-ubuntu20
+      labels:
+        vender: "Jay"
+        name: "ubuntu20"
+        build-date: ${BUILD_DATE}
+        desc: "Custom Ubuntu20"
+        installed-tools: "git telnet nano ntp wget unzip sudo cronie logrotate which"
+        build-comment: ""
+      args: 
+        REGISTRY_SERVER: ${REGISTRY_SERVER}
+        USER: jay
+        USER_PASS: jay9611
+        ROOT_PASS: jay9611
+        UBUNTU_VERSION: "20.10"
+
+  #server
+  django3:
+    image: ${REGISTRY_SERVER}/django3
+    privileged: true
+    container_name: django3
+    restart : always
+    ports: 
+      - 8000:8000
+    environment:
+      - SERVER_ENV=${BUILD_STAGE}  
+    build:
+      context: ../
+      dockerfile: ./dockerfiles/dockerfile-django3
+      labels:
+        vender: "Jay"
+        name: "django3"
+        build-date: "${BUILD_DATE}"
+        desc: "Custom Django"
+        python-version: "3.7.x"
+        django-version: "3.1.12"
+        build-comment: ""
+      args:
+        REGISTRY_SERVER: ${REGISTRY_SERVER}
+        DJANGO_SERVER_ROOT: /var/www/django
+    healthcheck:
+      test: ["CMD", "curl", "-f","http://localhost:8000/ping.html"]
+      interval: 3s
+      timeout: 1s
+      retries: 3
+
+  mysql:
+    image: ${REGISTRY_SERVER}/mysql8
+    privileged: true
+    container_name: mysql8
+    restart : always
+    volumes:
+      - ${DB_DATA}:/var/lib/mysql
+      - ${DB_BACKUP}:/var/mysql/db_backup
+    ports: 
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=osy9611
+      - MYSQL_USER=osy9611
+      - MYSQL_PASSWORD:1234
+      - SERVER_ENV=${BUILD_STAGE}
+      - MYSQL_BACKUP_CRONTAB=30  0  *  *  * root /root/backup_db.sh
+    build:
+      context: ../
+      dockerfile: ./dockerfiles/dockerfile-mysql8
+      labels:
+        vender: "Jay"
+        name: "mysql"
+        build-date: "${BUILD_DATE}"
+        mysql-version: "8.0.x"
+        build-comment: ""
+      args:
+        REGISTRY_SERVER: ${REGISTRY_SERVER}

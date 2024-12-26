@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Local xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<record>
+		<USE>Y</USE>
+		<LOCALNAME>Test</LOCALNAME>
+		<KO>테스트</KO>
+		<JP>테스트</JP>
+		<EN>테스트</EN>
+	</record>
+</Local>

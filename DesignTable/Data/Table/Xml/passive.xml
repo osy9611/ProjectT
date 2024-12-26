@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<passive xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="passive_Id" Type="Int16" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1021"/>
+	<verify ColumnName="status_Type" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="1013" IDRule="-" StringHashIds="-" TableId="1021"/>
+	<verify ColumnName="status_Arg" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1021"/>
+	<verify ColumnName="passive_name" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1021"/>
+	<verify ColumnName="image_Res" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1021"/>
+</passive>

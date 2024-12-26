@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<user_character xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="char_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1011"/>
+	<verify ColumnName="char_classId" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="1004" IDRule="-" StringHashIds="-" TableId="1011"/>
+	<verify ColumnName="char_gender" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1011"/>
+	<verify ColumnName="char_atk" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1011"/>
+	<verify ColumnName="char_def" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1011"/>
+	<verify ColumnName="char_moveSpeed" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1011"/>
+	<verify ColumnName="char_prefab" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1011"/>
+</user_character>

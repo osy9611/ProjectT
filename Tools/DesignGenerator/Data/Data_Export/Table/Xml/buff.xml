@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<buff xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="buff_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_type" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="1005" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_duration" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_interval" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_usePercent" Type="bool" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_arg1" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_arg2" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_arg3" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_arg4" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<record>
+		<buff_Id>1</buff_Id>
+		<buff_type>0</buff_type>
+		<buff_duration>10</buff_duration>
+		<buff_interval>0</buff_interval>
+		<buff_usePercent>20</buff_usePercent>
+		<buff_arg1>0</buff_arg1>
+		<buff_arg2>0</buff_arg2>
+		<buff_arg3>0</buff_arg3>
+		<buff_arg4>Y</buff_arg4>
+	</record>
+	<record>
+		<buff_Id>2</buff_Id>
+		<buff_type>1</buff_type>
+		<buff_duration>10</buff_duration>
+		<buff_interval>0</buff_interval>
+		<buff_usePercent>10</buff_usePercent>
+		<buff_arg1>0</buff_arg1>
+		<buff_arg2>0</buff_arg2>
+		<buff_arg3>0</buff_arg3>
+		<buff_arg4>Y</buff_arg4>
+	</record>
+	<record>
+		<buff_Id>3</buff_Id>
+		<buff_type>2</buff_type>
+		<buff_duration>5</buff_duration>
+		<buff_interval>0</buff_interval>
+		<buff_usePercent>5</buff_usePercent>
+		<buff_arg1>0</buff_arg1>
+		<buff_arg2>0</buff_arg2>
+		<buff_arg3>0</buff_arg3>
+		<buff_arg4>N</buff_arg4>
+	</record>
+	<record>
+		<buff_Id>4</buff_Id>
+		<buff_type>3</buff_type>
+		<buff_duration>5</buff_duration>
+		<buff_interval>0</buff_interval>
+		<buff_usePercent>6</buff_usePercent>
+		<buff_arg1>0</buff_arg1>
+		<buff_arg2>0</buff_arg2>
+		<buff_arg3>0</buff_arg3>
+		<buff_arg4>N</buff_arg4>
+	</record>
+	<record>
+		<buff_Id>5</buff_Id>
+		<buff_type>4</buff_type>
+		<buff_duration>5</buff_duration>
+		<buff_interval>0</buff_interval>
+		<buff_usePercent>0</buff_usePercent>
+		<buff_arg1>0</buff_arg1>
+		<buff_arg2>0</buff_arg2>
+		<buff_arg3>0</buff_arg3>
+		<buff_arg4>N</buff_arg4>
+	</record>
+	<record>
+		<buff_Id>6</buff_Id>
+		<buff_type>5</buff_type>
+		<buff_duration>5</buff_duration>
+		<buff_interval>1</buff_interval>
+		<buff_usePercent>0</buff_usePercent>
+		<buff_arg1>0</buff_arg1>
+		<buff_arg2>0</buff_arg2>
+		<buff_arg3>0</buff_arg3>
+		<buff_arg4>N</buff_arg4>
+	</record>
+</buff>

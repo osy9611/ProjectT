@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<projectile xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="projectile_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1022"/>
+	<verify ColumnName="projectile_path" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1022"/>
+	<verify ColumnName="projectile_speed" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1022"/>
+	<record>
+		<projectile_Id>0</projectile_Id>
+		<projectile_path>Assets/Res/Effect/HovlStudio/Proceduralfire/Prefabs/Magic fire 2.prefab</projectile_path>
+		<projectile_speed>4</projectile_speed>
+	</record>
+</projectile>

@@ -1,0 +1,35 @@
+ARG REGISTRY_SERVER
+FROM ubuntu:20.04
+
+# Installation Utilities
+RUN apt-get update && \
+DEBIAN_FRONTEND=noninteractive apt-get -yq install git telnet nano vim ntp sudo wget unzip cron logrotate net-tools locales && \
+apt-get clean all
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get -yq install software-properties-common
+
+# Startup Packages
+RUN update-rc.d ntp defaults && update-rc.d cron defaults
+
+# Add User
+ARG USER
+ARG USER_PASS
+ARG ROOT_PASS
+RUN useradd ${USER}
+RUN echo ${USER}:${USER_PASS} | chpasswd
+RUN echo root:${ROOT_PASS} | chpasswd
+RUN usermod -g root jay
+
+#Start service
+COPY ./docker_entrypoints/docker-entrypoint-ubuntu20.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+COPY ./docker_build_info.txt /tmp/
+
+# Local compile
+RUN locale-gen en_US.UTF-8
+
+#change language utf8
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8

@@ -1,0 +1,33 @@
+version: "3.3"
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    volumes:
+      - ${JENKINS_ROOT}/docker.sock:/var/run/docker.sock
+      - ${JENKINS_ROOT}:/var/jenkins_home
+    ports:
+      - "8081:8080"
+    build:
+        context: ../
+        dockerfile: ./dockerfiles/Jenkins/dockerfile-jenkins
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/8080/ping.html"]
+      interval: 3s
+      timeout: 1s
+      retries: 3
+  deploy:
+    image: osy9611/deploy
+    container_name: deploy
+    volumes: 
+      - ${DEPLOY_ROOT}:/var/lib/deploy
+    ports:
+      - 8223:8223
+    build:
+      context: ../
+      dockerfile: ./dockerfiles/Deploy/dockerfile-deploy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/8223/ping.html"]
+      interval: 3s
+      timeout: 1s
+      retries: 3

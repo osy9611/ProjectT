@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<monster_boss xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="mon_id" Type="Int16" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1018"/>
+	<verify ColumnName="mon_pathId" Type="Int32" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1018"/>
+	<verify ColumnName="mon_type" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1018"/>
+	<verify ColumnName="mon_spawnId" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1018"/>
+	<verify ColumnName="mon_spawnTime" Type="Int16" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1018"/>
+	<verify ColumnName="mon_spawnDayNight" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="1002" IDRule="-" StringHashIds="-" TableId="1018"/>
+</monster_boss>

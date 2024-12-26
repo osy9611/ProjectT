@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AtlasData xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="AtlasType" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="1015" IDRule="-" StringHashIds="-" TableId="1023"/>
+	<verify ColumnName="Path" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1023"/>
+	<record>
+		<AtlasType>Common</AtlasType>
+		<Path>Assets/BundleRes/SpriteAtlas/NewSpriteAtlas.spriteatlas</Path>
+	</record>
+</AtlasData>

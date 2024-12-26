@@ -1,0 +1,15 @@
+ARG REGISTRY_SERVER
+FROM ${REGISTRY_SERVER}/ubuntu20:latest
+
+#my-sql
+RUN groupadd -r mysql && useradd -r -g mysql mysql
+RUN apt-get update && \
+    apt-get -y install wget gnupg lsb-release && \
+    wget https://dev.mysql.com/get/mysql-community-server_8.0.20-2ubuntu20.04_amd64.deb && \
+    dpkg -i mysql-community-server_8.0.20-2ubuntu20.04_amd64.deb && \
+    apt-get update && \
+    wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb && \
+    dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb && \
+    apt-get update && \
+    apt-get -y install mysql-server percona-xtrabackup-80 qpress && \
+    apt-get clean
