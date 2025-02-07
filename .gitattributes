@@ -29,3 +29,7 @@ Client/Assets/Firebase/Plugins/x86_64/FirebaseCppAuth.bundle.meta filter=lfs dif
 Client/Assets/Firebase/Plugins/x86_64/FirebaseCppAuth.dll filter=lfs diff=lfs merge=lfs -text
 Client/Assets/Firebase/Plugins/x86_64/FirebaseCppDatabase.bundle.meta filter=lfs diff=lfs merge=lfs -text
 Client/Assets/Firebase/Plugins/x86_64/FirebaseCppStorage.dll.meta filter=lfs diff=lfs merge=lfs -text
+Client/Library/PackageCache/**/*.dylib filter=lfs diff=lfs merge=lfs -text
+Client/Library/PackageCache/**/*.so filter=lfs diff=lfs merge=lfs -text
+Client/Library/PackageCache/**/*.dll filter=lfs diff=lfs merge=lfs -text
+Client/Library/PackageCache/**/dsymutil filter=lfs diff=lfs merge=lfs -text
