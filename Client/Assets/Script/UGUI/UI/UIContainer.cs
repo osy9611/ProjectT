@@ -8,13 +8,14 @@ namespace ProjectT.UGUI
     using UnityEngine.UI;
     using ProjectT.Util;
     using Cysharp.Threading.Tasks;
+    using System.Linq;
 
     public class UIContainer
     {
         private Dictionary<UIDefine.eUIType, UIBase> uiDatas = new Dictionary<UIDefine.eUIType, UIBase>();
         public Dictionary<UIDefine.eUIType, UIBase> UIDatas { get => uiDatas; }
 
-
+        public List<UIBase> UIStack = new List<UIBase>();
 
         private RectTransform[] typeRoot;
         public RectTransform[] TypeRoot { get => typeRoot; }

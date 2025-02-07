@@ -1,4 +1,4 @@
-using JetBrains.Annotations;
+ using JetBrains.Annotations;
 using ProjectT.Server;
 using System;
 using System.Collections;
@@ -128,7 +128,6 @@ namespace ProjectT.Build
         public static async void PreBuild()
         {
             //우선 커멘드 라인에 들어온 Args를 읽는다.
-
             string[] commandLienArgs = Environment.GetCommandLineArgs();
             BuildTarget buildTarget = BuildTarget.NoTarget;
             string buildVersion = string.Empty;

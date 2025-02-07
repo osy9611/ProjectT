@@ -59,7 +59,6 @@ namespace ProjectT.Build
 
             Debug.Log("Build Player Content");
             AddressableAssetSettings.BuildPlayerContent();
-
         }
 
 

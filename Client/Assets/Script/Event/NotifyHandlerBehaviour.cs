@@ -1,3 +1,4 @@
+using ProjectT;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -54,10 +55,14 @@ public abstract class NotifyHandlerBehaviour : MonoBehaviour, INotifyHandler
 
     public virtual void ConnectHandler()
     {
+        if (Global.Instance != null && Global.Notify != null)
+            Global.Notify.ConnectHandler(this);
     }
 
     public virtual void DisconnectHandler()
     {
+        if (Global.Instance != null && Global.Notify != null)
+            Global.Notify.DisconnectHandler(this);
     }
 
     public void OnConnectHandler()

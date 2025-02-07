@@ -1,6 +1,8 @@
 using Cysharp.Threading.Tasks;
 using ProjectT.Pivot;
 using ProjectT.UGUI;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace ProjectT
@@ -14,6 +16,7 @@ namespace ProjectT
 
         private UIContainer uiContainer;
 
+        public List<UIBase> UIStack => uiContainer.UIStack;
         public Camera Canvas2DCam => uiContainer.Canvas2DCam;
         public Transform Canvas2D => uiContainer.UICanvas2D;
 
@@ -92,6 +95,77 @@ namespace ProjectT
             }
             uiContainer.RemoveWidget(type, path);
         }
+
+        public void RegisterStackUI(UIBase uiBase)
+        {
+            if (uiBase == null)
+            {
+                Global.Instance.Log($"[UIManager] RegisterStackUI() UIBase is Null", "A45FF8");
+                return;
+            }
+
+            if (UIStack.Count == 0 || UIStack.Last() != uiBase)
+            {
+                if (uiBase.Type != eUIContainerType.Static)
+                {
+                    Global.Instance.Log($"[UIManager] This UIBase Is Not Static UI : {uiBase.name}", "A45FF8");
+                    return;
+                }
+
+                Global.Instance.Log($"[UIManager] RegisterStackUI() Success Register UI : {uiBase.name}", "A45FF8");
+
+                UIStack.RemoveAll(x => x == uiBase);
+                UIStack.Add(uiBase);
+
+                string testDebugStr = $"After Register Remain StackUI \n ";
+
+                foreach (var ui in UIStack)
+                {
+                    testDebugStr += ui.name;
+                    if (ui != UIStack.Last())
+                        testDebugStr += "\n ";
+                }
+
+                Global.Instance.Log(testDebugStr, "A45FF8");
+            }
+        }
+
+        public void UnRegisterStackUI()
+        {
+            var uiBase = UIStack.Last();
+            if (uiBase == null)
+                Global.Instance.Log($"[UIManager] UnRegister() Success UnRegister UI But UIBase Is Null", "A45FF8");
+            else
+            {
+                Global.Instance.Log($"[UIManager] UnRegister() Success UnRegister UI : {uiBase.name}", "A45FF8");
+                UIStack.RemoveAll(x => x == uiBase);
+
+                string testDebugStr = $"After UnRegister Remain StackUI \n ";
+                foreach (var ui in UIStack)
+                {
+                    testDebugStr += ui.name;
+                    if (ui != UIStack.Last())
+                        testDebugStr += "\n ";
+                }
+
+                Global.Instance.Log(testDebugStr, "A45FF8");
+            }
+        }
+
+        public UIBase GetCurrentStackUI()
+        {
+            if (UIStack.Count == 0)
+                return null;
+
+            return UIStack.Last();
+        }
+
+        public void ResetStackUI()
+        {
+            Global.Instance.Log($"[UIManager] ResetStackUI()", "A45FF8");
+            UIStack.Clear();
+        }
+
 
         public T GetHud<T>(HudDefine.eHudType type, PivotInfo pivotInfo) where T : ComHudAgent
         {

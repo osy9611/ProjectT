@@ -38,7 +38,7 @@ MonoBehaviour:
     m_Id: 9192ae11b79dbc049b22d765cd9f08b7
   m_RemoteCatalogLoadPath:
     m_Id: 77688a2bca9ec96438535ee587c736db
-  m_ContentStateBuildPathProfileVariableName: 
+  m_ContentStateBuildPathProfileVariableName: <default settings path>
   m_CustomContentStateBuildPath: 
   m_ContentStateBuildPath: 
   m_BuildAddressablesWithPlayerBuild: 0

@@ -12,8 +12,8 @@ namespace ProjectT.UGUI
     public enum eUIContainerType
     {
         System,  // 게임 시스템 UI 관련
-        Dynamic, // 동적 UI 관련(다음 씬으로 전환되면 파괴됨)
-        Static,   // 정적 UI 관련(다음 씬으로 전환되어도 유지가 됨)
+        Dynamic, // 동적 UI 관련
+        Static,   // 정적 UI 관련
         HUD
     }
 
@@ -22,12 +22,10 @@ namespace ProjectT.UGUI
         [SerializeField] private eUIContainerType type;
         public eUIContainerType Type => type;
 
-        private UIBase prevUI;
-        public UIBase PrevUI { get => prevUI; set => prevUI = value; }
-
         protected Dictionary<Type, UnityEngine.Object[]> objects = new Dictionary<Type, UnityEngine.Object[]>();
 
         protected bool isActive = false;
+        public bool IsActive => isActive;
 
         public virtual void OnEnter() { }
 
@@ -35,7 +33,10 @@ namespace ProjectT.UGUI
         {
             isActive = true;
             gameObject.SetActive(isActive);
+
             OnShow();
+
+            Global.UI.RegisterStackUI(this);
         }
 
         public virtual void Hide(bool activePrevUI = true)
@@ -43,13 +44,47 @@ namespace ProjectT.UGUI
             isActive = false;
             gameObject.SetActive(isActive);
 
-            if (activePrevUI && prevUI != null)
+            if (activePrevUI)
             {
-                if (prevUI.isActive && !prevUI.gameObject.activeInHierarchy)
-                    prevUI.gameObject.SetActive(true);
-                else
-                    prevUI.Show();
-                prevUI = null;
+                if(Type == eUIContainerType.Static)
+                {
+                    UIBase currentUI = Global.UI.GetCurrentStackUI();
+                    UIBase prevUI = null;
+
+                    if (currentUI == this)
+                    {
+                        Global.UI.UnRegisterStackUI(); //자기를 지우면서 닫고
+                        prevUI = Global.UI.GetCurrentStackUI(); //새로 갱신
+                       
+                    }
+                    else
+                        prevUI = currentUI;
+
+                    if(prevUI != null)
+                    {
+                        Global.Instance.Log($"[UIBase] Check Prev Active currentUI Name : {prevUI.name} currentUI.IsActive : {prevUI.IsActive} , " +
+                                            $"currentUI.gameObject.activeInHierarchy {prevUI.gameObject.activeInHierarchy}", "A45FF8");
+
+                        if(prevUI.isActive && !prevUI.gameObject.activeInHierarchy)
+                        {
+                            prevUI.gameObject.SetActive(true);
+                            CheckCurrentUIShow();
+                        }
+                        else
+                        {
+                            //켜져있는 UI를 가져오는 경우가 있기 때문에 예외처리를 진행함
+                            if(prevUI.isActive && prevUI.gameObject.activeInHierarchy)
+                            {
+                                prevUI.gameObject.SetActive(true);
+                                CheckCurrentUIShow();
+                            }
+                            else
+                            {
+                                prevUI.Show();
+                            }
+                        }
+                    }
+                }
             }
 
             OnHide();
@@ -58,6 +93,11 @@ namespace ProjectT.UGUI
 
         public abstract void OnShow();
         public abstract void OnHide();
+
+        private void CheckCurrentUIShow()
+        {
+            var currentUI = Global.UI.GetCurrentStackUI();
+        }
 
         public void ChangeFirstDepth()
         {

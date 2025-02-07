@@ -14,57 +14,58 @@ namespace ProjectT
         }
     }
 
-    public class NotificationManager : ManagerBase
+    public class WaitForNotifyInfo : System.IDisposable
     {
-        public class WaitForNotifyInfo : System.IDisposable
+        private string methodName = string.Empty;
+        public string MethodName { get => methodName; }
+
+        private eNotifyHandler receiverHandlerTypes = eNotifyHandler.Default;
+
+        public eNotifyHandler ReceiverHandlerTypes { get => receiverHandlerTypes; }
+
+        private object[] args = null;
+        public object[] Args { get => args; }
+
+        private float duration = 0.0f;
+        private float currentTime = 0.0f;
+
+        private int currentFrameCount = -1;
+
+        public WaitForNotifyInfo(string methodName, eNotifyHandler receiverHandlerTypes, params object[] args) : this(methodName, receiverHandlerTypes, 0.0f, args)
         {
-            private string methodName = string.Empty;
-            public string MethodName { get => methodName; }
+        }
 
-            private eNotifyHandler receiverHandlerTypes = eNotifyHandler.Default;
+        public WaitForNotifyInfo(string methodName, eNotifyHandler receiverHandlerTypes, float seconds, params object[] args)
+        {
+            this.methodName = methodName;
+            this.receiverHandlerTypes = receiverHandlerTypes;
+            this.args = args;
+            this.duration = seconds;
+            this.currentTime = 0.0f;
 
-            public eNotifyHandler ReceiverHandlerTypes { get => receiverHandlerTypes; }
+            currentFrameCount = duration == 0.0f ? Time.frameCount : -1;
+        }
 
-            private object[] args = null;
-            public object[] Args { get => args; }
-
-            private float duration = 0.0f;
-            private float currentTime = 0.0f;
-
-            private int currentFrameCount = -1;
-
-            public WaitForNotifyInfo(string methodName, eNotifyHandler receiverHandlerTypes, params object[] args) : this(methodName, receiverHandlerTypes, 0.0f, args)
+        public bool CheckWaitStatus(float delta)
+        {
+            if (currentFrameCount != -1)
+                return (currentFrameCount != Time.frameCount) ? true : false;
+            else
             {
-            }
-
-            public WaitForNotifyInfo(string methodName, eNotifyHandler receiverHandlerTypes, float seconds, params object[] args)
-            {
-                this.methodName = methodName;
-                this.receiverHandlerTypes = receiverHandlerTypes;
-                this.args = args;
-                this.duration = seconds;
-                this.currentTime = 0.0f;
-
-                currentFrameCount = duration == 0.0f ? Time.frameCount : -1;
-            }
-
-            public bool CheckWaitStatus(float delta)
-            {
-                if (currentFrameCount != -1)
-                    return (currentFrameCount != Time.frameCount) ? true : false;
-                else
-                {
-                    currentTime = currentTime + delta;
-                    return (currentTime > duration) ? true : false;
-                }
-            }
-
-            public void Dispose()
-            {
-                System.GC.SuppressFinalize(this);
+                currentTime = currentTime + delta;
+                return (currentTime > duration) ? true : false;
             }
         }
 
+        public void Dispose()
+        {
+            System.GC.SuppressFinalize(this);
+        }
+    }
+
+
+    public class NotificationManager : ManagerBase
+    {
         protected List<INotifyHandler> handlers = new List<INotifyHandler>();
         protected List<WaitForNotifyInfo> waitForNotifyInfos = new List<WaitForNotifyInfo>();
 
@@ -201,7 +202,7 @@ namespace ProjectT
 
             if (eventHandlers != null)
             {
-                foreach (var handler in handlers)
+                foreach (var handler in eventHandlers)
                     DisconnectHandler(handler);
             }
         }

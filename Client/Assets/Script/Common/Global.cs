@@ -66,7 +66,10 @@ namespace ProjectT
             if (!isInitialized)
                 return;
 
-            Log($"OnApplicationFocus({focus}");
+            Log($"OnApplicationFocus({focus})");
+
+            if (m_managers == null)
+                return;
 
             for (int i = 0; i < m_managers.Count; ++i)
             {
@@ -82,7 +85,7 @@ namespace ProjectT
             if (!isInitialized)
                 return;
 
-            Log($"OnApplicationPause({pause}");
+            Log($"OnApplicationPause({pause})");
 
             for (int i = 0; i < m_managers.Count; ++i)
             {
