@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+using ProtoBuf;
 
 namespace ProjectT
 {
@@ -124,8 +125,8 @@ namespace ProjectT
                 manager.Value.OnEnter();
             }
 
-            if(LoadData)
-            { 
+            if (LoadData)
+            {
                 Global.Data.GetTableDatas().Forget();
             }
         }
@@ -133,6 +134,9 @@ namespace ProjectT
         private void CreateManagers()
         {
             Log("CreateManagers()");
+
+            if (m_managers == null)
+                m_managers = new List<KeyValuePair<string, ManagerBase>>();
 
             CreateAndAddManager<ResourceManager>(ref resource);
             CreateAndAddManager<DataManager>(ref data);
@@ -166,7 +170,7 @@ namespace ProjectT
 
         private void CreateAndAddManager<T>(ref T manager) where T : ManagerBase, new()
         {
-            if (manager == null)
+            if (manager != null)
                 return;
 
             manager = new T();

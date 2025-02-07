@@ -129,7 +129,6 @@
 -define:CSHARP_7_OR_LATER
 -define:CSHARP_7_3_OR_NEWER
 -r:"Assets/Automation/Dll/Design.dll"
--r:"Assets/Automation/Dll/protobuf-net.dll"
 -r:"Assets/ExternalDependencyManager/Editor/1.2.183/Google.IOSResolver.dll"
 -r:"Assets/ExternalDependencyManager/Editor/1.2.183/Google.JarResolver.dll"
 -r:"Assets/ExternalDependencyManager/Editor/1.2.183/Google.PackageManagerResolver.dll"

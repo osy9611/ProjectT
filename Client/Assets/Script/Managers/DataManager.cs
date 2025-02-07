@@ -11,7 +11,7 @@ namespace ProjectT
 {
     public class DataManager : ManagerBase
     {
-        private DesignTable.DataMgr tableData = new DataMgr();
+        private DesignTable.DataMgr tableData;
         public DesignTable.DataMgr Table { get => tableData; }
         private DesignLocal.LocalData localData = new DesignLocal.LocalData();
         private SystemLanguage currentLanguage;
@@ -59,6 +59,9 @@ namespace ProjectT
 
         public async UniTask GetTableDatas()
         {
+            if (tableData == null)
+                tableData = new DataMgr();
+
             tableData.Init();
 
             //Load Locl Data

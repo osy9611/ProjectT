@@ -489,7 +489,9 @@ namespace DesignGenerator
                 Console.WriteLine(assembly.FullName);
             }
 
-            System.Reflection.Assembly dll = System.Reflection.Assembly.LoadFrom($"{folderPath}\\Design.dll");
+            string dllPath = $"{folderPath}\\DL\\Design.dll";
+
+            //System.Reflection.Assembly dll = System.Reflection.Assembly.LoadFrom($"{folderPath}\\Design.dll");
             
             foreach (var data in tableDataInfos.Values)
             {
@@ -497,7 +499,7 @@ namespace DesignGenerator
                 System.Type sType = System.Type.GetType(typeName);
 
                 
-                sType = dll.GetType(typeName);
+                sType = dll1.GetType(typeName);
                 System.Reflection.MethodInfo addMethod = sType.GetMethod("Insert");
                 object inst = System.Activator.CreateInstance(sType);
 
