@@ -170,7 +170,7 @@ namespace ProjectT
 
         private void CreateAndAddManager<T>(ref T manager) where T : ManagerBase, new()
         {
-            if (manager != null)
+            if (manager == null)
                 return;
 
             manager = new T();

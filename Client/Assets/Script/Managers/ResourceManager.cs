@@ -293,7 +293,7 @@ namespace ProjectT
                 if (resource.DontDestroy && !isAll)
                     continue;
 
-                Release(data.Key);
+                Addressables.Release(resource.ResourceData);
             }
 
             datas.Clear();

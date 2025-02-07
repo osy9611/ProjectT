@@ -1,3 +1,5 @@
+using ProjectT;
+using ProjectT.UGUI;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -71,5 +73,16 @@ public class TestReflection : MonoBehaviour
         var result = type.GetMethod("FuncReturnValue")?.Invoke(temp, null); // 오브젝트 형태로 리턴해주기 때문에
         Debug.Log((int)result);
 
+    }
+
+    public void GoTitle()
+    {
+        Global.Scene.GoTitle();
+
+    }
+
+    public void CreateUI()
+    {
+        Global.UI.CreateWidget<TestUI>(UIDefine.eUIType.Test);
     }
 }
