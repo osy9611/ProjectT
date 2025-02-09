@@ -1,4 +1,4 @@
-# ProjectPT - ProjectJ 프로젝트 모듈 개선 프로젝트
+# ProjectT - ProjectJ 프로젝트 모듈 개선 프로젝트
 
 ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 향상하기 위해 진행된 프로젝트입니다.
 
