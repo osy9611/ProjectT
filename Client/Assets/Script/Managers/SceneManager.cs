@@ -257,6 +257,8 @@ namespace ProjectT
             (result) =>
             {
                 Debug.Log(result);
+
+                Global.LocalStorage.LoadAllData();
             }, null);
         }
     }

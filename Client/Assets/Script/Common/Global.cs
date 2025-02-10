@@ -43,6 +43,10 @@ namespace ProjectT
 
         private NotificationManager notify = new NotificationManager();
         public static NotificationManager Notify { get => Instance.notify; }
+
+        private ClientLocalStorageManager localStorage = new ClientLocalStorageManager();
+        public static ClientLocalStorageManager LocalStorage { get => Instance.localStorage; }
+
         #endregion
 
         #region Extensions
@@ -128,6 +132,7 @@ namespace ProjectT
             if (LoadData)
             {
                 Global.Data.GetTableDatas().Forget();
+                Global.LocalStorage.LoadAllDataAsync().Forget();
             }
         }
 
@@ -146,6 +151,7 @@ namespace ProjectT
             CreateAndAddManager<SoundManager>(ref sound);
             CreateAndAddManager<InputManager>(ref input);
             CreateAndAddManager<NotificationManager>(ref notify);
+            CreateAndAddManager<ClientLocalStorageManager>(ref localStorage);
         }
 
         private void DestoryManagers()
@@ -166,6 +172,7 @@ namespace ProjectT
             DestoryManager<SoundManager>(ref sound);
             DestoryManager<InputManager>(ref input);
             DestoryManager<NotificationManager>(ref notify);
+            DestoryManager<ClientLocalStorageManager>(ref localStorage);
         }
 
         private void CreateAndAddManager<T>(ref T manager) where T : ManagerBase, new()
