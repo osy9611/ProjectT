@@ -7,6 +7,7 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 **프로젝트 주요 내용**
 - Project J에서 사용한 주요 시스템을 개선 및 확장하여 최적화
 - 비동기 처리, UI 관리, 빌드 자동화 등의 성능 및 유지보수성 개선
+- 신규 기능 모듈화
 
 🔗 **관련 문서**
 - [ GitHub 위키](https://github.com/osy9611/ProjectT/wiki)
