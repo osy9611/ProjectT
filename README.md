@@ -38,7 +38,7 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/UI-System)**
 
 ### SceneManager
-- 씬 로딩 최정화 및 씬 전환 중 데이터 유지 기능 추가
+- 씬 로딩 최적화 및 씬 전환 중 데이터 유지 기능 추가
 - Addressable 기반 씬 관리 구조 개선
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/SceneManager)**
 
