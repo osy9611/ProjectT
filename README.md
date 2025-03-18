@@ -14,7 +14,7 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 ✔ **Language:** C#  
 ✔ **Build System:** Firebase, Jenkins
 
-🔗  ## 관련 문서 ##
+## 관련 문서 ##
 - [ GitHub 위키](https://github.com/osy9611/ProjectT/wiki)
 - [ Project J](https://github.com/osy9611/ProjectJ)
 
