@@ -20,6 +20,15 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 
 ---
 
+## **Project J vs Project T 비교**
+|   | **Project J** | **Project T (개선 프로젝트)** |
+|---|--------------|----------------|
+| **데이터 처리** | XML 기반 테이블 관리 & 코드 생성 | **CodeDom 기반 자동화** |
+| **리소스 관리** | Addressable 사용 및 기본 풀링 | **UniTask 적용, 비동기 로딩 개선** |
+| **UI 시스템** | Scene / Popup / Element UI 구조 | **Static / Dynamic / System UI 구조로 변경** |
+| **빌드 자동화** | Jenkins 기반 빌드 자동화 | **Firebase 연동, 세분화된 빌드 프로세스** |
+| **씬 관리** | Addressable 기반 씬 로딩 | **데이터 유지 및 상태 관리 추가** |
+
 ## 주요 시스템 개요
 
 ### TableGenerator
