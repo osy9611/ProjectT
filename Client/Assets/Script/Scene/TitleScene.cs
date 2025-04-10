@@ -52,7 +52,6 @@ public class TitleScene : SceneBase
 
     private async UniTask Test()
     {
-
 #if UNITY_EDITOR
         FirebaseDB firebaseDB = new FirebaseDB();
 

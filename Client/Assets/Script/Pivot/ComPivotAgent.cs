@@ -46,7 +46,6 @@ namespace ProjectT.Pivot
         }
     }
 
-
     public class ComPivotAgent : MonoBehaviour
     {
         [SerializeField] private List<PivotInfo> pivots = new List<PivotInfo>();

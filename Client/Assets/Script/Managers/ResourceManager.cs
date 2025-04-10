@@ -59,7 +59,6 @@ namespace ProjectT
         #endregion
 
         #region SceneLoad
-
         public async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, UnityEngine.SceneManagement.LoadSceneMode sceneMode, System.Action<float> OnLoadingProgressAction)
         {
             var handle = Addressables.LoadSceneAsync(sceneName, sceneMode);

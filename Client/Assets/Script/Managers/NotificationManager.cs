@@ -63,7 +63,6 @@ namespace ProjectT
         }
     }
 
-
     public class NotificationManager : ManagerBase
     {
         protected List<INotifyHandler> handlers = new List<INotifyHandler>();

@@ -54,8 +54,7 @@ namespace ProjectT.UGUI
                     if (currentUI == this)
                     {
                         Global.UI.UnRegisterStackUI(); //자기를 지우면서 닫고
-                        prevUI = Global.UI.GetCurrentStackUI(); //새로 갱신
-                       
+                        prevUI = Global.UI.GetCurrentStackUI(); //새로 갱신                       
                     }
                     else
                         prevUI = currentUI;

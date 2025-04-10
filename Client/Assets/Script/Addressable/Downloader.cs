@@ -70,7 +70,6 @@ namespace ProjectT.Addressable
         {
             await UniTask.Yield();
 
-
             List<string> keys = new List<string>();
             keys.AddRange(lableKeys);
 

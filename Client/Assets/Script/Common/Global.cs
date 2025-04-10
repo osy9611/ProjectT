@@ -47,6 +47,9 @@ namespace ProjectT
         private ClientLocalStorageManager localStorage = new ClientLocalStorageManager();
         public static ClientLocalStorageManager LocalStorage { get => Instance.localStorage; }
 
+        private CostumeManager costume = new CostumeManager();
+        public static CostumeManager Costume { get => Instance.costume; }
+
         #endregion
 
         #region Extensions
@@ -152,6 +155,7 @@ namespace ProjectT
             CreateAndAddManager<InputManager>(ref input);
             CreateAndAddManager<NotificationManager>(ref notify);
             CreateAndAddManager<ClientLocalStorageManager>(ref localStorage);
+            CreateAndAddManager<CostumeManager>(ref costume);
         }
 
         private void DestoryManagers()
@@ -173,6 +177,7 @@ namespace ProjectT
             DestoryManager<InputManager>(ref input);
             DestoryManager<NotificationManager>(ref notify);
             DestoryManager<ClientLocalStorageManager>(ref localStorage);
+            DestoryManager<CostumeManager>(ref costume);
         }
 
         private void CreateAndAddManager<T>(ref T manager) where T : ManagerBase, new()
