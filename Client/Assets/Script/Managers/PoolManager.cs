@@ -1,5 +1,6 @@
 using Cysharp.Threading.Tasks;
 using ProjectT.Pool;
+using ProjectT.Skill;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
@@ -9,8 +10,8 @@ namespace ProjectT
 {
     public class PoolManager : ManagerBase
     {
-        private Dictionary<string, GameObjectPool> pools = new Dictionary<string, GameObjectPool>();
-
+        private Dictionary<string, GameObjectPool> gameObjectPools = new Dictionary<string, GameObjectPool>();
+        private Dictionary<System.Type, object> genericPools = new Dictionary<System.Type, object>();
         #region ManagerBase
         public override void OnEnter()
         {
@@ -49,13 +50,22 @@ namespace ProjectT
         }
         #endregion
 
+        public void CreatePool<T>() where T : new()
+        {
+            var type = typeof(T);
+            if (genericPools.ContainsKey(type))
+                return;
+
+            genericPools[type] = new Pool<T>(() => new T(), true, 5, 20);
+        }
+
         public void CreatePool(GameObject original, int count = 5)
         {
             GameObjectPool pool = new GameObjectPool();
             pool.Init(original, count);
             pool.Root.parent = RootObject;
 
-            pools.Add(original.name, pool);
+            gameObjectPools.Add(original.name, pool);
         }
 
         public async UniTask CreatePoolAsync(GameObject original, int count = 5)
@@ -64,13 +74,30 @@ namespace ProjectT
             GameObjectPool pool = new GameObjectPool();
             pool.Init(original, count);
             pool.Root.parent = RootObject;
-            pools.Add(original.name, pool);
+            gameObjectPools.Add(original.name, pool);
+        }
+
+        public void Return<T>(T obj)
+        {
+            if (obj == null)
+                return;
+
+            var type = typeof(T);
+
+            if (genericPools.TryGetValue(type, out var pool))
+            {
+                ((Pool<T>)pool).Return(obj);
+            }
+            else
+            {
+                Debug.LogWarning($"[PoolManager] Pool<{type.Name}> not found during Return");
+            }
         }
 
         public bool Return(GameObject obj)
         {
             string name = obj.name;
-            if (pools.TryGetValue(name, out var pool))
+            if (gameObjectPools.TryGetValue(name, out var pool))
             {
                 pool.Return(obj);
                 return true;
@@ -84,7 +111,7 @@ namespace ProjectT
         {
             await UniTask.Yield();
             string name = obj.name;
-            if (pools.TryGetValue(name, out var pool))
+            if (gameObjectPools.TryGetValue(name, out var pool))
             {
                 pool.Return(obj);
                 return true;
@@ -94,28 +121,41 @@ namespace ProjectT
             return false;
         }
 
+        public T Get<T>() where T : new()
+        {
+            var type = typeof(T);
+
+            if (!genericPools.TryGetValue(type, out var pool))
+            {
+                CreatePool<T>();
+                pool = genericPools[type];
+            }
+
+            return ((Pool<T>)pool).Get();
+        }
+
         public GameObject Get(GameObject original, Transform parent = null)
         {
-            if (!pools.ContainsKey(original.name))
+            if (!gameObjectPools.ContainsKey(original.name))
                 CreatePool(original);
 
-            return pools[original.name].Get(parent);
+            return gameObjectPools[original.name].Get(parent);
         }
 
         public async UniTask<GameObject> GetAsync(GameObject original, Transform parent = null)
         {
-            if (!pools.ContainsKey(original.name))
+            if (!gameObjectPools.ContainsKey(original.name))
                 await CreatePoolAsync(original);
 
-            return pools[original.name].Get(parent);
+            return gameObjectPools[original.name].Get(parent);
         }
 
         public GameObject GetOriginal(string name)
         {
-            if (!pools.ContainsKey(name))
+            if (!gameObjectPools.ContainsKey(name))
                 return null;
 
-            return pools[name].Original;
+            return gameObjectPools[name].Original;
         }
 
         public void Release(GameObject go, bool isDestroy = false)
@@ -132,7 +172,7 @@ namespace ProjectT
             }
             else
             {
-                if (pools.TryGetValue(go.name, out var gameObjectPool))
+                if (gameObjectPools.TryGetValue(go.name, out var gameObjectPool))
                 {
                     UnityEngine.Object.Destroy(go);
                 }
@@ -153,7 +193,7 @@ namespace ProjectT
             }
             else
             {
-                if (pools.TryGetValue(go.name, out var gameObjectPool))
+                if (gameObjectPools.TryGetValue(go.name, out var gameObjectPool))
                 {
                     UnityEngine.Object.Destroy(go);
                 }
@@ -170,7 +210,7 @@ namespace ProjectT
             foreach (Transform child in RootObject)
                 GameObject.Destroy(child.gameObject);
 
-            pools.Clear();
+            gameObjectPools.Clear();
         }
     }
 }

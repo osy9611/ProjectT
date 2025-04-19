@@ -1,4 +1,6 @@
+using Cysharp.Threading.Tasks;
 using ProjectT;
+using ProjectT.Skill;
 using ProjectT.UGUI;
 using System;
 using System.Collections;
@@ -75,6 +77,20 @@ public class TestReflection : MonoBehaviour
 
     }
 
+    private async UniTask TESTUNI()
+    {
+
+        int Count = 0;
+        int TESTCount = 10;
+
+        while(Count < TESTCount)
+        {
+            await UniTask.WaitForSeconds(1.0f);
+            Count++;
+            Global.Instance.Log($"TEST {Count}");
+        }
+    }
+    
     public void GoTitle()
     {
         Global.Scene.GoTitle();
@@ -84,6 +100,10 @@ public class TestReflection : MonoBehaviour
     public void CreateUI()
     {
         Global.UI.CreateWidget<TestUI>(UIDefine.eUIType.Test);
+
+        SkillAgent skillAgent = new SkillAgent();
+        skillAgent.Init(null);
+        skillAgent.AddBuff(6);
     }
 
     public void LoadLocalStorage()

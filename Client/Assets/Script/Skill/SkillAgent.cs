@@ -14,8 +14,20 @@ namespace ProjectT.Skill
         public virtual void Init(BaseActor actor)
         {
             this.actor = actor;
-            buffController = new BuffController();
 
+            if(buffController == null)
+            {
+                buffController = new BuffController();
+                buffController.Init(actor);
+            }
+        }
+
+        public virtual void AddBuff(int buffId)
+        {
+            if(buffController != null)
+            {
+                buffController.Register(buffId);
+            }
         }
     }
 }
