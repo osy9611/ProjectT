@@ -463,6 +463,7 @@
 "Assets/Script/Server/Socket/Transport/TCP/TcpConnectionOption.cs"
 "Assets/Script/Server/Time/ITimerActor.cs"
 "Assets/Script/Server/Util/TimeWarpper.cs"
+"Assets/Script/Skill/BaseSkillAction.cs"
 "Assets/Script/Skill/Buff/BaseBuff.cs"
 "Assets/Script/Skill/Buff/BuffContainer.cs"
 "Assets/Script/Skill/Buff/BuffController.cs"

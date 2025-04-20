@@ -1,18 +1,28 @@
+using DesignTable;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SkillActionController : MonoBehaviour
+namespace ProjectT.Skill
 {
-    // Start is called before the first frame update
-    void Start()
+    public class SkillActionController
     {
+        private BaseActor owner;
         
-    }
+        private Dictionary<int, BaseSkillAction> actions;
 
-    // Update is called once per frame
-    void Update()
-    {
-        
+        public void Init(BaseActor owner)
+        {
+            if (owner == null)
+            {
+                Global.Instance.LogError($"[SkillActionController] This Actor is null");
+                return;
+            }
+        }
+
+        public void RegisterAbility(int skillID)
+        {
+            //Global.Table.SkillInfos.Get(skillID);
+        }
     }
 }

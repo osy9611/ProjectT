@@ -20,6 +20,8 @@ namespace ProjectT.Skill
                 buffController = new BuffController();
                 buffController.Init(actor);
             }
+
+
         }
 
         public virtual void AddBuff(int buffId)

@@ -46,8 +46,7 @@ namespace ProjectT.Skill
                 return;
 
             //버프 생성
-            //BaseBuff buff = BuffContainer.Get(info.buff_type);
-            BaseBuff buff = BuffContainer.Get(DesignEnum.BuffType.AddATK);
+            BaseBuff buff = BuffContainer.Get(info.buff_type);
             if(buff == null)
             {
                 Global.Instance.LogError($"[BuffController] This buffInfo is not have BaseBuff");
@@ -73,8 +72,7 @@ namespace ProjectT.Skill
                 handler.TokenSource.Cancel();
                 handler.TokenSource.Dispose();
                 baseBuff.OnExpire();
-                //BuffContainer.Return(baseBuff.buffType, baseBuff);
-                BuffContainer.Return(DesignEnum.BuffType.AddATK, baseBuff);
+                BuffContainer.Return(baseBuff.buffType, baseBuff);
 
                 buffTaskHandlers.Remove(baseBuff.BuffID);
             }
