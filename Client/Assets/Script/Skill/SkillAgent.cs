@@ -21,7 +21,21 @@ namespace ProjectT.Skill
                 buffController.Init(actor);
             }
 
+            if(actionController == null)
+            {
+                actionController = new SkillActionController();
+                actionController.Init(actor);
+            }
+        }
 
+        public virtual void Reset()
+        {
+            actionController.UnRegisterAbilities();
+        }
+
+        public virtual void OnUpdate(float deltaTime)
+        {
+            actionController.OnUpdate(deltaTime);
         }
 
         public virtual void AddBuff(int buffId)
@@ -31,5 +45,6 @@ namespace ProjectT.Skill
                 buffController.Register(buffId);
             }
         }
+
     }
 }

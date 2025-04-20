@@ -1,4 +1,5 @@
 using DesignTable;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
@@ -36,6 +37,8 @@ namespace ProjectT.Skill
         private SkillSpec spec;
         public SkillSpec Spec { get => spec; }
 
+        public DesignEnum.SkillType SkillType { get => (DesignEnum.SkillType)spec.skillInfo.skill_type; }
+
         private BaseActor owner;
         public BaseActor Owner { get => owner; }
         public bool IsActive;
@@ -64,7 +67,7 @@ namespace ProjectT.Skill
             if (!CanActivate()) return;
 
             IsActive = true;
-            Acitvate(); //실제 발동(애니메이션 판정 등)
+            Activate(); //실제 발동(애니메이션 판정 등)
             Commit();   //쿨타임 적용, 자원 차감 등
         }
 
@@ -74,7 +77,7 @@ namespace ProjectT.Skill
         }
 
         // 발동 시 애니메이션 등 실행
-        protected abstract void Acitvate();
+        protected abstract void Activate();
 
         //자원 차감, 쿨다운 등록
         protected virtual void Commit()

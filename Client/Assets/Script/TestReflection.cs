@@ -83,27 +83,49 @@ public class TestReflection : MonoBehaviour
         int Count = 0;
         int TESTCount = 10;
 
-        while(Count < TESTCount)
+        while (Count < TESTCount)
         {
             await UniTask.WaitForSeconds(1.0f);
             Count++;
             Global.Instance.Log($"TEST {Count}");
         }
     }
-    
+
     public void GoTitle()
     {
         Global.Scene.GoTitle();
 
     }
 
+    bool testSkill = false;
     public void CreateUI()
     {
         Global.UI.CreateWidget<TestUI>(UIDefine.eUIType.Test);
 
-        SkillAgent skillAgent = new SkillAgent();
-        skillAgent.Init(null);
+
+    }
+
+    TestActor actor;
+    SkillAgent skillAgent;
+    public void RegisterSkill()
+    {
+        actor = new TestActor();
+        skillAgent = new SkillAgent();
+        skillAgent.Init(actor);
         skillAgent.AddBuff(6);
+
+        skillAgent.ActionController.RegisterAbility(201);
+    }
+
+    public void StartSkill()
+    {
+        skillAgent.ActionController.ActivateSkill(201);
+    }
+
+    public void Update()
+    {
+        if (skillAgent != null)
+            skillAgent.OnUpdate(Time.deltaTime);
     }
 
     public void LoadLocalStorage()

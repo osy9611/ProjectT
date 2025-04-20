@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using ProtoBuf;
+using ProjectT.Skill;
 
 namespace ProjectT
 {
@@ -137,6 +138,8 @@ namespace ProjectT
                 Global.Data.GetTableDatas().Forget();
                 Global.LocalStorage.LoadAllDataAsync().Forget();
             }
+
+            SkillActionContainer.AutoRegister();
         }
 
         private void CreateManagers()
