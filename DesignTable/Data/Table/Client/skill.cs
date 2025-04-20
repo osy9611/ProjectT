@@ -182,7 +182,7 @@ namespace DesignTable
         {
 		foreach (skillInfo info in dataInfo)
 		{
-			if(info.unit_Class == unit_Class&&info.unit_type == unit_type&&info.skill_Id == skill_Id)
+			if(info.skill_Id == skill_Id)
 			{
 				return false;
 			}
@@ -195,29 +195,27 @@ namespace DesignTable
         {
 		foreach (var data in dataInfo)
 		{
-			ArraySegment<byte> bytes = GetIdRule(data.unit_Class,data.unit_type,data.skill_Id);
+			ArraySegment<byte> bytes = GetIdRule(data.skill_Id);
 			if (datas.ContainsKey(bytes))
 				continue;
 			datas.Add(bytes, data);
 		}
         }
         
-        public skillInfo Get(int unit_Class, int unit_type, int skill_Id)
+        public skillInfo Get(int skill_Id)
         {
 		skillInfo value = null;
 
 
-		if (datas.TryGetValue(GetIdRule(unit_Class,unit_type,skill_Id), out value))
+		if (datas.TryGetValue(GetIdRule(skill_Id), out value))
 			return value;
 		return null;
         }
         
-        public System.ArraySegment<byte> GetIdRule(int unit_Class, int unit_type, int skill_Id)
+        public System.ArraySegment<byte> GetIdRule(int skill_Id)
         {
 		ushort total = 0;
 		ushort count = 0;
-		total += sizeof(int);
-		total += sizeof(int);
 		total += sizeof(int);
 
 
@@ -226,10 +224,6 @@ namespace DesignTable
 
 
 		byte[] bytes = new byte[total];
-		Array.Copy(BitConverter.GetBytes(unit_Class), 0, bytes, count, sizeof(int));
-		count += sizeof(int);
-		Array.Copy(BitConverter.GetBytes(unit_type), 0, bytes, count, sizeof(int));
-		count += sizeof(int);
 		Array.Copy(BitConverter.GetBytes(skill_Id), 0, bytes, count, sizeof(int));
 		count += sizeof(int);
 
@@ -237,29 +231,26 @@ namespace DesignTable
 		 return new System.ArraySegment<byte>(bytes);
         }
         
-        public List<skillInfo> GetListById(int unit_Class, int unit_type)
+        public List<skillInfo> GetListById(int skill_Id)
         {
 		List<skillInfo> value = null;
-		ArraySegment<byte> bytes = GetListIdRule(unit_Class,unit_type);
+		ArraySegment<byte> bytes = GetListIdRule(skill_Id);
 		if (listData.TryGetValue(bytes, out value))
 			return value;
 		return null;
         }
         
-        public System.ArraySegment<byte> GetListIdRule(int unit_Class, int unit_type)
+        public System.ArraySegment<byte> GetListIdRule(int skill_Id)
         {
 		ushort total = 0;
 		ushort count = 0;
-		total += sizeof(int);
 		total += sizeof(int);
 		if (total == 0)
 			return default(System.ArraySegment<byte>);
 			
 
 		byte[] bytes = new byte[total];
-		Array.Copy(BitConverter.GetBytes(unit_Class), 0, bytes, count, sizeof(int));
-		count += sizeof(int);
-		Array.Copy(BitConverter.GetBytes(unit_type), 0, bytes, count, sizeof(int));
+		Array.Copy(BitConverter.GetBytes(skill_Id), 0, bytes, count, sizeof(int));
 		count += sizeof(int);
 		return new System.ArraySegment<byte>(bytes);
         }

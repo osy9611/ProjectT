@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <skill xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<verify ColumnName="unit_Class" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="1004" IDRule="{&quot;UseListRule&quot;:true,&quot;FindPKId&quot; : [&quot;unit_Class&quot;,&quot;unit_type&quot;],&quot;PKIds&quot;:[&quot;unit_Class&quot;,&quot;unit_type&quot;,&quot;skill_Id&quot;]}" StringHashIds="-" TableId="1013"/>
-	<verify ColumnName="unit_type" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="1003" IDRule="-" StringHashIds="-" TableId="1013"/>
+	<verify ColumnName="unit_Class" Type="Int32" IsClient="Y" IsServer="Y" PK="N" EnumID="1004" IDRule="{&quot;UseListRule&quot;:true,&quot;FindPKId&quot; : [&quot;skill_Id&quot;],&quot;PKIds&quot;:[&quot;skill_Id&quot;]}" StringHashIds="-" TableId="1013"/>
+	<verify ColumnName="unit_type" Type="Int32" IsClient="Y" IsServer="Y" PK="N" EnumID="1003" IDRule="-" StringHashIds="-" TableId="1013"/>
 	<verify ColumnName="skill_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1013"/>
 	<verify ColumnName="skill_coolTime" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1013"/>
 	<verify ColumnName="skill_range" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1013"/>
