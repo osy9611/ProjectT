@@ -1,5 +1,3 @@
-D:\Project\ProjectT\Tools\DesignGenerator\Temp\DesignGenerator\DesignGenerator\obj\Debug\DesignGenerator.csproj.AssemblyReference.cache
-D:\Project\ProjectT\Tools\DesignGenerator\Temp\DesignGenerator\DesignGenerator\obj\Debug\DesignGenerator.csproj.CoreCompileInputs.cache
 D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\bin\Debug\DesignGenerator.exe.config
 D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\bin\Debug\DesignGenerator.exe
 D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\bin\Debug\DesignGenerator.pdb

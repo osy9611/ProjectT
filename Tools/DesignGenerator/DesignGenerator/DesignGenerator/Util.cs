@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
@@ -591,7 +592,7 @@ namespace DesignGenerator
             string[] dllFiles = Directory.GetFiles(folderPath, "*.dll")
                                                        .ToArray();
 
-            string ilRepackPath = $"{Directory.GetCurrentDirectory()}\\ILRepack\\tools\\ILRepack.exe";
+            string ilRepackPath = $"{AppContext.BaseDirectory}\\ILRepack\\tools\\ILRepack.exe";
 
             if (File.Exists(ilRepackPath))
             {
@@ -625,6 +626,11 @@ namespace DesignGenerator
                     }
                 }
             }
+            else
+            {
+                Console.WriteLine($"{ilRepackPath} Not Found");
+            }
+
         }
 
         public static void ExportStringToDll(string data, string outputPath)
