@@ -140,6 +140,7 @@ namespace ProjectT
             }
 
             SkillActionContainer.AutoRegister();
+            BuffContainer.AutoRegister();
         }
 
         private void CreateManagers()

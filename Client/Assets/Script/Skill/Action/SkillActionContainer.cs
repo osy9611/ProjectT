@@ -2,6 +2,7 @@ using OpenCover.Framework.Model;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 namespace ProjectT.Skill
@@ -31,6 +32,7 @@ namespace ProjectT.Skill
 
     public static class SkillActionContainer 
     {
+        private static readonly string[] nameSpace = { "ProjectT.Skill" };
         public static bool AlreadyRegister = false;
 
         private static Dictionary<DesignEnum.SkillType, SkillPoolHandler> typeActions = new();
@@ -40,13 +42,13 @@ namespace ProjectT.Skill
             if (AlreadyRegister)
                 return;
 
-            var allTypes = Assembly.GetExecutingAssembly().GetTypes();
+            var allTypes = Assembly.GetExecutingAssembly()
+                          .GetTypes()
+                          .Where(t=> typeof(BaseSkillAction).IsAssignableFrom(t) && t.IsAbstract)
+                          .Where(t => nameSpace.Any(ns=>t.Namespace != null && t.Namespace.StartsWith(ns)));
 
-            foreach(var type in allTypes)
+            foreach (var type in allTypes)
             {
-                if (!typeof(BaseSkillAction).IsAssignableFrom(type) || type.IsAbstract)
-                    continue;
-
                 var attr = type.GetCustomAttribute<SkillActionAttribute>();
                 if (attr == null)
                     continue;
@@ -64,7 +66,7 @@ namespace ProjectT.Skill
                 var handler = registerMethod.Invoke(null, null) as SkillPoolHandler;
                 if (handler == null)
                 {
-                    Debug.LogError($"[SkillActionContainer]{type.Name} Register Fail");
+                    Global.Instance.LogError($"[SkillActionContainer] {type.Name} Register Fail");
                     continue;
                 }
 
