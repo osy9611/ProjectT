@@ -18,6 +18,9 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 - [ GitHub 위키](https://github.com/osy9611/ProjectT/wiki)
 - [ Project J](https://github.com/osy9611/ProjectJ)
 
+## 영상 링크 ##
+- [ 영상 링크 ](https://youtu.be/zOuUQhBBtfM)
+
 ---
 
 ## **Project J vs Project T 비교**
