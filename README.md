@@ -31,6 +31,7 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 | **UI 시스템** | Scene / Popup / Element UI 구조 | **Static / Dynamic / System UI 구조로 변경** |
 | **빌드 자동화** | Jenkins 기반 빌드 자동화 | **Firebase 연동, 세분화된 빌드 프로세스** |
 | **씬 관리** | Addressable 기반 씬 로딩 | **데이터 유지 및 상태 관리 추가** |
+| **스킬 시스템** | Switch 기반 등록 + 직접 실행 | **Attribute 자동 등록 + 모듈 분리 (Action/Buff Controller)** |
 
 ## 주요 시스템 개요
 
@@ -58,5 +59,14 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 - 씬 로딩 최적화 및 씬 전환 중 데이터 유지 기능 추가
 - Addressable 기반 씬 관리 구조 개선
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/SceneManager)**
+
+### SKillSystem
+- 기존 Switch 기반 스킬/버프 로직을 Attribute 기반 자동 등록 구조로 변경
+- BaseAction/BaseBuff 기반으로 스킬과 버프를 모듈화
+- **[더 보기](https://github.com/osy9611/ProjectT/wiki/Skill-System)**
+
+  <a href="https://github.com/osy9611/ProjectT/wiki/Skill-System">
+    <img src="https://github.com/user-attachments/assets/c20c3c32-73c2-46ed-aa15-b789701f6737" width="50%" height="50%" alt="Skill2 GIF">
+  </a>  
 
 ---
