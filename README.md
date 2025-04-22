@@ -60,7 +60,7 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 - Addressable 기반 씬 관리 구조 개선
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/SceneManager)**
 
-### SKillSystem
+### SkillSystem
 - 기존 Switch 기반 스킬/버프 로직을 Attribute 기반 자동 등록 구조로 변경
 - BaseAction/BaseBuff 기반으로 스킬과 버프를 모듈화
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/Skill-System)**
