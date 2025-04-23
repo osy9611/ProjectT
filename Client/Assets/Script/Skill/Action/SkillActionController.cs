@@ -38,7 +38,7 @@ namespace ProjectT.Skill
             actions.Clear();
         }
 
-        public void RegisterAbility(int skillID)
+        public void RegisterSkill(int skillID)
         {
             skillInfo skillInfo =  Global.Table.SkillInfos.Get(skillID);
             if(skillInfo == null)

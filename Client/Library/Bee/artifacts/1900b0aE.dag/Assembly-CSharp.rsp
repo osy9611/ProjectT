@@ -413,6 +413,7 @@
 "Assets/Script/ClientLocalStorage/StorageData/OptionStorage.cs"
 "Assets/Script/Common/Args.cs"
 "Assets/Script/Common/Define.cs"
+"Assets/Script/Common/GenericContainer.cs"
 "Assets/Script/Common/Global.cs"
 "Assets/Script/Costume/ComCostumeAgent.cs"
 "Assets/Script/Costume/PartAsset.cs"

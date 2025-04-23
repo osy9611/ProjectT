@@ -28,6 +28,11 @@ namespace ProjectT.Skill
             }
         }
 
+        public virtual void CancelSkill(int skillID)
+        {
+
+        }
+
         public virtual void Reset()
         {
             actionController.UnRegisterAbilities();

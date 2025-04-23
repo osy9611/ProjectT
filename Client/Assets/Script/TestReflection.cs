@@ -114,7 +114,7 @@ public class TestReflection : MonoBehaviour
         skillAgent.Init(actor);
         skillAgent.AddBuff(6);
 
-        skillAgent.ActionController.RegisterAbility(201);
+        skillAgent.ActionController.RegisterSkill(201);
     }
 
     public void StartSkill()
