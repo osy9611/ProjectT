@@ -39,9 +39,6 @@ namespace ProjectT
         private SoundManager sound = new SoundManager();
         public static SoundManager Sound { get => Instance.sound; }
 
-        private InputManager input = new InputManager();
-        public static InputManager Input { get => Instance.input; }
-
         private NotificationManager notify = new NotificationManager();
         public static NotificationManager Notify { get => Instance.notify; }
 
@@ -156,7 +153,6 @@ namespace ProjectT
             CreateAndAddManager<SceneManager>(ref scene);
             CreateAndAddManager<UIManager>(ref ui);
             CreateAndAddManager<SoundManager>(ref sound);
-            CreateAndAddManager<InputManager>(ref input);
             CreateAndAddManager<NotificationManager>(ref notify);
             CreateAndAddManager<ClientLocalStorageManager>(ref localStorage);
             CreateAndAddManager<CostumeManager>(ref costume);
@@ -178,7 +174,6 @@ namespace ProjectT
             DestoryManager<SceneManager>(ref scene);
             DestoryManager<UIManager>(ref ui);
             DestoryManager<SoundManager>(ref sound);
-            DestoryManager<InputManager>(ref input);
             DestoryManager<NotificationManager>(ref notify);
             DestoryManager<ClientLocalStorageManager>(ref localStorage);
             DestoryManager<CostumeManager>(ref costume);
