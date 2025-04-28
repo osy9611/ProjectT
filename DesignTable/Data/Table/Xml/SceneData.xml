@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<SceneData xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<verify ColumnName="SceneName" Type="string" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1024"/>
+	<verify ColumnName="Path" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1024"/>
+	<record>
+		<SceneName>TitleScene</SceneName>
+		<Path>Assets/Scenes/TitleScene.unity</Path>
+	</record>
+	<record>
+		<SceneName>DownloadScene</SceneName>
+		<Path>Assets/Scenes/DownloadScene.unity</Path>
+	</record>
+</SceneData>

@@ -54,6 +54,8 @@ namespace DesignTable
 				return ProtoBuf.Serializer.Deserialize<projectileInfos>(stream);
 			case 1020:
 				return ProtoBuf.Serializer.Deserialize<questInfos>(stream);
+			case 1024:
+				return ProtoBuf.Serializer.Deserialize<SceneDataInfos>(stream);
 			case 1013:
 				return ProtoBuf.Serializer.Deserialize<skillInfos>(stream);
 			case 1015:

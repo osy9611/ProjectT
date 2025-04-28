@@ -13,8 +13,6 @@ MonoBehaviour:
   m_Name: Data
   m_EditorClassIdentifier: 
   m_GroupName: Data
-  m_Data:
-    m_SerializedData: []
   m_GUID: 9aed334a517642b4e8228571f2e3ef01
   m_SerializeEntries:
   - m_GUID: 36070483ed8012e4fa7449cd7896a056
@@ -28,6 +26,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels:
     - default
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6ea315d0fd7389c41b19996891e99ae3
+    m_Address: Assets/Scenes
+    m_ReadOnly: 0
+    m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dea6a316d04dca340a21af7be4f837e4
     m_Address: Assets/BundleRes/SpriteAtlas

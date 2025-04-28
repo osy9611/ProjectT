@@ -1,4 +1,5 @@
 using Cysharp.Threading.Tasks;
+using DesignTable;
 using ProjectT.Scene;
 using System.Collections;
 using System.Collections.Generic;
@@ -35,7 +36,7 @@ namespace ProjectT
         private Transform sceneRoot;
 
 #if UNITY_EDITOR
-        public List<KeyValuePair<string, SceneBase>> GetPages { get => pages; }
+        public List<KeyValuePair<string, SceneBase>> GetPages { get => pages; } 
 #endif
 
         #region ManagerBase
@@ -113,9 +114,20 @@ namespace ProjectT
         public void Transition<T>(string resourceName, float startLoadingGage, float fadeOutDuration, UnityEngine.SceneManagement.LoadSceneMode loadSceneMode, System.Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
         {
             //Check Resource
+            //Unity 6.0으로 넘어오면서 SceneManagement에서 관리하는게 아니라 Addressable에서만 관리하는걸로 변경
             UnityEngine.SceneManagement.Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
             if (activeScene.name.Equals(resourceName, System.StringComparison.CurrentCultureIgnoreCase) == true)
                 resourceName = string.Empty;
+
+            if (!string.IsNullOrEmpty(resourceName))
+            {
+                SceneDataInfo sceneInfo = Global.Table.SceneDataInfos.Get(resourceName);
+                if (sceneInfo == null)
+                    Global.Instance.LogError($"[SceneManager] Table Not Found {resourceName}");
+                else
+                    resourceName = sceneInfo.Path;
+
+            }
 
             //Check Page
             if (currentScene != null)

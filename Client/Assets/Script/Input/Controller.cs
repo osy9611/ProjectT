@@ -4,7 +4,6 @@ using UnityEngine.InputSystem;
 using ProjectT;
 using System;
 using UnityEngine.InputSystem.Users;
-using UnityEditor.AddressableAssets.BuildReportVisualizer;
 
 namespace ProjectT.Controller
 {
@@ -21,6 +20,7 @@ namespace ProjectT.Controller
     {
         protected InputActionAsset inputActionAsset;
         protected InputUser inputUser;
+        protected InputActionRebindingExtensions.RebindingOperation rebindingOperation;
 
         protected string actionKey = "Player";
         public string ActionKey { get => actionKey; }
@@ -57,7 +57,7 @@ namespace ProjectT.Controller
                 return;
             }
 
-            foreach(var action in actionMap.actions)
+            foreach (var action in actionMap.actions)
             {
                 cachedActions.Add(action.name, action);
             }
@@ -79,7 +79,7 @@ namespace ProjectT.Controller
             inputActionAsset.FindActionMap(actionKey)?.Disable();
         }
 
-        public void AddEvent(string eventName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
+        public void AddEvent(string actionName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
         {
             if (callback == null)
             {
@@ -87,7 +87,7 @@ namespace ProjectT.Controller
                 return;
             }
 
-            if(cachedActions.TryGetValue(eventName,out var inputAction))
+            if (cachedActions.TryGetValue(actionName, out var inputAction))
             {
                 if (eventType.HasFlag(eInputEvent.Start))
                     inputAction.started += callback;
@@ -98,7 +98,7 @@ namespace ProjectT.Controller
             }
         }
 
-        public void RemoveEvent(string eventName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
+        public void RemoveEvent(string actionName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
         {
             if (callback == null)
             {
@@ -106,7 +106,7 @@ namespace ProjectT.Controller
                 return;
             }
 
-            if (cachedActions.TryGetValue(eventName, out var inputAction))
+            if (cachedActions.TryGetValue(actionName, out var inputAction))
             {
                 if (eventType.HasFlag(eInputEvent.Start))
                     inputAction.started -= callback;
@@ -133,6 +133,18 @@ namespace ProjectT.Controller
         public bool WasPressedThisFrame(string actionName)
         {
             return cachedActions.ContainsKey(actionName) && cachedActions[actionName].WasPressedThisFrame();
+        }
+        
+        virtual public void SetRebind(string actionName, Action onComplete = null, string excludeControl = null)
+        {
+            Disable();
+
+            //if(cachedActions.TryGetValue(actionName,out var inputAction))
+            //{
+            //    rebindingOperation = 
+            //}
+
+         
         }
     }
 }

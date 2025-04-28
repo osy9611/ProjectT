@@ -53,6 +53,8 @@ namespace DesignTable
         
         quest = 1020,
         
+        SceneData = 1024,
+        
         skill = 1013,
         
         skill_effect = 1015,
@@ -110,6 +112,10 @@ namespace DesignTable
         private questInfos questInfos;
         
         public questInfos QuestInfos => questInfos;
+        
+        private SceneDataInfos sceneDataInfos;
+        
+        public SceneDataInfos SceneDataInfos => sceneDataInfos;
         
         private skillInfos skillInfos;
         
@@ -169,6 +175,7 @@ namespace DesignTable
 		loadHandlerList.Add(1021, new DataMgr.LoadHandler(LoadpassiveInfos));
 		loadHandlerList.Add(1022, new DataMgr.LoadHandler(LoadprojectileInfos));
 		loadHandlerList.Add(1020, new DataMgr.LoadHandler(LoadquestInfos));
+		loadHandlerList.Add(1024, new DataMgr.LoadHandler(LoadSceneDataInfos));
 		loadHandlerList.Add(1013, new DataMgr.LoadHandler(LoadskillInfos));
 		loadHandlerList.Add(1015, new DataMgr.LoadHandler(Loadskill_effectInfos));
 		loadHandlerList.Add(1011, new DataMgr.LoadHandler(Loaduser_characterInfos));
@@ -185,6 +192,7 @@ namespace DesignTable
 		clearHandlerList.Add(1021, ClearDatapassiveInfos);
 		clearHandlerList.Add(1022, ClearDataprojectileInfos);
 		clearHandlerList.Add(1020, ClearDataquestInfos);
+		clearHandlerList.Add(1024, ClearDataSceneDataInfos);
 		clearHandlerList.Add(1013, ClearDataskillInfos);
 		clearHandlerList.Add(1015, ClearDataskill_effectInfos);
 		clearHandlerList.Add(1011, ClearDatauser_characterInfos);
@@ -271,6 +279,15 @@ namespace DesignTable
 		}
         }
         
+        private void LoadSceneDataInfos(byte[] data)
+        {
+		using (MemoryStream memoryStream = new MemoryStream(data))
+		{
+			sceneDataInfos = serializer.Deserialize(1024,data) as SceneDataInfos;
+			sceneDataInfos.Initialize();
+		}
+        }
+        
         private void LoadskillInfos(byte[] data)
         {
 		using (MemoryStream memoryStream = new MemoryStream(data))
@@ -350,6 +367,12 @@ namespace DesignTable
         {
 		if(questInfos != null)
 			questInfos=null;
+        }
+        
+        private void ClearDataSceneDataInfos()
+        {
+		if(SceneDataInfos != null)
+			sceneDataInfos=null;
         }
         
         private void ClearDataskillInfos()

@@ -364,17 +364,42 @@ namespace DesignGenerator
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + "ushort count = 0;"));
             foreach (TablePKData data in info.PKData)
             {
-                getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"total += sizeof({data.Type});"));
+                if (data.Type == "string")
+                {
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"total += (ushort){data.ColumnName}.Length;"));
+                }
+                else
+                {
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"total += sizeof({data.Type});"));
+                }
+
             }
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement("\n"));
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + "if( total == 0 )"));
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return default(System.ArraySegment<byte>);"));
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement("\n"));
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + "byte[] bytes = new byte[total];"));
+
+            if (info.PKData.Find(x => x.Type == "string") != null)
+            {
+                getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + "byte[] stringBytes;"));
+            }
+
             foreach (TablePKData data in info.PKData)
             {
-                getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"Array.Copy(BitConverter.GetBytes({data.ColumnName}), 0, bytes, count, sizeof({data.Type}));"));
-                getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"count += sizeof({data.Type});"));
+
+                if (data.Type == "string")
+                {
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"stringBytes = System.Text.Encoding.UTF8.GetBytes({data.ColumnName});"));
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"Array.Copy(stringBytes, 0, bytes, 0, stringBytes.Length);"));
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"count += (ushort){data.ColumnName}.Length;"));
+                }
+                else
+                {
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"Array.Copy(BitConverter.GetBytes({data.ColumnName}), 0, bytes, count, sizeof({data.Type}));"));
+                    getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + $"count += sizeof({data.Type});"));
+                }
+                
             }
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement("\n"));
             getIdRuleFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB2 + " return new System.ArraySegment<byte>(bytes);"));
@@ -498,7 +523,6 @@ namespace DesignGenerator
                 string typeName = $"DesignTable.{data.TableName}Infos";
                 System.Type sType = System.Type.GetType(typeName);
 
-                
                 sType = dll1.GetType(typeName);
                 System.Reflection.MethodInfo addMethod = sType.GetMethod("Insert");
                 object inst = System.Activator.CreateInstance(sType);
