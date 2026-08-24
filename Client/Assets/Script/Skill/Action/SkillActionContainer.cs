@@ -76,7 +76,6 @@ namespace ProjectT.Skill
             AlreadyRegister = true;
         }
 
-
         private static SkillPoolHandler Register<T>() where T : BaseSkillAction, new()
         {
             return new SkillPoolHandler(
@@ -98,6 +97,18 @@ namespace ProjectT.Skill
 
             Global.Instance.LogError($"[SkillActionContainer] Get SkillAction Fail typeActions Not Found {type}");
             return null;
+        }
+
+        public static void Clear(DesignEnum.SkillType type)
+        {
+            if(typeActions.TryGetValue(type, out var handler))
+            {
+                typeActions.Remove(type);
+            }
+        }
+        public static void ClearAll()
+        {
+            typeActions.Clear();
         }
 
         public static void Return(DesignEnum.SkillType type, BaseSkillAction skillAction)

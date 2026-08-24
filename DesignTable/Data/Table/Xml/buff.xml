@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <buff xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<verify ColumnName="buff_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_type" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="1005" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_duration" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_interval" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_usePercent" Type="bool" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_arg1" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_arg2" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_arg3" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
-	<verify ColumnName="buff_arg4" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1014"/>
+	<verify ColumnName="buff_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_type" Type="Int8" IsClient="Y" IsServer="Y" PK="N" EnumID="1005" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_duration" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_interval" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_usePercent" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_arg1" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_arg2" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_arg3" Type="float" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
+	<verify ColumnName="buff_arg4" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1014"/>
 	<record>
 		<buff_Id>1</buff_Id>
 		<buff_type>0</buff_type>

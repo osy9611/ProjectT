@@ -136,8 +136,9 @@ namespace ProjectT
                 Global.LocalStorage.LoadAllDataAsync().Forget();
             }
 
-            SkillActionContainer.AutoRegister();
-            BuffContainer.AutoRegister();
+            //해당 부분은 필요할때 사용할 예정
+            //SkillActionContainer.AutoRegister();
+            //BuffContainer.AutoRegister();
         }
 
         private void CreateManagers()

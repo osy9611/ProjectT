@@ -14,7 +14,7 @@ namespace ProjectT.Scene
         public string SceneFileName;
 
         #region Methods
-        public virtual async UniTask OnEnter(float progress,params object[] data) { }
+        public virtual async UniTask OnEnter(float progress, params object[] data) { }
         public virtual void OnExit() { }
 
         public abstract void OnInitialize();

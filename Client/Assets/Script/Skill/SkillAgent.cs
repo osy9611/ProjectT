@@ -28,9 +28,14 @@ namespace ProjectT.Skill
             }
         }
 
+        public virtual void ActivateSkill(int skillID)
+        {
+            actionController.ActivateSkill(skillID);
+        }
+
         public virtual void CancelSkill(int skillID)
         {
-
+            actionController.CancelSkill(skillID);
         }
 
         public virtual void Reset()
@@ -50,6 +55,5 @@ namespace ProjectT.Skill
                 buffController.Register(buffId);
             }
         }
-
     }
 }

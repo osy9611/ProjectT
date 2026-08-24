@@ -92,7 +92,7 @@ namespace ProjectT.Build
             }
 
             int index = settings.DataBuilders.IndexOf((ScriptableObject)builderScript);
-            if (index > 0)
+            if (index >= 0)
                 settings.ActivePlayerDataBuilderIndex = index;
             else
                 Debug.LogWarning($"{builderScript} must be added to ths DataBuilders list before it can be made active. Using last run builder instead.");

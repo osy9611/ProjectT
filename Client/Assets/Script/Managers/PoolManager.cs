@@ -150,6 +150,12 @@ namespace ProjectT
             return gameObjectPools[original.name].Get(parent);
         }
 
+        public async UniTask<T> GetAsync<T>(GameObject original, Transform parent = null) where T : UnityEngine.Object
+        {
+            UnityEngine.Object result = await GetAsync(original, parent);
+            return (T)result;
+        }
+
         public GameObject GetOriginal(string name)
         {
             if (!gameObjectPools.ContainsKey(name))

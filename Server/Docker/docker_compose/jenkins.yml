@@ -14,5 +14,3 @@ services:
         build:
             context: ../
             dockerfile: ./dockerfiles/Jenkins/dockerfile-jenkins
-    build:
-        image: 

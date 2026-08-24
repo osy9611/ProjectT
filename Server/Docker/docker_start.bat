@@ -7,4 +7,4 @@ if "%1" == "" (
 
 
 cd docker-compose
-docker-compose -f "%~dp0/docker-compose/%1.yml" up -d
+docker-compose -f "%~dp0/docker_compose/%1.yml" up -d

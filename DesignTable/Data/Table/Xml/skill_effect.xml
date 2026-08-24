@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <skill_effect xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<verify ColumnName="effect_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" TableId="1015"/>
-	<verify ColumnName="effect_path" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" TableId="1015"/>
+	<verify ColumnName="effect_Id" Type="Int32" IsClient="Y" IsServer="Y" PK="Y" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1015"/>
+	<verify ColumnName="effect_path" Type="string" IsClient="Y" IsServer="Y" PK="N" EnumID="-" IDRule="-" StringHashIds="-" FieldNo="-" TableId="1015"/>
 	<record>
 		<effect_Id>0</effect_Id>
 		<effect_path>Assets/Res/Effect/HovlStudio/Proceduralfire/Prefabs/Magicfireproyellow.prefab</effect_path>

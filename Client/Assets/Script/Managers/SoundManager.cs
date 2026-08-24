@@ -129,10 +129,10 @@ namespace ProjectT
             soundFadeCancel?.Cancel();
 
             AudioClip clip = GetOrAddAudioClip(path);
-            ExecuteSoudnFade(clip, type, fadeTime, pitch).Forget();
+            ExecuteSoundFade(clip, type, fadeTime, pitch).Forget();
         }
 
-        private async UniTask ExecuteSoudnFade(AudioClip clip, eSound type, float fadeTime, float pitch)
+        private async UniTask ExecuteSoundFade(AudioClip clip, eSound type, float fadeTime, float pitch)
         {
             await SoundStopFade(type, fadeTime);
             Play(clip, type, pitch);

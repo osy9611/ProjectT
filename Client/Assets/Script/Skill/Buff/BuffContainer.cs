@@ -110,5 +110,6 @@ namespace ProjectT.Skill
     [Buff(DesignEnum.BuffType.AddATK)]
     public class AddATK : BaseBuff
     {
+
     }
 }

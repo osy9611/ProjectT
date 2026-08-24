@@ -90,3 +90,4 @@ D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\obj\De
 D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\obj\Debug\DesignGe.85A0BDF3.Up2Date
 D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\obj\Debug\DesignGenerator.exe
 D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\obj\Debug\DesignGenerator.pdb
+D:\Project\ProjectT\Tools\DesignGenerator\DesignGenerator\DesignGenerator\obj\Debug\DesignGenerator.exe.config

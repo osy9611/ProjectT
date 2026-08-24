@@ -126,6 +126,10 @@ public class Test : MonoBehaviour
         Debug.Log("Getting download size");
     }
 
+    async UniTask TESTTask()
+    {
+        await UniTask.Yield();
+    }
 
     // Start is called before the first frame update
     void Start()

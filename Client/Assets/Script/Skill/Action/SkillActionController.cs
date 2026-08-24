@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using DesignEnum;
 using DesignTable;
 using System.Collections;
@@ -87,6 +88,17 @@ namespace ProjectT.Skill
             }
 
             activeActions.RemoveAll(x => removeActions.Contains(x));
+        }
+        
+        public void CancelSkill(int skillID)
+        {
+            if (actions.TryGetValue(skillID, out var skillAction))
+            {
+                if(skillAction.IsActive)
+                {
+                    skillAction.Cancel();
+                }
+            }
         }
 
         public void CancelAllSkill()

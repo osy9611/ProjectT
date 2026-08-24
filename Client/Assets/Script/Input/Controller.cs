@@ -143,8 +143,6 @@ namespace ProjectT.Controller
             //{
             //    rebindingOperation = 
             //}
-
-         
         }
     }
 }

@@ -1,9 +1,11 @@
 using Cysharp.Threading.Tasks;
 using ProjectT;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using UnityEngine;
 
 namespace ProjectT
@@ -14,7 +16,7 @@ namespace ProjectT
         public string AssetFolderPath { get => assetFolderPath; }
         private string defaultFolder = "ClientLocalStorage";
 
-        private Dictionary<EClientLocalStorageType, ClientLocalStorage> StorageDatas =new Dictionary<EClientLocalStorageType, ClientLocalStorage>();
+        private Dictionary<EClientLocalStorageType, ClientLocalStorage> StorageDatas = new Dictionary<EClientLocalStorageType, ClientLocalStorage>();
 
         #region ManagerBase
         public override void OnAppEnd()
@@ -69,7 +71,7 @@ namespace ProjectT
 
             if (assetFolderPath.Last() != '/')
             {
-                assetFolderPath += $"/{defaultFolder}/" ;
+                assetFolderPath += $"/{defaultFolder}/";
             }
         }
 
@@ -115,20 +117,21 @@ namespace ProjectT
             }
         }
 
-        public async UniTask SaveDataAsync(EClientLocalStorageType Type)
+        public async UniTask SaveDataAsync(EClientLocalStorageType Type, CancellationToken cancellationToken = default)
         {
-            await UniTask.Yield();
-
             if (string.IsNullOrEmpty(assetFolderPath))
             {
                 Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
                 return;
             }
 
-            if (StorageDatas.TryGetValue(Type, out var StorageData))
+            if (!StorageDatas.TryGetValue(Type, out var StorageData))
+                return;
+
+            await UniTask.RunOnThreadPool(() =>
             {
                 StorageData.Save(assetFolderPath);
-            }
+            }, true, cancellationToken);
         }
 
         public void SaveAllData()
@@ -155,7 +158,6 @@ namespace ProjectT
                 Global.Instance.LogError($"[ClientLocalStorageManager] Load Fail Type : {Type}");
                 return;
             }
-
 
             StorageData.StorageType = Type;
             StorageData.CompleteLoad();

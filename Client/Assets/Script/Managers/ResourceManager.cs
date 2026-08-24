@@ -7,6 +7,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using ProjectT.Addressable;
 using System.Collections;
+using System.Threading;
 
 namespace ProjectT
 {
@@ -125,7 +126,8 @@ namespace ProjectT
                 return (T)datas[path].ResourceData;
 
             var handle = Addressables.LoadAssetAsync<T>(path);
-            await UniTask.WaitUntil(() => { return handle.IsDone; });
+            //await UniTask.WaitUntil(() => { return handle.IsDone; });
+            await handle.ToUniTask();
 
             if (handle.Status != AsyncOperationStatus.Succeeded)
                 return default(T);
@@ -176,42 +178,43 @@ namespace ProjectT
             }
         }
 
-        public async UniTask LoadAssetAsync<T>(string path, System.Action<T> callback, bool dontDestroy = false, bool autoReleaseOnFail = true) where T : UnityEngine.Object
+        public async UniTask LoadAssetAsync<T>(string path, System.Action<T> callback, bool dontDestroy = false, bool autoReleaseOnFail = true, CancellationToken cancelToken = default) where T : UnityEngine.Object
         {
             if (string.IsNullOrEmpty(path))
+            {
                 callback?.Invoke(default(T));
-
+                return;
+            }
 
             if (datas.ContainsKey(path))
             {
                 callback?.Invoke((T)datas[path].ResourceData);
+                return;
+            }
+
+            var handle = Addressables.LoadAssetAsync<T>(path);
+            await handle.ToUniTask(cancellationToken: cancelToken);
+
+            if (handle.Status == AsyncOperationStatus.Succeeded)
+            {
+                if (!datas.ContainsKey(path))
+                {
+                    IResource resource = new IResource(path, handle.Result);
+                    resource.DontDestroy = dontDestroy;
+                    datas.Add(path, resource);
+                }
+
+
+                callback?.Invoke((T)handle.Result);
             }
             else
             {
-                var handle = Addressables.LoadAssetAsync<T>(path);
-                await UniTask.WaitUntil(() => { return handle.IsDone; });
+                callback?.Invoke(default(T));
 
-                if (handle.Status == AsyncOperationStatus.Succeeded)
+                if (autoReleaseOnFail)
                 {
-                    if (!datas.ContainsKey(path))
-                    {
-                        IResource resource = new IResource(path, handle.Result);
-                        resource.DontDestroy = dontDestroy;
-                        datas.Add(path, resource);
-                    }
-
-
-                    callback?.Invoke((T)handle.Result);
-                }
-                else
-                {
-                    callback?.Invoke(default(T));
-
-                    if (autoReleaseOnFail)
-                    {
-                        if (handle.IsValid())
-                            Addressables.Release(handle);
-                    }
+                    if (handle.IsValid())
+                        Addressables.Release(handle);
                 }
             }
         }

@@ -12,7 +12,7 @@ namespace ProjectT.Skill
         public skillInfo skillInfo;
         public float CoolDownRemaining;
         public bool IsOnCoolDown => CoolDownRemaining > 0;
-
+        
         public void Init(skillInfo skillInfo)
         {
             this.skillInfo = skillInfo;
@@ -22,6 +22,7 @@ namespace ProjectT.Skill
         {
             CoolDownRemaining = skillInfo.skill_coolTime;
         }
+        
 
         public void OnUpdate(float dt)
         {
