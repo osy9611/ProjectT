@@ -19,18 +19,26 @@ namespace DesignGenerator
         private static bool full;
         private static bool warnAsError;
 
+        // DLL 병합은 기본으로 하지 않습니다.
+        //   ILRepack 산출물은 PE 리소스 섹션이 깨져서 유니티가 로드하지 못합니다.
+        //     "Could not load image ... Resource section is too small,
+        //      must be at least 16 bytes long but it's 0 long"
+        //   Roslyn 이 만든 DataMgr.dll / LocalData.dll 은 정상이므로 그대로 배치합니다.
+        //   굳이 합치려면 --merge 를 주세요 (산출물은 ValidateForUnity 로 검사합니다).
+        private static bool mergeDll = false;
+
         [STAThread]
         private static int Main(string[] args)
         {
             try
             {
-#if !TestMode
-                string[] testArgs_Enum = { "Enum", "D:\\Project\\ProjectT\\DesignTable\\Data", "D:\\Project\\ProjectT\\Client\\Assets" };
-                string[] testArgs_TableCreator = { "TableCreate", "D:\\Project\\ProjectT\\DesignTable\\Data", "null" };
-                string[] testArgs_TableGenerate = { "TableGenerate", "D:\\Project\\ProjectT\\DesignTable\\Data", "D:\\Project\\ProjectT\\Client\\Assets", "All" };
-                string[] testArgs_Local = { "Local", "D:\\Project\\ProjectT\\DesignTable\\Data", "D:\\Project\\ProjectT\\Client\\Assets" };
-                List<string> rest = ParseFlags(testArgs_TableGenerate);
+#if DEBUG
+                string[] testArgs_Enum         = { "Enum",          "D:\\Project\\ProjectT\\DesignTable\\Data", "D:\\Project\\ProjectT\\Client\\Assets" };
+                string[] testArgs_TableCreator = { "TableCreate",   "D:\\Project\\ProjectT\\DesignTable\\Data", "null" };
+                string[] testArgs_TableGenerate= { "TableGenerate", "D:\\Project\\ProjectT\\DesignTable\\Data", "D:\\Project\\ProjectT\\Client\\Assets", "All" };
+                string[] testArgs_Local        = { "Local",         "D:\\Project\\ProjectT\\DesignTable\\Data", "D:\\Project\\ProjectT\\Client\\Assets" };
 
+                List<string> rest = ParseFlags(args.Length > 0 ? args : testArgs_TableGenerate);
 #else
                 List<string> rest = ParseFlags(args);
 #endif
@@ -84,7 +92,15 @@ namespace DesignGenerator
                     case "--warn-as-error":
                         warnAsError = true;
                         break;
-                    default: rest.Add(arg); break;
+                    case "--merge":
+                        mergeDll = true;
+                        break;
+                    case "--no-merge":      // 기본값. 명시적으로 쓸 수 있게 남겨둡니다.
+                        mergeDll = false;
+                        break;
+                    default:
+                        rest.Add(arg);
+                        break;
                 }
             }
             return rest;
@@ -102,6 +118,7 @@ namespace DesignGenerator
                                   --full            전체 재생성 (기본은 변경된 엑셀만)
                                   --format=json     진단을 JSON 으로 출력 (CI 용)
                                   --warn-as-error   경고도 실패로 취급
+                                  --merge           ILRepack 으로 Design.dll 하나로 합침 (기본은 합치지 않음)
 
                                 종료코드  0 성공 / 1 실패 / 2 사용법 오류");
         }
@@ -110,7 +127,8 @@ namespace DesignGenerator
         {
             Console.Write(jsonOutput ? diag.ToJson() + Environment.NewLine : diag.ToReport());
 
-            if (!ok || diag.HasError) return 1;
+            if (!ok || diag.HasError)
+                return 1;
             if (warnAsError && diag.WarningCount > 0)
             {
                 Console.Error.WriteLine("--warn-as-error: 경고가 있어 실패로 처리합니다.");
@@ -186,7 +204,12 @@ namespace DesignGenerator
 
             if (genType == "One")
             {
-                if (args.Count < 5) { PrintUsage(); return 2; }
+                if (args.Count < 5)
+                {
+                    PrintUsage();
+                    return 2;
+                }
+
                 tableName = args[4];
                 ok = tableGen.Load(folderPath, tableName, xmlDir, clientDir);
             }
@@ -213,7 +236,11 @@ namespace DesignGenerator
             serializerGen.Save(clientDir);
 
             DllExporter.ExportCSToDll(clientDir, Path.Combine(dllDir, "DataMgr.dll"));
-            DllExporter.MergeDll(dllDir, Path.Combine(automationDll, "Design.dll"));
+
+            if (mergeDll)
+                DllExporter.MergeDll(dllDir, Path.Combine(automationDll, "Design.dll"));
+            else
+                DllExporter.CopyDlls(dllDir, automationDll);
 
             string tableOut = Path.Combine(outputPath, "Automation", "Table");
             if (genType == "One") tableGen.ExportDataByteFile(automationDll, tableOut, tableName);
@@ -242,8 +269,17 @@ namespace DesignGenerator
             if (code != 0)
                 return code;
 
-            DllExporter.MergeDll(Path.Combine(folderPath, "Dll"),
-                                 Path.Combine(automation, "Dll", "Design.dll"));
+            if (mergeDll)
+            {
+                DllExporter.MergeDll(Path.Combine(folderPath, "Dll"),
+                                     Path.Combine(automation, "Dll", "Design.dll"));
+            }
+            else
+            {
+                DllExporter.CopyDlls(Path.Combine(folderPath, "Dll"),
+                                     Path.Combine(automation, "Dll"));
+            }
+
             localGen.ExportDataByteFile(automation);
 
             Console.WriteLine("Local 완료");

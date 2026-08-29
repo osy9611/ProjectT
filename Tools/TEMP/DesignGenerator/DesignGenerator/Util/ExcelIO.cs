@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml;
@@ -547,7 +548,52 @@ namespace DesignGenerator.Util
                 Console.WriteLine("DLL 병합 완료: " + outputPath);
             }
 
+            ValidateForUnity(outputPath);
             WarnStaleOutputs(Path.GetDirectoryName(outputPath), dllFiles, outputPath);
+        }
+
+        /// <summary>
+        /// 산출물이 유니티가 로드할 수 있는 PE 인지 확인한다.
+        ///
+        ///  ILRepack 은 빈 .rsrc 섹션을 만들면서 PE 를 망가뜨리는 경우가 있다.
+        ///  리소스 데이터 디렉터리에 RVA 는 써 넣는데 크기를 0 으로 두고,
+        ///  그 .rsrc 섹션이 .reloc 과 같은 RVA 를 차지한다.
+        ///
+        ///    · 유니티  : "Resource section is too small, must be at least 16 bytes long but it's 0 long"
+        ///    · .NET FW : Assembly.LoadFrom 이 FileLoadException 0x80070057 (E_INVALIDARG)
+        ///
+        ///  둘 다 원인이 같다. 여기서 잡지 않으면 유니티에 넣을 때까지 모른다.
+        /// </summary>
+        public static void ValidateForUnity(string dllPath)
+        {
+            byte[] d = File.ReadAllBytes(dllPath);
+            try
+            {
+                int pe = BitConverter.ToInt32(d, 0x3c);
+                if (d[pe] != 'P' || d[pe + 1] != 'E') return;      // PE 가 아니면 판단하지 않는다
+
+                int opt = pe + 24;
+                ushort magic = BitConverter.ToUInt16(d, opt);
+                int ddOff = opt + (magic == 0x10b ? 96 : 112);     // PE32 / PE32+
+
+                int resRva = BitConverter.ToInt32(d, ddOff + 2 * 8);
+                int resSize = BitConverter.ToInt32(d, ddOff + 2 * 8 + 4);
+
+                if (resRva != 0 && resSize < 16)
+                    throw new InvalidOperationException(
+                        Path.GetFileName(dllPath) + " 의 PE 리소스 섹션이 깨졌습니다 " +
+                        $"(rva={resRva:X}, size={resSize}).\n" +
+                        "  ILRepack 이 빈 .rsrc 섹션을 만들면서 생기는 문제입니다.\n" +
+                        "  유니티가 이 dll 을 거부합니다:\n" +
+                        "    Could not load image ... Resource section is too small,\n" +
+                        "    must be at least 16 bytes long but it's 0 long\n" +
+                        "  → --no-merge 로 실행하세요. 병합 없이 DataMgr.dll / LocalData.dll 을 그대로 배치합니다.\n" +
+                        "    (Roslyn 이 만든 원본은 정상입니다. ILRepack 만 거치면 깨집니다)");
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // PE 파싱 실패는 여기서 판단하지 않는다
+            }
         }
 
         /// <summary>
@@ -597,6 +643,108 @@ namespace DesignGenerator.Util
         }
 
 
+        /// <summary>
+        /// 병합된 Design.dll 또는 개별 dll 중 먼저 찾히는 것을 연다.
+        /// 병합 모드/비병합 모드 어느 쪽이든 동작하게 하기 위한 것.
+        /// </summary>
+        public static Assembly LoadGeneratedAssembly(string dllFolder, params string[] candidates)
+        {
+            foreach (var name in candidates)
+            {
+                string path = Path.Combine(dllFolder, name);
+                if (File.Exists(path))
+                    return LoadAssemblyFromBytes(path, dllFolder);
+            }
+            throw new FileNotFoundException(
+                $"{dllFolder} 에서 {string.Join(" / ", candidates)} 중 어느 것도 찾지 못했습니다.");
+        }
+
+        /// <summary>
+        /// 파일을 읽어서 바이트로 로드한다. Assembly.LoadFrom 을 쓰지 않는다.
+        ///
+        ///  LoadFrom 은 이 상황에서 세 가지가 걸린다.
+        ///   1. 파일을 프로세스가 끝날 때까지 잠근다.
+        ///      대상이 유니티 Assets 폴더 안이라, 다음 실행에서 덮어쓸 때 충돌한다.
+        ///   2. 매니페스트 모듈 이름이 파일명과 다르면(ILRepack 산출물이 'Design.dll' 이 아니라
+        ///      'Design' 으로 기록되는 경우가 있다) 로더가 모듈 파일을 못 찾아
+        ///      FileLoadException 0x80070057 (E_INVALIDARG) 를 던진다.
+        ///   3. 다른 PC 에서 받은 파일이면 Zone.Identifier(MOTW) 때문에 막힌다.
+        ///
+        ///  바이트 로드는 이 셋을 전부 우회한다. 참조(protobuf-net 등)는 실행 폴더에서
+        ///  평소대로 해석되고, 못 찾으면 아래 Resolve 훅이 dll 폴더도 뒤진다.
+        /// </summary>
+        private static Assembly LoadAssemblyFromBytes(string path, string probeDir)
+        {
+            HookAssemblyResolve(probeDir);
+            HookAssemblyResolve(AppDomain.CurrentDomain.BaseDirectory);
+
+            byte[] raw = File.ReadAllBytes(path);
+            return Assembly.Load(raw);
+        }
+
+        private static readonly List<string> probeDirs = new List<string>();
+        private static bool resolverHooked;
+
+        private static void HookAssemblyResolve(string dir)
+        {
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+
+            if (!probeDirs.Contains(dir, StringComparer.OrdinalIgnoreCase))
+                probeDirs.Add(dir);
+
+            if (resolverHooked) return;
+            resolverHooked = true;
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, e) =>
+            {
+                string simple = new AssemblyName(e.Name).Name;
+                foreach (var d in probeDirs)
+                {
+                    string candidate = Path.Combine(d, simple + ".dll");
+                    if (File.Exists(candidate))
+                        return Assembly.Load(File.ReadAllBytes(candidate));
+                }
+                return null;
+            };
+        }
+
+        /// <summary>
+        /// protobuf-net.dll 을 찾는다. 생성된 dll 이 이 파일을 참조하게 되므로
+        /// '실제 파일' 로 존재해야 한다 (exe 안에 embed 되면 안 된다).
+        ///
+        ///  단일 exe 로 묶을 때(Costura.Fody) 주의:
+        ///    FodyWeavers.xml 의 ExcludeAssemblies 에 protobuf-net 을 넣어서
+        ///    이 파일만은 exe 옆에 남겨두어야 한다.
+        ///    embed 되면 디스크에 파일이 없어 여기서 실패한다.
+        /// </summary>
+        public static string FindProtobufNet()
+        {
+            var tried = new List<string>();
+
+            foreach (var dir in new[]
+            {
+                AppDomain.CurrentDomain.BaseDirectory,
+                Environment.CurrentDirectory,
+            })
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string p = Path.Combine(dir, "protobuf-net.dll");
+                if (tried.Contains(p)) continue;
+                tried.Add(p);
+                if (File.Exists(p)) return p;
+            }
+
+            throw new FileNotFoundException(
+                "protobuf-net.dll 을 찾을 수 없습니다.\n\n" +
+                "찾아본 위치:\n  " + string.Join("\n  ", tried) + "\n\n" +
+                "이 파일은 exe 옆에 '실제 파일' 로 있어야 합니다.\n" +
+                "생성되는 DataMgr.dll / LocalData.dll 이 이 파일을 참조하고,\n" +
+                "유니티에도 '같은 파일' 을 넣어야 버전이 맞습니다.\n\n" +
+                "단일 exe 로 묶으셨다면 FodyWeavers.xml 을 확인하세요:\n" +
+                "  <Costura ExcludeAssemblies=\"protobuf-net\" />\n" +
+                "이게 없으면 protobuf-net 이 exe 안에 embed 돼서 디스크에 파일이 없습니다.");
+        }
+
         public static void ExportStringToDll(string data, string outputPath)
         {
             Compile(new[] { CSharpSyntaxTree.ParseText(data) }, outputPath);
@@ -616,13 +764,20 @@ namespace DesignGenerator.Util
 
         private static void Compile(IEnumerable<SyntaxTree> trees, string outputPath)
         {
-            string protobufNetPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "protobuf-net.dll");
-            if (!File.Exists(protobufNetPath))
-                throw new FileNotFoundException("protobuf-net.dll 을 찾을 수 없습니다.", protobufNetPath);
+            string protobufNetPath = FindProtobufNet();
 
             var compileOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary);
 
-            var compile = CSharpCompilation.Create("DynamicAssembly")
+            // 어셈블리 이름은 반드시 출력 파일명과 같아야 한다.
+            //
+            //   예전에는 "DynamicAssembly" 로 고정돼 있었다. 그래서 DataMgr.dll 과
+            //   LocalData.dll 이 '둘 다' DynamicAssembly 라는 이름을 갖는다.
+            //   ILRepack 이 하나로 합쳐줄 때는 결과가 Design 하나뿐이라 드러나지 않았지만,
+            //   병합을 안 하고 둘 다 유니티에 넣으면 같은 이름의 어셈블리가 두 개가 되어
+            //   유니티가 임포트를 포기한다 → CS0246 'DesignTable' 을 찾을 수 없음.
+            string assemblyName = Path.GetFileNameWithoutExtension(outputPath);
+
+            var compile = CSharpCompilation.Create(assemblyName)
                 .WithOptions(compileOptions)
                 .AddReferences(MetadataReference.CreateFromFile(typeof(Console).Assembly.Location))
                 .AddReferences(MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location))

@@ -207,7 +207,7 @@ namespace DesignGenerator.Table
                     ExcelSession.Release(used);
                     ExcelSession.Release(sheet);
                     ExcelSession.Release(sheets);
-                    session.Close(wb);      // ★ 기존에는 없어서 EXCEL.EXE 가 남았습니다
+                    session.Close(wb);    
                 }
             }
         }

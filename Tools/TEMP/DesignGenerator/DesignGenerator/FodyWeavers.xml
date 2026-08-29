@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
+
+  <!--
+    Costura : 참조 DLL 들을 exe 안에 리소스로 넣고, 실행 시 메모리에서 로드합니다.
+              빌드하면 bin\Release\DesignGenerator.exe 하나로 끝납니다.
+
+    ExcludeAssemblies 로 뺀 것들은 exe 옆에 '실제 파일' 로 남습니다.
+
+      protobuf-net
+        생성되는 DataMgr.dll / LocalData.dll 이 이 파일을 참조합니다.
+        Roslyn 이 MetadataReference.CreateFromFile 로 디스크에서 읽어야 하므로
+        embed 하면 안 됩니다. 유니티에 넣을 것과 같은 파일이어야 하니
+        눈에 보이는 곳에 두는 편이 낫기도 합니다.
+
+      Microsoft.Office.Interop.Excel
+        COM 인터롭 어셈블리라 embed 하면 타입 등록이 꼬입니다.
+  -->
+  <Costura ExcludeAssemblies="protobuf-net|Microsoft.Office.Interop.Excel|office" />
+
+</Weavers>

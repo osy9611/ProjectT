@@ -240,14 +240,13 @@ namespace DesignGenerator.Localize
 
         public void ExportDataByteFile(string folderPath)
         {
-            string dllPath = Path.Combine(folderPath, "Dll", "Design.dll");
-            if (!File.Exists(dllPath))
-                throw new FileNotFoundException("Design.dll 을 찾을 수 없습니다.", dllPath);
+            // 병합 모드면 Design.dll, --no-merge 면 LocalData.dll 이 있다. 둘 다 받아준다.
+            Assembly dll = DllExporter.LoadGeneratedAssembly(
+                Path.Combine(folderPath, "Dll"), "Design.dll", "LocalData.dll");
 
-            Assembly dll = Assembly.LoadFrom(dllPath);
             Type sType = dll.GetType("DesignLocal.LocalData");
             if (sType == null)
-                throw new TypeLoadException("DesignLocal.LocalData 가 Design.dll 에 없습니다.");
+                throw new TypeLoadException("DesignLocal.LocalData 가 " + dll.GetName().Name + " 에 없습니다.");
 
             MethodInfo addMethod = sType.GetMethod("Insert");
             if (addMethod == null)

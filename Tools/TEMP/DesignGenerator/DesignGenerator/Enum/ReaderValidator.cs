@@ -353,6 +353,7 @@ namespace DesignGenerator.Enum
                     }
                 }
 
+                //너무 많은 정보를 주는거 같아서 우선은 주석처리를 진행했다.
                 //if (!group.IsFlags && !seenValue.ContainsKey(0))
                 //{
                 //    diag.Warning("TG1014", group.Location,
@@ -364,7 +365,8 @@ namespace DesignGenerator.Enum
                 {
                     foreach (var member in group.Members)
                     {
-                        if (member.Value == 0) continue;
+                        if (member.Value == 0) 
+                            continue;
                         if ((member.Value & (member.Value - 1)) != 0)
                         {
                             diag.Warning("TG1013", member.Location,

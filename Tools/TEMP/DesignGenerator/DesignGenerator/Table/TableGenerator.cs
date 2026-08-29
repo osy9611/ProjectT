@@ -603,10 +603,8 @@ namespace DesignGenerator.Table
         }
         private static Assembly LoadDesignDll(string dllFolder)
         {
-            string path = Path.Combine(dllFolder, "Design.dll");
-            if (!File.Exists(path))
-                throw new FileNotFoundException("병합된 Design.dll 을 찾을 수 없습니다.", path);
-            return Assembly.LoadFrom(path);
+            // 병합 모드면 Design.dll, --no-merge 면 DataMgr.dll 이 있다. 둘 다 받아준다.
+            return DllExporter.LoadGeneratedAssembly(dllFolder, "Design.dll", "DataMgr.dll");
         }
 
         private static void ExportOne(Assembly dll, TableDataInfo data, string outputPath)
