@@ -18,45 +18,25 @@ namespace ProjectT
 
         private Dictionary<EClientLocalStorageType, ClientLocalStorage> StorageDatas = new Dictionary<EClientLocalStorageType, ClientLocalStorage>();
 
-        #region ManagerBase
-        public override void OnAppEnd()
-        {
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-
-        public override void OnAppStart()
-        {
-        }
-
-        public override void OnEnter()
+        protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
             InitAssetFolderPath();
+            if (Context.LoadData)
+                await LoadAllDataAsync(token);
+        }
+        protected override void OnShutdown(ShutdownReason reason)
+        {
+            try
+            {
+                if (reason != ShutdownReason.InitializationFailure)
+                    SaveAllData();
+            }
+            finally
+            {
+                StorageDatas.Clear();
+            }
         }
 
-        public override void OnFixedUpdate(float dt)
-        {
-        }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
-        {
-            SaveAllData();
-        }
-
-        public override void OnUpdate(float dt)
-        {
-        }
-        #endregion
 
         private void InitAssetFolderPath()
         {
@@ -64,19 +44,18 @@ namespace ProjectT
             {
                 assetFolderPath = Application.dataPath;
             }
-            else if (Application.platform == RuntimePlatform.Android || Application.platform == RuntimePlatform.IPhonePlayer || Application.platform == RuntimePlatform.WindowsPlayer)
+            else
             {
                 assetFolderPath = Application.persistentDataPath;
             }
 
-            if (assetFolderPath.Last() != '/')
-            {
-                assetFolderPath += $"/{defaultFolder}/";
-            }
+            assetFolderPath = Path.Combine(assetFolderPath, defaultFolder);
+            Directory.CreateDirectory(assetFolderPath);
         }
 
         public T CreateData<T>(EClientLocalStorageType Type) where T : ClientLocalStorage, new()
         {
+            ThrowIfStopped();
             if (StorageDatas.TryGetValue(Type, out var StorageData))
             {
                 return StorageData as T;
@@ -86,6 +65,7 @@ namespace ProjectT
 
             if (NewStorage != null)
             {
+                NewStorage.StorageType = Type;
                 StorageDatas.Add(Type, NewStorage);
                 return NewStorage;
             }
@@ -119,19 +99,14 @@ namespace ProjectT
 
         public async UniTask SaveDataAsync(EClientLocalStorageType Type, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrEmpty(assetFolderPath))
+            ThrowIfStopped();
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
             {
-                Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
-                return;
+                await UniTask.Yield(cancellationToken: linked.Token);
+                ThrowIfStopped();
+                // 종료 시 저장과 충돌하지 않도록 실제 쓰기는 메인 스레드에서 완료한다.
+                SaveData(Type);
             }
-
-            if (!StorageDatas.TryGetValue(Type, out var StorageData))
-                return;
-
-            await UniTask.RunOnThreadPool(() =>
-            {
-                StorageData.Save(assetFolderPath);
-            }, true, cancellationToken);
         }
 
         public void SaveAllData()
@@ -147,11 +122,14 @@ namespace ProjectT
 
         public void LoadData(EClientLocalStorageType Type)
         {
+            ThrowIfStopped();
             if (string.IsNullOrEmpty(assetFolderPath))
             {
                 Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
                 return;
             }
+            if (!File.Exists(Path.Combine(assetFolderPath, $"{Type}.dat")))
+                return;
             ClientLocalStorage StorageData = ClientLocalStorage.Load(assetFolderPath, Type);
             if (StorageData == null)
             {
@@ -162,12 +140,13 @@ namespace ProjectT
             StorageData.StorageType = Type;
             StorageData.CompleteLoad();
 
-            StorageDatas.Add(Type, StorageData);
+            StorageDatas[Type] = StorageData;
         }
 
-        public async UniTask LoadDataAsync(EClientLocalStorageType Type)
+        public async UniTask LoadDataAsync(EClientLocalStorageType Type, CancellationToken token = default)
         {
-            await UniTask.Yield();
+            await UniTask.Yield(cancellationToken: token);
+            ThrowIfStopped();
 
             if (string.IsNullOrEmpty(assetFolderPath))
             {
@@ -175,6 +154,8 @@ namespace ProjectT
                 return;
             }
 
+            if (!File.Exists(Path.Combine(assetFolderPath, $"{Type}.dat")))
+                return;
             ClientLocalStorage StorageData = ClientLocalStorage.Load(assetFolderPath, Type);
             if (StorageData == null)
             {
@@ -186,14 +167,14 @@ namespace ProjectT
             StorageData.StorageType = Type;
             StorageData.CompleteLoad();
 
-            StorageDatas.Add(Type, StorageData);
+            StorageDatas[Type] = StorageData;
         }
 
-        public async UniTask LoadAllDataAsync()
+        public async UniTask LoadAllDataAsync(CancellationToken token = default)
         {
             foreach (EClientLocalStorageType Type in System.Enum.GetValues(typeof(EClientLocalStorageType)))
             {
-                await LoadDataAsync(Type);
+                await LoadDataAsync(Type, token);
             }
         }
 

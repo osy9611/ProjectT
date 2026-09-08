@@ -1,3 +1,4 @@
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using DesignTable;
 using System;
@@ -18,47 +19,22 @@ namespace ProjectT
 
         private bool isDone;
 
-        #region ManagerBase
-        public override void OnAppStart()
+        protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
+            if (Context.LoadData)
+                await GetTableDatas(token);
+        }
+        protected override void OnShutdown(ShutdownReason reason)
+        {
+            tableData = null;
+            localData = null;
+            isDone = false;
         }
 
-        public override void OnEnter()
+        public async UniTask GetTableDatas(CancellationToken token = default)
         {
-
-        }
-
-        public override void OnFixedUpdate(float dt)
-        {
-        }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
-        {
-        }
-
-        public override void OnUpdate(float dt)
-        {
-        }
-
-        public override void OnAppEnd()
-        {
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-        #endregion
-
-        public async UniTask GetTableDatas()
-        {
+            ThrowIfStopped();
+            token.ThrowIfCancellationRequested();
             if (tableData == null)
                 tableData = new DataMgr();
 
@@ -68,13 +44,13 @@ namespace ProjectT
             await LoadLocalDataAsync((result) =>
             {
                 Global.Instance.Log($"Local Data Load Result :  {GetResultString(result)}");
-            });
+            }, token);
 
             //Load Table Data
             await LoadTableDataAsync((result) =>
             {
                 Global.Instance.Log($"Table Data Load Result :  {GetResultString(result)}");
-            });
+            }, token);
         }
 
         private string GetResultString(bool result)
@@ -82,8 +58,10 @@ namespace ProjectT
             return result == true ? "Success" : "Fail";
         }
 
-        public async UniTask LoadLocalDataAsync(System.Action<bool> callback = null)
+        public async UniTask LoadLocalDataAsync(System.Action<bool> callback = null, CancellationToken token = default)
         {
+            ThrowIfStopped();
+            token.ThrowIfCancellationRequested();
             string localPath = "Assets/Automation/Local/";
             currentLanguage = Application.systemLanguage;
 
@@ -95,6 +73,7 @@ namespace ProjectT
                 case SystemLanguage.Japanese:
                     localPath += "Jp.bytes";
                     break;
+                default:
                 case SystemLanguage.English:
                     localPath += "En.bytes";
                     break;
@@ -102,7 +81,7 @@ namespace ProjectT
 
             TextAsset textAsset = null;
 
-            await Global.Resource.LoadAssetAsync<TextAsset>(localPath,
+            await Context.Get<ResourceManager>().LoadAssetAsync<TextAsset>(localPath,
                 (resAsset) =>
                 {
                     if (resAsset == null)
@@ -113,14 +92,27 @@ namespace ProjectT
                     }
 
                     textAsset = resAsset;
-                });
+                }, cancelToken: token);
 
-            localData.LoadData(textAsset.bytes);
+            ThrowIfStopped();
+            token.ThrowIfCancellationRequested();
+            if (textAsset == null)
+                throw new System.InvalidOperationException($"Missing localization asset: {localPath}");
+            try
+            {
+                localData.LoadData(textAsset.bytes);
+            }
+            finally
+            {
+                Context.Get<ResourceManager>().Release(localPath);
+            }
             callback?.Invoke(true);
         }
 
-        public async UniTask LoadTableDataAsync(System.Action<bool> callback = null)
+        public async UniTask LoadTableDataAsync(System.Action<bool> callback = null, CancellationToken token = default)
         {
+            ThrowIfStopped();
+            token.ThrowIfCancellationRequested();
             if (isDone)
             {
                 callback?.Invoke(true);
@@ -133,7 +125,7 @@ namespace ProjectT
 
                 TextAsset textAsset = null;
 
-                await Global.Resource.LoadAssetAsync<TextAsset>(tablePath,
+                await Context.Get<ResourceManager>().LoadAssetAsync<TextAsset>(tablePath,
                     (resAsset) =>
                     {
                         if (resAsset == null)
@@ -144,10 +136,20 @@ namespace ProjectT
                         }
 
                         textAsset = resAsset;
-                    });
+                    }, cancelToken: token);
 
-                tableData.LoadData(tableID, textAsset.bytes);
-                await Global.Resource.ReleaseAsync(tablePath);
+                ThrowIfStopped();
+                token.ThrowIfCancellationRequested();
+                if (textAsset == null)
+                    throw new System.InvalidOperationException($"Missing table asset: {tablePath}");
+                try
+                {
+                    tableData.LoadData(tableID, textAsset.bytes);
+                }
+                finally
+                {
+                    Context.Get<ResourceManager>().Release(tablePath);
+                }
 
                 Global.Instance.Log($"[Table] {tableID} Load Complete!!");
             }

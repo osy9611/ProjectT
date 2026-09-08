@@ -27,7 +27,7 @@ namespace ProjectT
             }
 
             BinaryFormatter formatter = new BinaryFormatter();
-            FileStream stream = new FileStream($"{rootPath}/{StorageType.ToString()}.dat", streamType);
+            using FileStream stream = new FileStream($"{rootPath}/{StorageType.ToString()}.dat", streamType);
             formatter.Serialize(stream, this);
             stream.Close();
 
@@ -41,7 +41,7 @@ namespace ProjectT
             ClientLocalStorage Result = null;
 
             BinaryFormatter formatter = new BinaryFormatter();
-            FileStream stream = new FileStream($"{rootPath}/{Type.ToString()}.dat", FileMode.Open);
+            using FileStream stream = new FileStream($"{rootPath}/{Type.ToString()}.dat", FileMode.Open);
             Result = (ClientLocalStorage)formatter.Deserialize(stream);
             stream.Close();
             return Result;

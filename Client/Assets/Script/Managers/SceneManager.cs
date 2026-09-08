@@ -1,3 +1,4 @@
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using DesignTable;
 using ProjectT.Scene;
@@ -39,48 +40,50 @@ namespace ProjectT
         public List<KeyValuePair<string, SceneBase>> GetPages { get => pages; } 
 #endif
 
-        #region ManagerBase
-        public override void OnEnter()
+        protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-            CreateRootObject(Global.Instance.transform, "SceneRoot");
+            CreateRootObject(Context.Root, "SceneRoot");
+            return UniTask.CompletedTask;
         }
 
-        public override void OnFixedUpdate(float dt)
+
+        protected override void OnShutdown(ShutdownReason reason)
         {
+            var errors = new List<System.Exception>();
+            var scenes = new HashSet<SceneBase>(pages.Select(p => p.Value));
+            if (currentScene != null)
+                scenes.Add(currentScene);
+            foreach (var scene in scenes.ToArray())
+                if (scene != null && scene.SubScenes != null)
+                    foreach (var sub in scene.SubScenes) scenes.Add(sub);
+            foreach (var scene in scenes)
+            {
+                if (scene == null)
+                    continue;
+                try
+                {
+                    scene.OnFinalize();
+                }
+                catch (System.Exception error)
+                {
+                    errors.Add(error);
+                }
+                try
+                {
+                    scene.OnExit();
+                }
+                catch (System.Exception error)
+                {
+                    errors.Add(error);
+                }
+            }
+            pages.Clear();
+            SubScenes.Clear();
+            currentScene = null;
+            isTrainsioning = false;
+            if (errors.Count > 0)
+                throw new System.AggregateException(errors);
         }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
-        {
-        }
-
-        public override void OnUpdate(float dt)
-        {
-        }
-
-        public override void OnAppStart()
-        {
-
-        }
-
-        public override void OnAppEnd()
-        {
-
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-
-        }
-        #endregion
 
         protected void AddPage(SceneBase scene)
         {
@@ -113,8 +116,9 @@ namespace ProjectT
 
         public void Transition<T>(string resourceName, float startLoadingGage, float fadeOutDuration, UnityEngine.SceneManagement.LoadSceneMode loadSceneMode, System.Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
         {
+            ThrowIfStopped();
             //Check Resource
-            //Unity 6.0¿∏∑Œ ≥—æÓø¿∏Èº≠ SceneManagementø°º≠ ∞¸∏Æ«œ¥¬∞‘ æ∆¥œ∂Û Addressableø°º≠∏∏ ∞¸∏Æ«œ¥¬∞…∑Œ ∫Ø∞Ê
+            //Unity 6.0ÏúºÎ°ú ÎÑòÏñ¥Ïò§Î©¥ÏÑú SceneManagementÏóêÏÑú Í¥ÄÎ¶¨ÌïòÎäîÍ≤å ÏïÑÎãàÎùº AddressableÏóêÏÑúÎßå Í¥ÄÎ¶¨ÌïòÎäîÍ±∏Î°ú Î≥ÄÍ≤Ω
             UnityEngine.SceneManagement.Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
             if (activeScene.name.Equals(resourceName, System.StringComparison.CurrentCultureIgnoreCase) == true)
                 resourceName = string.Empty;
@@ -174,9 +178,11 @@ namespace ProjectT
                 GameObject.Destroy(currentScene);
             }
 
-            await Global.Resource.ReleaseAllAsync();
+            await Context.Get<ResourceManager>().ReleaseAllAsync();
+            ThrowIfStopped();
             await Resources.UnloadUnusedAssets();
-            await UniTask.Yield();
+            ThrowIfStopped();
+            await UniTask.Yield(cancellationToken: LifetimeToken);
 
             float currentProgress = 0.0f;
             const float sceneLoadingProgressRate = 0.0f;
@@ -190,7 +196,7 @@ namespace ProjectT
 
                 Global.Instance.Log($"{sceneName} Scene File Inner Object Load");
 
-                await Global.Resource.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Single,
+                await Context.Get<ResourceManager>().LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Single,
                     (progress) =>
                     {
                         if (progress == 1.0f)
@@ -202,6 +208,7 @@ namespace ProjectT
             else
                 currentProgress = sceneLoadingProgressRate;
 
+            ThrowIfStopped();
             currentScene = FindPage(typeof(T).ToString());
 
             if (currentScene == null)
@@ -213,16 +220,18 @@ namespace ProjectT
             if (currentScene != null)
             {
                 await currentScene.OnEnter(currentProgress, data);
+                ThrowIfStopped();
                 currentScene.OnInitialize();
             }
 
             await currentScene.LoadAdditiveScene(() =>
             {
-                completed?.Invoke(eSceneTransitionErrorCode.Success);
+                if (State == ManagerState.Ready)
+                    completed?.Invoke(eSceneTransitionErrorCode.Success);
             });
 
             for (int i = 0; i < 3; ++i)
-                await UniTask.NextFrame(cancellationToken: RootObject.GetCancellationTokenOnDestroy());
+                await UniTask.NextFrame(cancellationToken: LifetimeToken);
         }
 
         private async UniTask OnTransitionTaskAdditive<T>(string sceneName, float fadeInDuration, float fadeOutDuration, System.Action<eSceneTransitionErrorCode> completed, bool hideLoading = true, params object[] data) where T : SceneBase
@@ -236,7 +245,7 @@ namespace ProjectT
                 if (activeScene != null)
                     prevResourceName = activeScene.name;
 
-                await Global.Resource.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive,
+                await Context.Get<ResourceManager>().LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive,
                     (progress) =>
                     {
                         if (progress == 1.0f)
@@ -249,16 +258,19 @@ namespace ProjectT
                 currentProgress = sceneLoadingProgressRate;
 
 
+            ThrowIfStopped();
             var currentAdditiveScene = RootObject.GetOrAddComponent<T>();
             if (currentAdditiveScene != null)
             {
                 await currentAdditiveScene.OnEnter(currentProgress, data);
+                ThrowIfStopped();
                 currentAdditiveScene.OnInitialize();
 
                 currentScene.SubScenes.Add(currentAdditiveScene);
             }
 
-            completed?.Invoke(eSceneTransitionErrorCode.Success);
+            if (State == ManagerState.Ready)
+                completed?.Invoke(eSceneTransitionErrorCode.Success);
 
         }
 
@@ -270,7 +282,7 @@ namespace ProjectT
             {
                 Debug.Log(result);
 
-                Global.LocalStorage.LoadAllData();
+                Context.Get<ClientLocalStorageManager>().LoadAllData();
             }, null);
         }
     }

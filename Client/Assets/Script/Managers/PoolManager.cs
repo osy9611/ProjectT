@@ -1,3 +1,4 @@
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT.Pool;
 using ProjectT.Skill;
@@ -12,46 +13,22 @@ namespace ProjectT
     {
         private Dictionary<string, GameObjectPool> gameObjectPools = new Dictionary<string, GameObjectPool>();
         private Dictionary<System.Type, object> genericPools = new Dictionary<System.Type, object>();
-        #region ManagerBase
-        public override void OnEnter()
+        protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-            CreateRootObject(Global.Instance.transform, "PoolManager");
+            CreateRootObject(Context.Root, "PoolManager");
+            return UniTask.CompletedTask;
         }
 
-        public override void OnFixedUpdate(float dt)
-        {
-        }
 
-        public override void OnLateUpdate()
+        protected override void OnShutdown(ShutdownReason reason)
         {
+            ClearAll();
+            genericPools.Clear();
         }
-
-        public override void OnLeave()
-        {
-        }
-
-        public override void OnUpdate(float dt)
-        {
-        }
-
-        public override void OnAppStart()
-        {
-        }
-        public override void OnAppEnd()
-        {
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-        #endregion
 
         public void CreatePool<T>() where T : new()
         {
+            ThrowIfStopped();
             var type = typeof(T);
             if (genericPools.ContainsKey(type))
                 return;
@@ -61,6 +38,7 @@ namespace ProjectT
 
         public void CreatePool(GameObject original, int count = 5)
         {
+            ThrowIfStopped();
             GameObjectPool pool = new GameObjectPool();
             pool.Init(original, count);
             pool.Root.parent = RootObject;
@@ -70,7 +48,8 @@ namespace ProjectT
 
         public async UniTask CreatePoolAsync(GameObject original, int count = 5)
         {
-            await UniTask.Yield();
+            await UniTask.Yield(cancellationToken: LifetimeToken);
+            ThrowIfStopped();
             GameObjectPool pool = new GameObjectPool();
             pool.Init(original, count);
             pool.Root.parent = RootObject;
@@ -109,7 +88,8 @@ namespace ProjectT
 
         public async UniTask<bool> ReturnAsync(GameObject obj)
         {
-            await UniTask.Yield();
+            await UniTask.Yield(cancellationToken: LifetimeToken);
+            ThrowIfStopped();
             string name = obj.name;
             if (gameObjectPools.TryGetValue(name, out var pool))
             {
@@ -123,6 +103,7 @@ namespace ProjectT
 
         public T Get<T>() where T : new()
         {
+            ThrowIfStopped();
             var type = typeof(T);
 
             if (!genericPools.TryGetValue(type, out var pool))
@@ -136,9 +117,11 @@ namespace ProjectT
 
         public GameObject Get(GameObject original, Transform parent = null)
         {
+            ThrowIfStopped();
             if (!gameObjectPools.ContainsKey(original.name))
                 CreatePool(original);
 
+            ThrowIfStopped();
             return gameObjectPools[original.name].Get(parent);
         }
 
@@ -147,6 +130,7 @@ namespace ProjectT
             if (!gameObjectPools.ContainsKey(original.name))
                 await CreatePoolAsync(original);
 
+            ThrowIfStopped();
             return gameObjectPools[original.name].Get(parent);
         }
 
@@ -168,7 +152,7 @@ namespace ProjectT
         {
             if (go == null)
             {
-                Global.Instance.LogError($"Poolable Component Is Null {go.name}");
+                Debug.LogError("Poolable object is null.");
                 return;
             }
 
@@ -189,7 +173,7 @@ namespace ProjectT
         {
             if (go == null)
             {
-                Global.Instance.LogError($"Poolable Component Is Null {go.name}");
+                Debug.LogError("Poolable object is null.");
                 return;
             }
 
@@ -213,9 +197,7 @@ namespace ProjectT
 
         public void ClearAll()
         {
-            foreach (Transform child in RootObject)
-                GameObject.Destroy(child.gameObject);
-
+            foreach (var pool in gameObjectPools.Values) pool.Dispose();
             gameObjectPools.Clear();
         }
     }

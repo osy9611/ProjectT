@@ -13,6 +13,8 @@ namespace ProjectT.Pool
         public Transform Root { get; private set; }
 
         private Pool<GameObject> pools;
+        private readonly HashSet<GameObject> owned = new HashSet<GameObject>();
+        private bool disposed;
 
         public bool IsEmpty
         {
@@ -29,6 +31,7 @@ namespace ProjectT.Pool
                 () =>
                 {
                     var obj = GameObject.Instantiate(original);
+                    owned.Add(obj);
                     obj.transform.SetParent(Root);
                     obj.SetActive(false);
                     return obj;
@@ -40,14 +43,41 @@ namespace ProjectT.Pool
             if (obj == null)
                 return;
 
+            if (disposed)
+            {
+                GameObject.Destroy(obj);
+                return;
+            }
             obj.transform.SetParent(Root);
             obj.SetActive(false);
 
             pools.Return(obj);
         }
 
+        public void Dispose()
+        {
+            if (disposed)
+                return;
+            disposed = true;
+            foreach (var obj in owned)
+            {
+                if (obj == null)
+                    continue;
+                obj.SetActive(false);
+                GameObject.Destroy(obj);
+            }
+            owned.Clear();
+            if (Root != null)
+                GameObject.Destroy(Root.gameObject);
+            Root = null;
+            Original = null;
+            pools = null;
+        }
+
         public GameObject Get(Transform parent)
         {
+            if (disposed)
+                throw new System.ObjectDisposedException(nameof(GameObjectPool));
             GameObject poolObj;
 
             poolObj = pools.Get();
@@ -59,4 +89,3 @@ namespace ProjectT.Pool
 
     }
 }
-

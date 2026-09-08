@@ -39,9 +39,9 @@ namespace ProjectT.UGUI
 
         private UIManager uiManager;
 
-        public UIContainer()
+        public UIContainer(UIManager manager)
         {
-            uiManager = Global.UI;
+            uiManager = manager ?? throw new System.ArgumentNullException(nameof(manager));
         }
 
         #region Methods
@@ -55,7 +55,8 @@ namespace ProjectT.UGUI
 
         public void OnLeave()
         {
-
+            UIStack.Clear();
+            uiDatas.Clear();
         }
 
         public void OnUpdate(float dt)
@@ -245,13 +246,13 @@ namespace ProjectT.UGUI
 
                 if (Screen.width > 0 && Screen.height > 0)
                 {
-                    //ÇöÀç È­¸éÀÇ °¡·Î/¼¼·Î ºñÀ²
+                    //í˜„ìž¬ í™”ë©´ì˜ ê°€ë¡œ/ì„¸ë¡œ ë¹„ìœ¨
                     float currentAspectRaito = (float)Screen.width / Screen.height;
 
-                    //¿øÇÏ´Â ºñÀ² ´ëºñ ÇöÀç ºñÀ²ÀÇ Â÷ÀÌ °è»ê
+                    //ì›í•˜ëŠ” ë¹„ìœ¨ ëŒ€ë¹„ í˜„ìž¬ ë¹„ìœ¨ì˜ ì°¨ì´ ê³„ì‚°
                     float scaleFactor = ratio.x / ratio.y;
 
-                    //CanvasScalerÀÇ Match Width Or Height ¸ðµå¸¦ ¼³Á¤
+                    //CanvasScalerì˜ Match Width Or Height ëª¨ë“œë¥¼ ì„¤ì •
                     canvas2DScaler.matchWidthOrHeight = (scaleFactor > 1) ? 0 : 1;
                     canvas2DScaler.referenceResolution = new Vector2(
                         canvas2DScaler.referenceResolution.x * scaleFactor,

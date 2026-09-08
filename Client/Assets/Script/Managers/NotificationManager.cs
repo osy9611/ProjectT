@@ -9,7 +9,8 @@ namespace ProjectT
     {
         public static bool IsOverride(this MethodInfo m)
         {
-            if (m == null) throw new System.ArgumentNullException("IsOverride");
+            if (m == null)
+                throw new System.ArgumentNullException("IsOverride");
             return (m.GetBaseDefinition().DeclaringType != m.DeclaringType) ? true : false;
         }
     }
@@ -68,58 +69,38 @@ namespace ProjectT
         protected List<INotifyHandler> handlers = new List<INotifyHandler>();
         protected List<WaitForNotifyInfo> waitForNotifyInfos = new List<WaitForNotifyInfo>();
 
-        #region ManagerBase
-        public override void OnAppStart()
+        protected override void OnShutdown(ShutdownReason reason)
         {
-            Name = typeof(NotificationManager).ToString();
-
-            if (string.IsNullOrEmpty(Name))
+            var errors = new List<System.Exception>();
+            var snapshot = handlers.ToArray();
+            handlers.Clear();
+            waitForNotifyInfos.Clear();
+            foreach (var handler in snapshot)
             {
-                throw new System.Exception("Manager Name Is Empty");
+                try
+                {
+                    handler.OnDisConnectHandler();
+                }
+                catch (System.Exception error)
+                {
+                    errors.Add(error);
+                }
             }
-
-            AllDisconnectHandler();
+            if (errors.Count > 0)
+                throw new System.AggregateException(errors);
         }
-
-        public override void OnAppEnd()
-        {
-            AllDisconnectHandler();
-            DestoryRootObject();
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-
-        public override void OnEnter()
-        {
-        }
-
-        public override void OnFixedUpdate(float dt)
-        {
-        }
-
-        public override void OnLateUpdate()
-        {
-        }
-
         public override void OnUpdate(float dt)
         {
             UpdateHandler(dt);
             UpdateWaitForNotify(dt);
         }
 
-        public override void OnLeave()
-        {
-        }
-        #endregion
 
         public void ConnectHandler(INotifyHandler handler)
         {
+            ThrowIfStopped();
+            if (handlers.Contains(handler))
+                return;
             if (handler == null)
             {
                 Global.Instance.LogWarning("NotificationManager.ConnectHandler(null)");

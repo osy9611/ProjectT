@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Threading;
-using System.Threading.Tasks;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -25,48 +24,24 @@ namespace ProjectT
         public Camera Canvas2DCam => uiContainer.Canvas2DCam;
         public Transform Canvas2D => uiContainer.UICanvas2D;
 
-        #region ManagerBase
-        public override void OnAppEnd()
+        protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-        }
+            CreateRootObject(Context.Root, "UIManager");
 
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-
-        public override void OnAppStart()
-        {
-        }
-
-        public override void OnEnter()
-        {
-            CreateRootObject(Global.Instance.transform, "UIManager");
-
-            uiContainer = new UIContainer();
+            uiContainer = new UIContainer(this);
             uiContainer.OnEnter();
+            return UniTask.CompletedTask;
         }
-
-        public override void OnFixedUpdate(float dt)
+        protected override void OnShutdown(ShutdownReason reason)
         {
+            uiContainer?.OnLeave();
+            uiContainer = null;
         }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
-        {
-        }
-
         public override void OnUpdate(float dt)
         {
             uiContainer.OnUpdate(dt);
         }
-        #endregion
+
 
         public string GetUIPath(UIDefine.eUIType type)
         {
@@ -178,8 +153,8 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = Global.Resource.LoadAndGet<T>(path);
-            hud = Global.Pool.Get(hud.gameObject).GetComponent<T>();
+            T hud = Context.Get<ResourceManager>().LoadAndGet<T>(path);
+            hud = Context.Get<PoolManager>().Get(hud.gameObject).GetComponent<T>();
             hud.RegisterInfo(pivotInfo);
 
             return hud;
@@ -191,8 +166,10 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = await Global.Resource.LoadAndGetAsync<T>(path);
-            GameObject poolObj = await Global.Pool.GetAsync(hud.gameObject);
+            T hud = await Context.Get<ResourceManager>().LoadAndGetAsync<T>(path);
+            ThrowIfStopped();
+            GameObject poolObj = await Context.Get<PoolManager>().GetAsync(hud.gameObject);
+            ThrowIfStopped();
             hud = poolObj.gameObject.GetComponent<T>();
             hud.RegisterInfo(pivotInfo);
             return hud;
@@ -203,7 +180,7 @@ namespace ProjectT
             if (hudAgent == null)
                 return;
 
-            Global.Pool.Release(hudAgent.gameObject);
+            Context.Get<PoolManager>().Release(hudAgent.gameObject);
         }
 
         public async UniTask ReleaseAsync<T>(T hudAgent) where T : ComHudAgent
@@ -211,7 +188,7 @@ namespace ProjectT
             if (hudAgent == null)
                 return;
 
-            await Global.Pool.ReleaseAsync(hudAgent.gameObject);
+            await Context.Get<PoolManager>().ReleaseAsync(hudAgent.gameObject);
         }
     }
 }

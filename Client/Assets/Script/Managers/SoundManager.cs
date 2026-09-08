@@ -18,28 +18,11 @@ namespace ProjectT
         private AudioSource[] audioSources = new AudioSource[System.Enum.GetNames(typeof(eSound)).Length];
         private Dictionary<string, AudioClip> audioClips = new Dictionary<string, AudioClip>();
 
-        private CancellationTokenSource soundFadeCancel = new CancellationTokenSource();
+        private CancellationTokenSource soundFadeCancel;
 
-        #region ManagerBase
-        public override void OnAppEnd()
+        protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-
-        public override void OnAppStart()
-        {
-        }
-
-        public override void OnEnter()
-        {
-            CreateRootObject(Global.Instance.transform, "SoundManager");
+            CreateRootObject(Context.Root, "SoundManager");
 
             string[] soundNames = System.Enum.GetNames(typeof(eSound));
 
@@ -51,47 +34,25 @@ namespace ProjectT
             }
 
             audioSources[(int)eSound.Bgm].loop = true;
+            return UniTask.CompletedTask;
         }
-
-        public override void OnFixedUpdate(float dt)
-        {
-        }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
+        protected override void OnShutdown(ShutdownReason reason)
         {
             Clear();
         }
 
-        public override void OnUpdate(float dt)
-        {
-        }
-        #endregion
 
         private AudioClip GetOrAddAudioClip(string path, eSound type = eSound.FX)
         {
+            ThrowIfStopped();
             if (string.IsNullOrEmpty(path))
                 return null;
-
-            AudioClip clip = null;
-
-            if (type == eSound.Bgm)
-                clip = Global.Resource.LoadAndGet<AudioClip>(path);
-            else
+            if (!audioClips.TryGetValue(path, out var clip))
             {
-                if (!audioClips.ContainsKey(path))
-                {
-                    clip = Global.Resource.LoadAndGet<AudioClip>(path);
-                    audioClips.Add(clip.name, clip);
-                }
+                clip = Context.Get<ResourceManager>().LoadAndGet<AudioClip>(path);
+                if (clip != null)
+                    audioClips.Add(path, clip);
             }
-
-            if (clip == null)
-                Global.Instance.LogError($"AudioClip Missing!! {path}");
-
             return clip;
         }
 
@@ -103,6 +64,7 @@ namespace ProjectT
 
         public void Play(AudioClip clip, eSound type = eSound.FX, float pitch = 1.0f)
         {
+            ThrowIfStopped();
             if (clip == null)
                 return;
 
@@ -126,70 +88,66 @@ namespace ProjectT
 
         public void PlayFade(string path, eSound type = eSound.FX, float fadeTime = 1.0f, float pitch = 1.0f)
         {
+            ThrowIfStopped();
             soundFadeCancel?.Cancel();
-
-            AudioClip clip = GetOrAddAudioClip(path);
-            ExecuteSoundFade(clip, type, fadeTime, pitch).Forget();
+            soundFadeCancel?.Dispose();
+            soundFadeCancel = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken);
+            var clip = GetOrAddAudioClip(path, type);
+            ExecuteSoundFade(clip, type, fadeTime, pitch, soundFadeCancel.Token).Forget();
         }
 
-        private async UniTask ExecuteSoundFade(AudioClip clip, eSound type, float fadeTime, float pitch)
+        private async UniTask ExecuteSoundFade(AudioClip clip, eSound type, float fadeTime, float pitch, CancellationToken token)
         {
-            await SoundStopFade(type, fadeTime);
-            Play(clip, type, pitch);
-            await SoundPlayFade(type, fadeTime);
-        }
-
-        private async UniTask SoundStopFade(eSound type, float fadeTime)
-        {
-            if (audioSources[(int)type] == null)
+            var source = audioSources[(int)type];
+            if (source == null || clip == null)
                 return;
-
-            AudioSource source = audioSources[(int)type];
-
-            var startVolume = 0.2f;
-            float reachVolume = source.volume;
-
-            source.volume = 0;
-            while (source.volume < reachVolume)
+            float volume = source.volume;
+            try
             {
-                source.volume += startVolume * Time.deltaTime / fadeTime;
-                await UniTask.Yield(cancellationToken: soundFadeCancel.Token);
+                if (fadeTime <= 0f)
+                {
+                    token.ThrowIfCancellationRequested();
+                    Play(clip, type, pitch);
+                    return;
+                }
+                for (float elapsed = 0; elapsed < fadeTime; elapsed += Time.deltaTime)
+                {
+                    token.ThrowIfCancellationRequested();
+                    source.volume = Mathf.Lerp(volume, 0f, elapsed / fadeTime);
+                    await UniTask.Yield(cancellationToken: token);
+                }
+                token.ThrowIfCancellationRequested();
+                Play(clip, type, pitch);
+                for (float elapsed = 0; elapsed < fadeTime; elapsed += Time.deltaTime)
+                {
+                    token.ThrowIfCancellationRequested();
+                    source.volume = Mathf.Lerp(0f, volume, elapsed / fadeTime);
+                    await UniTask.Yield(cancellationToken: token);
+                }
             }
-
-            source.volume = reachVolume;
-        }
-
-        private async UniTask SoundPlayFade(eSound type, float fadeTime)
-        {
-            if (audioSources[(int)type] == null)
-                return;
-
-            AudioSource source = audioSources[(int)type];
-
-            var startVolume = source.volume;
-
-            while (startVolume > 0)
+            catch (System.OperationCanceledException) { }
+            finally
             {
-                source.volume -= startVolume * Time.deltaTime / fadeTime;
-                await UniTask.Yield(cancellationToken: soundFadeCancel.Token);
+                if (source != null && !token.IsCancellationRequested)
+                    source.volume = volume;
             }
-
-            source.Stop();
         }
 
         public void Clear()
         {
-            foreach (AudioSource audioSource in audioSources)
+            soundFadeCancel?.Cancel();
+            soundFadeCancel?.Dispose();
+            soundFadeCancel = null;
+            foreach (var source in audioSources)
             {
-                audioSource.clip = null;
-                audioSource.Stop();
+                if (source == null)
+                    continue;
+                source.Stop();
+                source.clip = null;
             }
-
-            foreach (var clip in audioClips)
-            {
-                var path = Global.Resource.GetPathFromData(clip.Key);
-                Global.Resource.Release(path);
-            }
+            foreach (var path in new List<string>(audioClips.Keys))
+                Context.Get<ResourceManager>().Release(path);
+            audioClips.Clear();
         }
     }
 }

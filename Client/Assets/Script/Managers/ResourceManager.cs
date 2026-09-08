@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,94 +16,113 @@ namespace ProjectT
     {
         private Dictionary<string, IResource> datas = new Dictionary<string, IResource>();
 
-        #region ManagerBase
-        public override void OnEnter()
+        protected override void OnShutdown(ShutdownReason reason)
         {
-
-        }
-
-        public override void OnFixedUpdate(float dt)
-        {
-        }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
-        {
-            foreach (var data in datas.Values)
+            var errors = new List<Exception>();
+            foreach (var scene in loadedScenes)
             {
-                Addressables.Release(data.ResourceData);
+                try
+                {
+                    ReleaseScene(scene);
+                }
+                catch (Exception error)
+                {
+                    errors.Add(error);
+                }
             }
-
-            datas.Clear();
+            loadedScenes.Clear();
+            try
+            {
+                ReleaseAll(true);
+            }
+            catch (Exception error)
+            {
+                errors.Add(error);
+            }
+            if (errors.Count > 0)
+                throw new AggregateException(errors);
         }
 
-        public override void OnUpdate(float dt)
-        {
-        }
 
-        public override void OnAppStart()
-        {
-        }
-        public override void OnAppEnd()
-        {
-        }
+        private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
 
-        public override void OnAppFocuse(bool focused)
+        private static void ReleaseScene(AsyncOperationHandle<SceneInstance> handle)
         {
+            if (!handle.IsValid())
+                return;
+            if (!handle.IsDone)
+            {
+                handle.Completed += ReleaseScene;
+                return;
+            }
+            if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result.Scene.isLoaded)
+                Addressables.UnloadSceneAsync(handle);
+            else if (handle.IsValid())
+                Addressables.Release(handle);
         }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-        #endregion
 
         #region SceneLoad
-        public async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, UnityEngine.SceneManagement.LoadSceneMode sceneMode, System.Action<float> OnLoadingProgressAction)
+        public async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, UnityEngine.SceneManagement.LoadSceneMode sceneMode, Action<float> OnLoadingProgressAction)
         {
+            ThrowIfStopped();
             var handle = Addressables.LoadSceneAsync(sceneName, sceneMode);
-
-            OnLoadingProgressAction?.Invoke(0);
-
-            while (handle.IsDone == false)
+            bool retained = false;
+            try
             {
-                await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
-
-                OnLoadingProgressAction?.Invoke(handle.PercentComplete);
+                while (!handle.IsDone)
+                {
+                    ThrowIfStopped();
+                    OnLoadingProgressAction?.Invoke(handle.PercentComplete);
+                    await UniTask.Yield(cancellationToken: LifetimeToken);
+                }
+                ThrowIfStopped();
+                if (handle.Status != AsyncOperationStatus.Succeeded)
+                    throw handle.OperationException ?? new InvalidOperationException($"Scene load failed: {sceneName}");
+                loadedScenes.Add(handle);
+                retained = true;
+                OnLoadingProgressAction?.Invoke(1f);
+                ThrowIfStopped();
+                return handle;
             }
-
-            OnLoadingProgressAction?.Invoke(1.0f);
-            await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
-
-            return handle;
+            finally
+            {
+                if (!retained)
+                    ReleaseScene(handle);
+            }
         }
 
-        public async UniTask<int> UnLoadSceneAsync(SceneInstance scene, System.Action<float> OnLoadingProgressAction)
+        public async UniTask<int> UnLoadSceneAsync(SceneInstance scene, Action<float> OnLoadingProgressAction)
         {
-            var handle = Addressables.UnloadSceneAsync(scene);
-
-            int sceneIndex = UnityEngine.SceneManagement.SceneManager.GetSceneByName(scene.Scene.name).buildIndex;
-
-            OnLoadingProgressAction?.Invoke(0);
-
-            while (handle.IsDone == false)
+            ThrowIfStopped();
+            int sceneIndex = scene.Scene.buildIndex;
+            loadedScenes.RemoveWhere(h => !h.IsValid() || (h.IsDone && h.Result.Scene == scene.Scene));
+            var handle = Addressables.UnloadSceneAsync(scene, autoReleaseHandle: false);
+            try
             {
-                OnLoadingProgressAction?.Invoke(handle.PercentComplete);
-
-                await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
+                while (!handle.IsDone)
+                {
+                    ThrowIfStopped();
+                    OnLoadingProgressAction?.Invoke(handle.PercentComplete);
+                    await UniTask.Yield(cancellationToken: LifetimeToken);
+                }
+                ThrowIfStopped();
+                if (handle.Status != AsyncOperationStatus.Succeeded)
+                    throw handle.OperationException ?? new InvalidOperationException("Scene unload failed.");
+                OnLoadingProgressAction?.Invoke(1f);
+                return sceneIndex;
             }
-
-            OnLoadingProgressAction?.Invoke(1.0f);
-
-            return sceneIndex;
+            finally
+            {
+                if (handle.IsValid())
+                    Addressables.Release(handle);
+            }
         }
 
         #endregion
 
         public T LoadAndGet<T>(string path, bool dontDestroy = false)
         {
+            ThrowIfStopped();
             if (datas.ContainsKey(path))
                 return (T)datas[path].ResourceData;
 
@@ -111,7 +131,11 @@ namespace ProjectT
             handle.WaitForCompletion();
 
             if (handle.Status != AsyncOperationStatus.Succeeded)
+            {
+                if (handle.IsValid())
+                    Addressables.Release(handle);
                 return default(T);
+            }
 
             IResource resource = new IResource(path, handle.Result);
             resource.DontDestroy = dontDestroy;
@@ -120,30 +144,48 @@ namespace ProjectT
             return handle.Result;
         }
 
-        public async UniTask<T> LoadAndGetAsync<T>(string path, bool dontDestroy = false)
+        public async UniTask<T> LoadAndGetAsync<T>(string path, bool dontDestroy = false, CancellationToken cancelToken = default)
         {
-            if (datas.ContainsKey(path))
-                return (T)datas[path].ResourceData;
-
-            var handle = Addressables.LoadAssetAsync<T>(path);
-            //await UniTask.WaitUntil(() => { return handle.IsDone; });
-            await handle.ToUniTask();
-
-            if (handle.Status != AsyncOperationStatus.Succeeded)
-                return default(T);
-
-            IResource resource = new IResource(path, handle.Result);
-            resource.DontDestroy = dontDestroy;
-            datas.Add(path, resource);
-
-            return handle.Result;
+            ThrowIfStopped();
+            cancelToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Asset path is empty.", nameof(path));
+            if (datas.TryGetValue(path, out var cached))
+                return (T)cached.ResourceData;
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancelToken))
+            {
+                var handle = Addressables.LoadAssetAsync<T>(path);
+                bool retained = false;
+                try
+                {
+                    while (!handle.IsDone) await UniTask.Yield(cancellationToken: linked.Token);
+                    linked.Token.ThrowIfCancellationRequested();
+                    ThrowIfStopped();
+                    if (handle.Status != AsyncOperationStatus.Succeeded)
+                        throw handle.OperationException ?? new InvalidOperationException($"Asset load failed: {path}");
+                    if (datas.TryGetValue(path, out cached))
+                        return (T)cached.ResourceData;
+                    datas.Add(path, new IResource(path, handle.Result) { DontDestroy = dontDestroy });
+                    retained = true;
+                    return handle.Result;
+                }
+                finally
+                {
+                    if (!retained && handle.IsValid())
+                        Addressables.Release(handle);
+                }
+            }
         }
 
 
         public void LoadAsset<T>(string path, System.Action<T> callback, bool dontDestroy = false, bool autoReleaseOnFail = true)
         {
+            ThrowIfStopped();
             if (string.IsNullOrEmpty(path))
+            {
                 callback?.Invoke(default(T));
+                return;
+            }
 
             AsyncOperationHandle handle;
             if (datas.ContainsKey(path))
@@ -178,49 +220,18 @@ namespace ProjectT
             }
         }
 
-        public async UniTask LoadAssetAsync<T>(string path, System.Action<T> callback, bool dontDestroy = false, bool autoReleaseOnFail = true, CancellationToken cancelToken = default) where T : UnityEngine.Object
+        public async UniTask LoadAssetAsync<T>(string path, Action<T> callback, bool dontDestroy = false, bool autoReleaseOnFail = true, CancellationToken cancelToken = default) where T : UnityEngine.Object
         {
-            if (string.IsNullOrEmpty(path))
-            {
-                callback?.Invoke(default(T));
-                return;
-            }
-
-            if (datas.ContainsKey(path))
-            {
-                callback?.Invoke((T)datas[path].ResourceData);
-                return;
-            }
-
-            var handle = Addressables.LoadAssetAsync<T>(path);
-            await handle.ToUniTask(cancellationToken: cancelToken);
-
-            if (handle.Status == AsyncOperationStatus.Succeeded)
-            {
-                if (!datas.ContainsKey(path))
-                {
-                    IResource resource = new IResource(path, handle.Result);
-                    resource.DontDestroy = dontDestroy;
-                    datas.Add(path, resource);
-                }
-
-
-                callback?.Invoke((T)handle.Result);
-            }
-            else
-            {
-                callback?.Invoke(default(T));
-
-                if (autoReleaseOnFail)
-                {
-                    if (handle.IsValid())
-                        Addressables.Release(handle);
-                }
-            }
+            // 핸들을 호출자에게 전달하지 않으므로 실패 시 항상 반환한다.
+            var result = await LoadAndGetAsync<T>(path, dontDestroy, cancelToken);
+            ThrowIfStopped();
+            cancelToken.ThrowIfCancellationRequested();
+            callback?.Invoke(result);
         }
 
         public string GetPath(AssetReference assetRef)
         {
+            ThrowIfStopped();
             string result = string.Empty;
             var handle = Addressables.LoadResourceLocationsAsync(assetRef);
             handle.WaitForCompletion();
@@ -253,6 +264,8 @@ namespace ProjectT
 
         public void Release(string addressable)
         {
+            if (string.IsNullOrEmpty(addressable))
+                return;
             if (datas.TryGetValue(addressable, out var resource))
             {
                 Addressables.Release(resource.ResourceData);
@@ -262,7 +275,10 @@ namespace ProjectT
 
         public async UniTask ReleaseAsync(string addressable)
         {
-            await UniTask.Yield();
+            await UniTask.Yield(cancellationToken: LifetimeToken);
+            ThrowIfStopped();
+            if (string.IsNullOrEmpty(addressable))
+                return;
             if (datas.TryGetValue(addressable, out var resource))
             {
                 Addressables.Release(resource.ResourceData);
@@ -272,33 +288,30 @@ namespace ProjectT
 
         public void ReleaseAll(bool isAll = false)
         {
-            foreach (var data in datas)
+            var errors = new List<Exception>();
+            foreach (var pair in new List<KeyValuePair<string, IResource>>(datas))
             {
-                var resource = data.Value;
-
-                if (resource.DontDestroy && !isAll)
+                if (pair.Value.DontDestroy && !isAll)
                     continue;
-
-                Release(data.Key);
+                datas.Remove(pair.Key);
+                try
+                {
+                    Addressables.Release(pair.Value.ResourceData);
+                }
+                catch (Exception error)
+                {
+                    errors.Add(error);
+                }
             }
-
-            datas.Clear();
+            if (errors.Count > 0)
+                throw new AggregateException(errors);
         }
 
         public async UniTask ReleaseAllAsync(bool isAll = false)
         {
-            await UniTask.Yield();
-
-            foreach (var data in datas)
-            {
-                var resource = data.Value;
-                if (resource.DontDestroy && !isAll)
-                    continue;
-
-                Addressables.Release(resource.ResourceData);
-            }
-
-            datas.Clear();
+            await UniTask.Yield(cancellationToken: LifetimeToken);
+            ThrowIfStopped();
+            ReleaseAll(isAll);
         }
 
     }

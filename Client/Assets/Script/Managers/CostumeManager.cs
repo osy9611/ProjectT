@@ -9,44 +9,6 @@ namespace ProjectT
 
     public class CostumeManager : ManagerBase
     {
-        #region ManagerBase
-        public override void OnAppEnd()
-        {
-        }
-
-        public override void OnAppFocuse(bool focused)
-        {
-        }
-
-        public override void OnAppPause(bool paused)
-        {
-        }
-
-        public override void OnAppStart()
-        {
-        }
-
-        public override void OnEnter()
-        {
-        }
-
-        public override void OnFixedUpdate(float dt)
-        {
-        }
-
-        public override void OnLateUpdate()
-        {
-        }
-
-        public override void OnLeave()
-        {
-        }
-
-        public override void OnUpdate(float dt)
-        {
-        }
-        #endregion
-
         public bool ChangeColor(ComCostumeAgent agent, int partIdx, Color color, IArgs args = null)
         {
             if (agent == null)
