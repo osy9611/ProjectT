@@ -18,6 +18,9 @@ namespace ProjectT
 
     public class SceneManager : ManagerBase
     {
+        private ResourceManager resource;
+        private ClientLocalStorageManager localStorage;
+
         private List<KeyValuePair<string, SceneBase>> pages = new List<KeyValuePair<string, SceneBase>>();
 
         private SceneBase currentScene = null;
@@ -42,6 +45,9 @@ namespace ProjectT
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
+            resource = Context.Get<ResourceManager>();
+            localStorage = Context.Get<ClientLocalStorageManager>();
+
             CreateRootObject(Context.Root, "SceneRoot");
             return UniTask.CompletedTask;
         }
@@ -116,7 +122,6 @@ namespace ProjectT
 
         public void Transition<T>(string resourceName, float startLoadingGage, float fadeOutDuration, UnityEngine.SceneManagement.LoadSceneMode loadSceneMode, System.Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
         {
-            ThrowIfStopped();
             //Check Resource
             //Unity 6.0으로 넘어오면서 SceneManagement에서 관리하는게 아니라 Addressable에서만 관리하는걸로 변경
             UnityEngine.SceneManagement.Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
@@ -178,10 +183,8 @@ namespace ProjectT
                 GameObject.Destroy(currentScene);
             }
 
-            await Context.Get<ResourceManager>().ReleaseAllAsync();
-            ThrowIfStopped();
+            await resource.ReleaseAllAsync();
             await Resources.UnloadUnusedAssets();
-            ThrowIfStopped();
             await UniTask.Yield(cancellationToken: LifetimeToken);
 
             float currentProgress = 0.0f;
@@ -196,7 +199,7 @@ namespace ProjectT
 
                 Global.Instance.Log($"{sceneName} Scene File Inner Object Load");
 
-                await Context.Get<ResourceManager>().LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Single,
+                await resource.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Single,
                     (progress) =>
                     {
                         if (progress == 1.0f)
@@ -208,7 +211,6 @@ namespace ProjectT
             else
                 currentProgress = sceneLoadingProgressRate;
 
-            ThrowIfStopped();
             currentScene = FindPage(typeof(T).ToString());
 
             if (currentScene == null)
@@ -220,7 +222,6 @@ namespace ProjectT
             if (currentScene != null)
             {
                 await currentScene.OnEnter(currentProgress, data);
-                ThrowIfStopped();
                 currentScene.OnInitialize();
             }
 
@@ -245,7 +246,7 @@ namespace ProjectT
                 if (activeScene != null)
                     prevResourceName = activeScene.name;
 
-                await Context.Get<ResourceManager>().LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive,
+                await resource.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive,
                     (progress) =>
                     {
                         if (progress == 1.0f)
@@ -258,12 +259,10 @@ namespace ProjectT
                 currentProgress = sceneLoadingProgressRate;
 
 
-            ThrowIfStopped();
             var currentAdditiveScene = RootObject.GetOrAddComponent<T>();
             if (currentAdditiveScene != null)
             {
                 await currentAdditiveScene.OnEnter(currentProgress, data);
-                ThrowIfStopped();
                 currentAdditiveScene.OnInitialize();
 
                 currentScene.SubScenes.Add(currentAdditiveScene);
@@ -282,7 +281,7 @@ namespace ProjectT
             {
                 Debug.Log(result);
 
-                Context.Get<ClientLocalStorageManager>().LoadAllData();
+                localStorage.LoadAllData();
             }, null);
         }
     }

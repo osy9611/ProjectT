@@ -19,24 +19,54 @@ namespace ProjectT
         public ManagerState State => host?.State ?? ManagerState.Created;
         public bool IsReady => State == ManagerState.Ready;
 
-        public static ResourceManager Resource => GetManager<ResourceManager>();
-        public static DataManager Data => GetManager<DataManager>();
-        public static PoolManager Pool => GetManager<PoolManager>();
-        public static SceneManager Scene => GetManager<SceneManager>();
-        public static UIManager UI => GetManager<UIManager>();
-        public static SoundManager Sound => GetManager<SoundManager>();
-        public static NotificationManager Notify => GetManager<NotificationManager>();
-        public static ClientLocalStorageManager LocalStorage => GetManager<ClientLocalStorageManager>();
-        public static CostumeManager Costume => GetManager<CostumeManager>();
+        private ResourceManager resource;
+        public static ResourceManager Resource { get => ReadyInstance.resource; }
+
+        private DataManager data;
+        public static DataManager Data { get => ReadyInstance.data; }
+
+        private PoolManager pool;
+        public static PoolManager Pool { get => ReadyInstance.pool; }
+
+        private SceneManager scene;
+        public static SceneManager Scene { get => ReadyInstance.scene; }
+
+        private UIManager ui;
+        public static UIManager UI { get => ReadyInstance.ui; }
+
+        private SoundManager sound;
+        public static SoundManager Sound { get => ReadyInstance.sound; }
+
+        private NotificationManager notify;
+        public static NotificationManager Notify { get => ReadyInstance.notify; }
+
+        private ClientLocalStorageManager localStorage;
+        public static ClientLocalStorageManager LocalStorage { get => ReadyInstance.localStorage; }
+
+        private CostumeManager costume;
+        public static CostumeManager Costume { get => ReadyInstance.costume; }
+
+        private static Global ReadyInstance
+        {
+            get
+            {
+                if (s_instance == null || !s_instance.IsReady)
+                    throw new InvalidOperationException("Global is not ready; await WhenReadyAsync first.");
+
+                return s_instance;
+            }
+        }
+
         public static DesignTable.DataMgr Table => Data.Table;
 
+        // 시스템 등록 시점
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() 
         {
             s_instance = null;
         }
 
-        // Also bootstrap retained objects when Scene Reload is disabled in the Editor.
+        //첫 씬 로드 및 오브젝트들의 Awake 호출 후 실행함 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void BootstrapRetainedObjects()
         {
@@ -53,26 +83,31 @@ namespace ProjectT
         {
             if (ReferenceEquals(s_instance, this))
                 return;
+
             if (s_instance != null)
             {
-                enabled = false;
+                enabled = false;    //컴포넌트를 제외함
                 Destroy(this);
                 return;
             }
+
             s_instance = this;
+
             host?.Shutdown();
             DontDestroyOnLoad(gameObject);
             focused = Application.isFocused;
+
             host = new ManagerHost(transform, LoadData);
-            host.Register(new ResourceManager());
-            host.Register(new NotificationManager());
-            host.Register(new ClientLocalStorageManager());
-            host.Register(new DataManager());
-            host.Register(new PoolManager());
-            host.Register(new SceneManager());
-            host.Register(new UIManager());
-            host.Register(new SoundManager());
-            host.Register(new CostumeManager());
+            resource = host.Register(new ResourceManager());
+            notify = host.Register(new NotificationManager());
+            localStorage = host.Register(new ClientLocalStorageManager());
+            data = host.Register(new DataManager());
+            pool = host.Register(new PoolManager());
+            scene = host.Register(new SceneManager());
+            ui = host.Register(new UIManager());
+            sound = host.Register(new SoundManager());
+            costume = host.Register(new CostumeManager());
+
             InitializeAsync(host).Forget();
         }
 
@@ -81,8 +116,9 @@ namespace ProjectT
             try
             {
                 await owner.InitializeAsync();
-                if (!ReferenceEquals(host, owner) || !owner.TryGetReady<ResourceManager>(out _))
+                if (!ReferenceEquals(host, owner) || owner.State != ManagerState.Ready)
                     return;
+
                 owner.Focus(focused);
                 owner.Pause(paused);
             }
@@ -95,7 +131,8 @@ namespace ProjectT
             }
             finally
             {
-                foreach (var error in owner.ShutdownErrors) Debug.LogException(error);
+                foreach (var error in owner.ShutdownErrors) 
+                    Debug.LogException(error);
             }
         }
 
@@ -103,8 +140,11 @@ namespace ProjectT
         {
             if (host == null)
                 throw new InvalidOperationException("Global has not awakened.");
+
             await host.WhenReady.AttachExternalCancellation(cancellationToken);
+
             cancellationToken.ThrowIfCancellationRequested();
+
             if (!IsReady)
                 throw new OperationCanceledException("Global stopped before the caller resumed.");
         }
@@ -113,6 +153,7 @@ namespace ProjectT
         {
             if (s_instance == null || s_instance.host == null)
                 throw new InvalidOperationException("Global is not available.");
+
             return s_instance.host.GetReady<T>();
         }
 
@@ -139,26 +180,31 @@ namespace ProjectT
             if (ReferenceEquals(s_instance, this))
                 host?.LateUpdate();
         }
+
         private void OnApplicationFocus(bool value)
         {
             focused = value;
             if (ReferenceEquals(s_instance, this))
                 host?.Focus(value);
         }
+
         private void OnApplicationPause(bool value)
         {
             paused = value;
             if (ReferenceEquals(s_instance, this))
                 host?.Pause(value);
         }
+
         private void OnApplicationQuit()
         {
             Shutdown(ShutdownReason.ApplicationExit);
         }
+
         private void OnDestroy() 
         {
             Shutdown();
         }
+
         public void Shutdown(ShutdownReason reason = ShutdownReason.Normal)
         {
             if (!ReferenceEquals(s_instance, this))

@@ -13,6 +13,9 @@ namespace ProjectT
 {
     public class UIManager : ManagerBase
     {
+        private ResourceManager resource;
+        private PoolManager pool;
+
         public enum eHudType
         {
 
@@ -26,17 +29,22 @@ namespace ProjectT
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
+            resource = Context.Get<ResourceManager>();
+            pool = Context.Get<PoolManager>();
+
             CreateRootObject(Context.Root, "UIManager");
 
             uiContainer = new UIContainer(this);
             uiContainer.OnEnter();
             return UniTask.CompletedTask;
         }
+
         protected override void OnShutdown(ShutdownReason reason)
         {
             uiContainer?.OnLeave();
             uiContainer = null;
         }
+
         public override void OnUpdate(float dt)
         {
             uiContainer.OnUpdate(dt);
@@ -153,8 +161,8 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = Context.Get<ResourceManager>().LoadAndGet<T>(path);
-            hud = Context.Get<PoolManager>().Get(hud.gameObject).GetComponent<T>();
+            T hud = resource.LoadAndGet<T>(path);
+            hud = pool.Get(hud.gameObject).GetComponent<T>();
             hud.RegisterInfo(pivotInfo);
 
             return hud;
@@ -166,10 +174,8 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = await Context.Get<ResourceManager>().LoadAndGetAsync<T>(path);
-            ThrowIfStopped();
-            GameObject poolObj = await Context.Get<PoolManager>().GetAsync(hud.gameObject);
-            ThrowIfStopped();
+            T hud = await resource.LoadAndGetAsync<T>(path);
+            GameObject poolObj = await pool.GetAsync(hud.gameObject);
             hud = poolObj.gameObject.GetComponent<T>();
             hud.RegisterInfo(pivotInfo);
             return hud;
@@ -180,7 +186,7 @@ namespace ProjectT
             if (hudAgent == null)
                 return;
 
-            Context.Get<PoolManager>().Release(hudAgent.gameObject);
+            pool.Release(hudAgent.gameObject);
         }
 
         public async UniTask ReleaseAsync<T>(T hudAgent) where T : ComHudAgent
@@ -188,7 +194,7 @@ namespace ProjectT
             if (hudAgent == null)
                 return;
 
-            await Context.Get<PoolManager>().ReleaseAsync(hudAgent.gameObject);
+            await pool.ReleaseAsync(hudAgent.gameObject);
         }
     }
 }

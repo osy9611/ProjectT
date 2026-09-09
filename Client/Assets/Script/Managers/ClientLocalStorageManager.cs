@@ -21,9 +21,11 @@ namespace ProjectT
         protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
             InitAssetFolderPath();
+
             if (Context.LoadData)
                 await LoadAllDataAsync(token);
         }
+
         protected override void OnShutdown(ShutdownReason reason)
         {
             try
@@ -36,7 +38,6 @@ namespace ProjectT
                 StorageDatas.Clear();
             }
         }
-
 
         private void InitAssetFolderPath()
         {
@@ -55,7 +56,6 @@ namespace ProjectT
 
         public T CreateData<T>(EClientLocalStorageType Type) where T : ClientLocalStorage, new()
         {
-            ThrowIfStopped();
             if (StorageDatas.TryGetValue(Type, out var StorageData))
             {
                 return StorageData as T;
@@ -99,11 +99,9 @@ namespace ProjectT
 
         public async UniTask SaveDataAsync(EClientLocalStorageType Type, CancellationToken cancellationToken = default)
         {
-            ThrowIfStopped();
             using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
             {
                 await UniTask.Yield(cancellationToken: linked.Token);
-                ThrowIfStopped();
                 // 종료 시 저장과 충돌하지 않도록 실제 쓰기는 메인 스레드에서 완료한다.
                 SaveData(Type);
             }
@@ -122,7 +120,6 @@ namespace ProjectT
 
         public void LoadData(EClientLocalStorageType Type)
         {
-            ThrowIfStopped();
             if (string.IsNullOrEmpty(assetFolderPath))
             {
                 Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
@@ -146,7 +143,6 @@ namespace ProjectT
         public async UniTask LoadDataAsync(EClientLocalStorageType Type, CancellationToken token = default)
         {
             await UniTask.Yield(cancellationToken: token);
-            ThrowIfStopped();
 
             if (string.IsNullOrEmpty(assetFolderPath))
             {

@@ -121,7 +121,7 @@ namespace ProjectT.Pool
 
         public void ReturnAll()
         {
-            for(int i=0;i<activeObjects.Count;++i)
+            for (int i = activeObjects.Count - 1; i >= 0; --i)
             {
                 Return(activeObjects[i]);
             }

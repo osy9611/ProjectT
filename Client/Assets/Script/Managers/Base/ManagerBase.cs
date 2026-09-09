@@ -48,13 +48,18 @@ namespace ProjectT
         {
             if (State != ManagerState.Created)
                 throw new InvalidOperationException($"{Name} cannot initialize from {State}.");
+
             Context = context;
             LifetimeToken = token;
             State = ManagerState.Initializing;
+
             await OnInitializeAsync(token);
+
             token.ThrowIfCancellationRequested();
+
             if (State != ManagerState.Initializing)
                 throw new OperationCanceledException(token);
+
             State = ManagerState.Ready;
         }
 
@@ -62,7 +67,9 @@ namespace ProjectT
         {
             if (State == ManagerState.Created || State == ManagerState.Stopping || State == ManagerState.Stopped)
                 return;
+
             State = ManagerState.Stopping;
+
             try
             {
                 OnShutdown(reason);
@@ -81,43 +88,47 @@ namespace ProjectT
         }
 
         protected virtual UniTask OnInitializeAsync(CancellationToken token) => UniTask.CompletedTask;
+
         protected virtual void OnShutdown(ShutdownReason reason)
         {
         }
-        protected void ThrowIfStopped()
-        {
-            LifetimeToken.ThrowIfCancellationRequested();
-            if (State != ManagerState.Ready && State != ManagerState.Initializing)
-                throw new InvalidOperationException($"{Name} is {State}.");
-        }
+
         protected void CreateRootObject(Transform parent, string name)
         {
-            ThrowIfStopped();
+        
             if (m_rootObject == null)
                 m_rootObject = new GameObject(name).transform;
+            
             m_rootObject.SetParent(parent, false);
         }
+
         private void DestroyRootObject()
         {
             if (m_rootObject == null)
                 return;
+
             var root = m_rootObject.gameObject;
             m_rootObject = null;
             root.SetActive(false);
             UnityEngine.Object.Destroy(root);
         }
+
         public virtual void OnFixedUpdate(float dt)
         {
         }
+
         public virtual void OnUpdate(float dt)
         {
         }
+
         public virtual void OnLateUpdate()
         {
         }
+
         public virtual void OnAppFocus(bool focused)
         {
         }
+
         public virtual void OnAppPause(bool paused)
         {
         }

@@ -12,6 +12,8 @@ namespace ProjectT
 {
     public class DataManager : ManagerBase
     {
+        private ResourceManager resource;
+
         private DesignTable.DataMgr tableData;
         public DesignTable.DataMgr Table { get => tableData; }
         private DesignLocal.LocalData localData = new DesignLocal.LocalData();
@@ -21,9 +23,12 @@ namespace ProjectT
 
         protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
+            resource = Context.Get<ResourceManager>();
+
             if (Context.LoadData)
                 await GetTableDatas(token);
         }
+
         protected override void OnShutdown(ShutdownReason reason)
         {
             tableData = null;
@@ -33,7 +38,6 @@ namespace ProjectT
 
         public async UniTask GetTableDatas(CancellationToken token = default)
         {
-            ThrowIfStopped();
             token.ThrowIfCancellationRequested();
             if (tableData == null)
                 tableData = new DataMgr();
@@ -60,7 +64,6 @@ namespace ProjectT
 
         public async UniTask LoadLocalDataAsync(System.Action<bool> callback = null, CancellationToken token = default)
         {
-            ThrowIfStopped();
             token.ThrowIfCancellationRequested();
             string localPath = "Assets/Automation/Local/";
             currentLanguage = Application.systemLanguage;
@@ -81,7 +84,7 @@ namespace ProjectT
 
             TextAsset textAsset = null;
 
-            await Context.Get<ResourceManager>().LoadAssetAsync<TextAsset>(localPath,
+            await resource.LoadAssetAsync<TextAsset>(localPath,
                 (resAsset) =>
                 {
                     if (resAsset == null)
@@ -94,7 +97,6 @@ namespace ProjectT
                     textAsset = resAsset;
                 }, cancelToken: token);
 
-            ThrowIfStopped();
             token.ThrowIfCancellationRequested();
             if (textAsset == null)
                 throw new System.InvalidOperationException($"Missing localization asset: {localPath}");
@@ -104,14 +106,13 @@ namespace ProjectT
             }
             finally
             {
-                Context.Get<ResourceManager>().Release(localPath);
+                resource.Release(localPath);
             }
             callback?.Invoke(true);
         }
 
         public async UniTask LoadTableDataAsync(System.Action<bool> callback = null, CancellationToken token = default)
         {
-            ThrowIfStopped();
             token.ThrowIfCancellationRequested();
             if (isDone)
             {
@@ -125,7 +126,7 @@ namespace ProjectT
 
                 TextAsset textAsset = null;
 
-                await Context.Get<ResourceManager>().LoadAssetAsync<TextAsset>(tablePath,
+                await resource.LoadAssetAsync<TextAsset>(tablePath,
                     (resAsset) =>
                     {
                         if (resAsset == null)
@@ -138,7 +139,6 @@ namespace ProjectT
                         textAsset = resAsset;
                     }, cancelToken: token);
 
-                ThrowIfStopped();
                 token.ThrowIfCancellationRequested();
                 if (textAsset == null)
                     throw new System.InvalidOperationException($"Missing table asset: {tablePath}");
@@ -148,7 +148,7 @@ namespace ProjectT
                 }
                 finally
                 {
-                    Context.Get<ResourceManager>().Release(tablePath);
+                    resource.Release(tablePath);
                 }
 
                 Global.Instance.Log($"[Table] {tableID} Load Complete!!");

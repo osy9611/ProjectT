@@ -9,8 +9,8 @@ namespace ProjectT
     public sealed class ManagerHost
     {
         private readonly Dictionary<Type, ManagerBase> registry = new Dictionary<Type, ManagerBase>();
-        private readonly List<ManagerBase> ordered = new List<ManagerBase>();
-        private readonly List<ManagerBase> started = new List<ManagerBase>();
+        private readonly List<ManagerBase> managers = new List<ManagerBase>();
+        private int startedCount;
         private readonly List<Exception> shutdownErrors = new List<Exception>();
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         private readonly CancellationToken token;
@@ -19,48 +19,68 @@ namespace ProjectT
         private bool isInitializationStarted;
         public ManagerState State { get; private set; } = ManagerState.Created;
         public Exception InitializationError { get; private set; }
-        public IReadOnlyList<Exception> ShutdownErrors => shutdownErrors.AsReadOnly();
+        public IReadOnlyList<Exception> ShutdownErrors { get; }
         public UniTask WhenReady => ready.Task;
 
         public ManagerHost(Transform root, bool loadData)
         {
+            ShutdownErrors = shutdownErrors.AsReadOnly();
             token = lifetime.Token;
             context = new ManagerContext(this, root, loadData);
         }
 
-        public void Register<T>(T manager) where T : ManagerBase
+        public T Register<T>(T manager) where T : ManagerBase
         {
             if (State != ManagerState.Created)
                 throw new InvalidOperationException("Registration is closed.");
+
             if (manager == null)
                 throw new ArgumentNullException(nameof(manager));
+
             if (manager.GetType() != typeof(T))
                 throw new ArgumentException("Register using the concrete manager type.");
+
+            if (registry.ContainsKey(typeof(T)))
+                throw new ArgumentException($"{typeof(T).Name} is already registered.");
+
             registry.Add(typeof(T), manager);
-            ordered.Add(manager);
+            managers.Add(manager);
+            return manager;
         }
 
         internal T GetInitialized<T>() where T : ManagerBase
         {
-            if (!registry.TryGetValue(typeof(T), out var manager) || manager.State != ManagerState.Ready)
+            T manager = FindManager<T>();
+            if (manager == null || manager.State != ManagerState.Ready)
                 throw new InvalidOperationException($"Dependency {typeof(T).Name} is not initialized.");
-            return (T)manager;
+
+            return manager;
         }
 
         public T GetReady<T>() where T : ManagerBase
         {
             if (State != ManagerState.Ready)
                 throw new InvalidOperationException($"Managers are {State}; await WhenReady first.");
+
             return GetInitialized<T>();
         }
 
         public bool TryGetReady<T>(out T manager) where T : ManagerBase
         {
             manager = null;
-            if (State != ManagerState.Ready || !registry.TryGetValue(typeof(T), out var value))
+            if (State != ManagerState.Ready)
                 return false;
-            manager = (T)value;
-            return true;
+
+            manager = FindManager<T>();
+            return manager != null;
+        }
+
+        private T FindManager<T>() where T : ManagerBase
+        {
+            if (registry.TryGetValue(typeof(T), out var manager))
+                return (T)manager;
+
+            return null;
         }
 
         public UniTask InitializeAsync()
@@ -81,12 +101,13 @@ namespace ProjectT
         {
             try
             {
-                foreach (var manager in ordered)
+                foreach (var manager in managers)
                 {
                     token.ThrowIfCancellationRequested();
-                    started.Add(manager);
+                    ++startedCount;
                     await manager.InitializeAsync(context, token);
                 }
+
                 token.ThrowIfCancellationRequested();
                 State = ManagerState.Ready;
                 ready.TrySetResult();
@@ -98,15 +119,20 @@ namespace ProjectT
                     ready.TrySetCanceled();
                     return;
                 }
+
                 InitializationError = error;
+
                 Shutdown(ShutdownReason.InitializationFailure);
             }
         }
+
         public void Shutdown(ShutdownReason reason = ShutdownReason.Normal)
         {
             if (State == ManagerState.Stopping || State == ManagerState.Stopped || State == ManagerState.Failed)
                 return;
+
             State = ManagerState.Stopping;
+
             try
             {
                 lifetime.Cancel();
@@ -115,29 +141,35 @@ namespace ProjectT
             {
                 shutdownErrors.Add(error);
             }
-            for (int i = started.Count - 1; i >= 0; --i)
+
+            for (int i = startedCount - 1; i >= 0; --i)
             {
                 try
                 {
-                    started[i].Shutdown(reason);
+                    managers[i].Shutdown(reason);
                 }
                 catch (Exception error)
                 {
-                    shutdownErrors.Add(new Exception($"{started[i].Name} shutdown failed.", error));
+                    shutdownErrors.Add(new Exception($"{managers[i].Name} shutdown failed.", error));
                 }
             }
+
             State = reason == ShutdownReason.InitializationFailure ? ManagerState.Failed : ManagerState.Stopped;
+
             if (State == ManagerState.Failed)
                 ready.TrySetException(InitializationError ?? new InvalidOperationException("Initialization was aborted."));
             else
                 ready.TrySetCanceled();
+
             lifetime.Dispose();
         }
+
         public void Update(float dt)
         {
             if (State != ManagerState.Ready)
                 return;
-            foreach (var manager in ordered)
+
+            foreach (var manager in managers)
             {
                 if (State != ManagerState.Ready)
                     break;
@@ -145,11 +177,13 @@ namespace ProjectT
                 manager.OnUpdate(dt);
             }
         }
+
         public void FixedUpdate(float dt)
         {
             if (State != ManagerState.Ready)
                 return;
-            foreach (var manager in ordered)
+
+            foreach (var manager in managers)
             {
                 if (State != ManagerState.Ready)
                     break;
@@ -157,11 +191,13 @@ namespace ProjectT
                 manager.OnFixedUpdate(dt);
             }
         }
+
         public void LateUpdate()
         {
             if (State != ManagerState.Ready)
                 return;
-            foreach (var manager in ordered)
+
+            foreach (var manager in managers)
             {
                 if (State != ManagerState.Ready)
                     break;
@@ -169,11 +205,13 @@ namespace ProjectT
                 manager.OnLateUpdate();
             }
         }
+
         public void Focus(bool value)
         {
             if (State != ManagerState.Ready)
                 return;
-            foreach (var manager in ordered)
+
+            foreach (var manager in managers)
             {
                 if (State != ManagerState.Ready)
                     break;
@@ -181,11 +219,13 @@ namespace ProjectT
                 manager.OnAppFocus(value);
             }
         }
+
         public void Pause(bool value)
         {
             if (State != ManagerState.Ready)
                 return;
-            foreach (var manager in ordered)
+
+            foreach (var manager in managers)
             {
                 if (State != ManagerState.Ready)
                     break;

@@ -28,7 +28,6 @@ namespace ProjectT
 
         public void CreatePool<T>() where T : new()
         {
-            ThrowIfStopped();
             var type = typeof(T);
             if (genericPools.ContainsKey(type))
                 return;
@@ -38,7 +37,6 @@ namespace ProjectT
 
         public void CreatePool(GameObject original, int count = 5)
         {
-            ThrowIfStopped();
             GameObjectPool pool = new GameObjectPool();
             pool.Init(original, count);
             pool.Root.parent = RootObject;
@@ -49,7 +47,6 @@ namespace ProjectT
         public async UniTask CreatePoolAsync(GameObject original, int count = 5)
         {
             await UniTask.Yield(cancellationToken: LifetimeToken);
-            ThrowIfStopped();
             GameObjectPool pool = new GameObjectPool();
             pool.Init(original, count);
             pool.Root.parent = RootObject;
@@ -89,7 +86,6 @@ namespace ProjectT
         public async UniTask<bool> ReturnAsync(GameObject obj)
         {
             await UniTask.Yield(cancellationToken: LifetimeToken);
-            ThrowIfStopped();
             string name = obj.name;
             if (gameObjectPools.TryGetValue(name, out var pool))
             {
@@ -103,7 +99,6 @@ namespace ProjectT
 
         public T Get<T>() where T : new()
         {
-            ThrowIfStopped();
             var type = typeof(T);
 
             if (!genericPools.TryGetValue(type, out var pool))
@@ -117,11 +112,9 @@ namespace ProjectT
 
         public GameObject Get(GameObject original, Transform parent = null)
         {
-            ThrowIfStopped();
             if (!gameObjectPools.ContainsKey(original.name))
                 CreatePool(original);
 
-            ThrowIfStopped();
             return gameObjectPools[original.name].Get(parent);
         }
 
@@ -130,7 +123,6 @@ namespace ProjectT
             if (!gameObjectPools.ContainsKey(original.name))
                 await CreatePoolAsync(original);
 
-            ThrowIfStopped();
             return gameObjectPools[original.name].Get(parent);
         }
 

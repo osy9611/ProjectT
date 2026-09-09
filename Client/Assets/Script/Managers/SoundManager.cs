@@ -15,6 +15,8 @@ namespace ProjectT
 
     public class SoundManager : ManagerBase
     {
+        private ResourceManager resource;
+
         private AudioSource[] audioSources = new AudioSource[System.Enum.GetNames(typeof(eSound)).Length];
         private Dictionary<string, AudioClip> audioClips = new Dictionary<string, AudioClip>();
 
@@ -22,6 +24,8 @@ namespace ProjectT
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
+            resource = Context.Get<ResourceManager>();
+
             CreateRootObject(Context.Root, "SoundManager");
 
             string[] soundNames = System.Enum.GetNames(typeof(eSound));
@@ -36,6 +40,7 @@ namespace ProjectT
             audioSources[(int)eSound.Bgm].loop = true;
             return UniTask.CompletedTask;
         }
+
         protected override void OnShutdown(ShutdownReason reason)
         {
             Clear();
@@ -44,12 +49,11 @@ namespace ProjectT
 
         private AudioClip GetOrAddAudioClip(string path, eSound type = eSound.FX)
         {
-            ThrowIfStopped();
             if (string.IsNullOrEmpty(path))
                 return null;
             if (!audioClips.TryGetValue(path, out var clip))
             {
-                clip = Context.Get<ResourceManager>().LoadAndGet<AudioClip>(path);
+                clip = resource.LoadAndGet<AudioClip>(path);
                 if (clip != null)
                     audioClips.Add(path, clip);
             }
@@ -64,7 +68,6 @@ namespace ProjectT
 
         public void Play(AudioClip clip, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            ThrowIfStopped();
             if (clip == null)
                 return;
 
@@ -88,7 +91,6 @@ namespace ProjectT
 
         public void PlayFade(string path, eSound type = eSound.FX, float fadeTime = 1.0f, float pitch = 1.0f)
         {
-            ThrowIfStopped();
             soundFadeCancel?.Cancel();
             soundFadeCancel?.Dispose();
             soundFadeCancel = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken);
@@ -146,7 +148,7 @@ namespace ProjectT
                 source.clip = null;
             }
             foreach (var path in new List<string>(audioClips.Keys))
-                Context.Get<ResourceManager>().Release(path);
+                resource.Release(path);
             audioClips.Clear();
         }
     }

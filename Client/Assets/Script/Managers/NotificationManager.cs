@@ -73,8 +73,10 @@ namespace ProjectT
         {
             var errors = new List<System.Exception>();
             var snapshot = handlers.ToArray();
+
             handlers.Clear();
             waitForNotifyInfos.Clear();
+
             foreach (var handler in snapshot)
             {
                 try
@@ -89,6 +91,7 @@ namespace ProjectT
             if (errors.Count > 0)
                 throw new System.AggregateException(errors);
         }
+
         public override void OnUpdate(float dt)
         {
             UpdateHandler(dt);
@@ -98,7 +101,6 @@ namespace ProjectT
 
         public void ConnectHandler(INotifyHandler handler)
         {
-            ThrowIfStopped();
             if (handlers.Contains(handler))
                 return;
             if (handler == null)
