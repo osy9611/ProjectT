@@ -10,16 +10,23 @@ namespace ProjectT
     {
         private readonly Dictionary<Type, ManagerBase> registry = new Dictionary<Type, ManagerBase>();
         private readonly List<ManagerBase> managers = new List<ManagerBase>();
+
         private int startedCount;
         private readonly List<Exception> shutdownErrors = new List<Exception>();
-        private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
+
         private readonly CancellationToken token;
+        private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         private readonly UniTaskCompletionSource ready = new UniTaskCompletionSource();
+
         private readonly ManagerContext context;
+        
         private bool isInitializationStarted;
+        
         public ManagerState State { get; private set; } = ManagerState.Created;
+        
         public Exception InitializationError { get; private set; }
         public IReadOnlyList<Exception> ShutdownErrors { get; }
+        
         public UniTask WhenReady => ready.Task;
 
         public ManagerHost(Transform root, bool loadData)

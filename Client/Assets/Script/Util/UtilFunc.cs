@@ -34,7 +34,7 @@ public static class UtilFunc
         if (tbData == null)
             return false;
 
-        var spriteAtlas = Global.Resource.LoadAndGet<SpriteAtlas>(tbData.Path);
+        var spriteAtlas = Global.Resource.LoadAndGet<SpriteAtlas>(tbData.Path, dontDestroy: true);
 
         if (spriteAtlas == null)
             return false;

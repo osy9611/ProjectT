@@ -1,4 +1,5 @@
 using Cysharp.Threading.Tasks;
+using ProjectT.Addressable;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -16,6 +17,7 @@ namespace ProjectT
     public class SoundManager : ManagerBase
     {
         private ResourceManager resource;
+        private ResourceScope resourceScope;
 
         private AudioSource[] audioSources = new AudioSource[System.Enum.GetNames(typeof(eSound)).Length];
         private Dictionary<string, AudioClip> audioClips = new Dictionary<string, AudioClip>();
@@ -51,12 +53,15 @@ namespace ProjectT
         {
             if (string.IsNullOrEmpty(path))
                 return null;
+
             if (!audioClips.TryGetValue(path, out var clip))
             {
-                clip = resource.LoadAndGet<AudioClip>(path);
+                resourceScope = resourceScope ?? resource.CreateScope();
+                clip = resource.LoadAndGet<AudioClip>(path, scope: resourceScope);
                 if (clip != null)
                     audioClips.Add(path, clip);
             }
+
             return clip;
         }
 
@@ -101,29 +106,39 @@ namespace ProjectT
         private async UniTask ExecuteSoundFade(AudioClip clip, eSound type, float fadeTime, float pitch, CancellationToken token)
         {
             var source = audioSources[(int)type];
+
             if (source == null || clip == null)
                 return;
+
             float volume = source.volume;
+
             try
             {
                 if (fadeTime <= 0f)
                 {
                     token.ThrowIfCancellationRequested();
                     Play(clip, type, pitch);
+
                     return;
                 }
+
                 for (float elapsed = 0; elapsed < fadeTime; elapsed += Time.deltaTime)
                 {
                     token.ThrowIfCancellationRequested();
                     source.volume = Mathf.Lerp(volume, 0f, elapsed / fadeTime);
+
                     await UniTask.Yield(cancellationToken: token);
                 }
+
                 token.ThrowIfCancellationRequested();
+
                 Play(clip, type, pitch);
+
                 for (float elapsed = 0; elapsed < fadeTime; elapsed += Time.deltaTime)
                 {
                     token.ThrowIfCancellationRequested();
                     source.volume = Mathf.Lerp(0f, volume, elapsed / fadeTime);
+
                     await UniTask.Yield(cancellationToken: token);
                 }
             }
@@ -140,16 +155,19 @@ namespace ProjectT
             soundFadeCancel?.Cancel();
             soundFadeCancel?.Dispose();
             soundFadeCancel = null;
+
             foreach (var source in audioSources)
             {
                 if (source == null)
                     continue;
+
                 source.Stop();
                 source.clip = null;
             }
-            foreach (var path in new List<string>(audioClips.Keys))
-                resource.Release(path);
+
             audioClips.Clear();
+            resourceScope?.Dispose();
+            resourceScope = null;
         }
     }
 }

@@ -161,7 +161,7 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = resource.LoadAndGet<T>(path);
+            T hud = resource.LoadAndGet<T>(path, dontDestroy: true);
             hud = pool.Get(hud.gameObject).GetComponent<T>();
             hud.RegisterInfo(pivotInfo);
 
@@ -174,7 +174,7 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = await resource.LoadAndGetAsync<T>(path);
+            T hud = await resource.LoadAndGetAsync<T>(path, dontDestroy: true);
             GameObject poolObj = await pool.GetAsync(hud.gameObject);
             hud = poolObj.gameObject.GetComponent<T>();
             hud.RegisterInfo(pivotInfo);

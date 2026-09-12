@@ -1,12 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
-using DesignTable;
+using ProjectT.Addressable;
 using ProjectT.Scene;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.ResourceManagement.ResourceProviders;
+using UnityEngine.SceneManagement;
 
 namespace ProjectT
 {
@@ -18,271 +18,388 @@ namespace ProjectT
 
     public class SceneManager : ManagerBase
     {
+        private sealed class SceneEntry
+        {
+            public SceneBase Scene;
+            public ResourceScope Scope;
+            public SceneInstance Instance;
+            public bool IsAddressable;
+            public bool IsAdditive;
+        }
+
         private ResourceManager resource;
         private ClientLocalStorageManager localStorage;
-
-        private List<KeyValuePair<string, SceneBase>> pages = new List<KeyValuePair<string, SceneBase>>();
-
-        private SceneBase currentScene = null;
-
-        public SceneBase CurrentScene { get => currentScene; }
-
-        private string prevResourceName = string.Empty;
-        private string prevPageTypeName = string.Empty;
-
-        public string PrevSceneName { get => prevPageTypeName; }
-
-        private bool isTrainsioning = false;
-        private UniTask m_transitionTask = UniTask.CompletedTask;
-
-        public List<string> SubScenes { get; private set; } = new List<string>();
-
-        private Transform sceneRoot;
-
-#if UNITY_EDITOR
-        public List<KeyValuePair<string, SceneBase>> GetPages { get => pages; } 
-#endif
+        private readonly Dictionary<Type, SceneEntry> scenes = new Dictionary<Type, SceneEntry>();
+        private SceneEntry currentScene;
+        private bool isTransitioning;
+        private int transitionVersion;
+        private UnityEngine.SceneManagement.Scene transitionScene;
+        public bool IsTransitioning => isTransitioning;
+        public SceneBase CurrentScene => currentScene?.Scene != null && currentScene.Scene.State == SceneState.Active ? currentScene.Scene : null;
+        public string PrevSceneName { get; private set; } = string.Empty;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
             resource = Context.Get<ResourceManager>();
             localStorage = Context.Get<ClientLocalStorageManager>();
-
             CreateRootObject(Context.Root, "SceneRoot");
             return UniTask.CompletedTask;
         }
 
-
         protected override void OnShutdown(ShutdownReason reason)
         {
-            var errors = new List<System.Exception>();
-            var scenes = new HashSet<SceneBase>(pages.Select(p => p.Value));
-            if (currentScene != null)
-                scenes.Add(currentScene);
-            foreach (var scene in scenes.ToArray())
-                if (scene != null && scene.SubScenes != null)
-                    foreach (var sub in scene.SubScenes) scenes.Add(sub);
-            foreach (var scene in scenes)
+            try
             {
-                if (scene == null)
-                    continue;
-                try
-                {
-                    scene.OnFinalize();
-                }
-                catch (System.Exception error)
-                {
-                    errors.Add(error);
-                }
-                try
-                {
-                    scene.OnExit();
-                }
-                catch (System.Exception error)
-                {
-                    errors.Add(error);
-                }
+                StopScenes();
             }
-            pages.Clear();
-            SubScenes.Clear();
-            currentScene = null;
-            isTrainsioning = false;
-            if (errors.Count > 0)
-                throw new System.AggregateException(errors);
+            finally
+            {
+                scenes.Clear();
+                currentScene = null;
+            }
         }
 
-        protected void AddPage(SceneBase scene)
+        public override void OnUpdate(float dt)
         {
-            if (scene == null)
+            if (isTransitioning)
                 return;
 
-            pages.Add(new KeyValuePair<string, SceneBase>(scene.GetType().ToString(), scene));
-        }
+            int version = transitionVersion;
 
-        public SceneBase FindPage(string key)
-        {
-            if (pages == null || pages.Any() == false)
-                return null;
+            foreach (var entry in scenes.Values)
+            {
+                if (entry.Scene != null && entry.Scene.State == SceneState.Active)
+                    entry.Scene.OnUpdate(dt);
 
-            return pages.FirstOrDefault(x => (x.Key.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0)).Value;
+                if (version != transitionVersion || State != ManagerState.Ready)
+                    break;
+            }
         }
 
         public T GetScene<T>() where T : SceneBase
         {
-            return currentScene as T;
+            if (scenes.TryGetValue(typeof(T), out var entry) && entry.Scene != null && entry.Scene.State == SceneState.Active)
+                return entry.Scene as T;
+
+            return null;
         }
 
         public bool IsHaveScene<T>() where T : SceneBase
         {
-            if (currentScene == null)
-                return false;
-
-            return currentScene is T;
+            return GetScene<T>() != null;
         }
 
-        public void Transition<T>(string resourceName, float startLoadingGage, float fadeOutDuration, UnityEngine.SceneManagement.LoadSceneMode loadSceneMode, System.Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
+        public void Transition<T>(string resourceName, float startLoadingGage, float fadeOutDuration, LoadSceneMode loadSceneMode, Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
         {
-            //Check Resource
-            //Unity 6.0으로 넘어오면서 SceneManagement에서 관리하는게 아니라 Addressable에서만 관리하는걸로 변경
-            UnityEngine.SceneManagement.Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-            if (activeScene.name.Equals(resourceName, System.StringComparison.CurrentCultureIgnoreCase) == true)
-                resourceName = string.Empty;
-
-            if (!string.IsNullOrEmpty(resourceName))
-            {
-                SceneDataInfo sceneInfo = Global.Table.SceneDataInfos.Get(resourceName);
-                if (sceneInfo == null)
-                    Global.Instance.LogError($"[SceneManager] Table Not Found {resourceName}");
-                else
-                    resourceName = sceneInfo.Path;
-
-            }
-
-            //Check Page
-            if (currentScene != null)
-            {
-                if (currentScene.GetType() == typeof(T))
-                {
-                    completed(eSceneTransitionErrorCode.Failure);
-                    return;
-                }
-            }
-
-            if (loadSceneMode == UnityEngine.SceneManagement.LoadSceneMode.Single)
-                OnTransitionTask<T>(resourceName, startLoadingGage, fadeOutDuration, completed, data).Forget();
-            else
-                OnTransitionTaskAdditive<T>(resourceName, startLoadingGage, fadeOutDuration, completed, true, data).Forget();
+            Transition<T>(resourceName, loadSceneMode, completed, data);
         }
 
-        private async UniTask OnTransitionTask<T>(string sceneName, float fadeInDuration, float fadeOutDuration, System.Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
+        public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionErrorCode> completed = null, params object[] data) where T : SceneBase
         {
-            string currentPageType = currentScene != null ? currentScene.GetType().ToString() : string.Empty;
-            string nextPageType = typeof(T).ToString();
+            NotifyTransitionAsync<T>(resourceName, loadSceneMode, completed, data).Forget(Global.LogException);
+        }
 
-            isTrainsioning = true;
+        private async UniTask NotifyTransitionAsync<T>(string resourceName, LoadSceneMode mode, Action<eSceneTransitionErrorCode> completed, object[] data) where T : SceneBase
+        {
+            var result = eSceneTransitionErrorCode.Failure;
 
-            Global.Instance.Log("Prev Scene Exit");
-
-            if (currentScene != null)
+            try
             {
-                prevPageTypeName = currentPageType;
+                await TransitionAsync<T>(resourceName, mode, data);
+                result = eSceneTransitionErrorCode.Success;
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                Global.LogException(error);
+            }
 
-                if (currentScene.SubScenes != null && currentScene.SubScenes.Count > 0)
+            completed?.Invoke(result);
+        }
+
+        public async UniTask TransitionAsync<T>(string resourceName, LoadSceneMode mode, params object[] data) where T : SceneBase
+        {
+            if (State != ManagerState.Ready || isTransitioning)
+                throw new InvalidOperationException("Scene transition is unavailable.");
+
+            if (mode != LoadSceneMode.Single && mode != LoadSceneMode.Additive)
+                throw new ArgumentOutOfRangeException(nameof(mode));
+
+            if (scenes.TryGetValue(typeof(T), out var existing) && (mode == LoadSceneMode.Additive || existing.Scene != null && existing.Scene.State == SceneState.Active))
+                throw new InvalidOperationException($"Scene already registered: {typeof(T).Name}");
+
+            if (mode == LoadSceneMode.Additive && CurrentScene == null)
+                throw new InvalidOperationException("An additive scene requires an active primary scene.");
+
+            string path = ResolvePath(resourceName, mode);
+            transitionVersion++;
+            isTransitioning = true;
+
+            try
+            {
+                await TransitionCoreAsync<T>(path, mode, data);
+            }
+            finally
+            {
+                isTransitioning = false;
+            }
+        }
+
+        private string ResolvePath(string resourceName, LoadSceneMode mode)
+        {
+            var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+
+            if (mode == LoadSceneMode.Single && scenes.Count == 0 && active.IsValid() && active.isLoaded
+                && (string.IsNullOrEmpty(resourceName) || string.Equals(active.name, resourceName, StringComparison.OrdinalIgnoreCase)))
+                return null;
+
+            if (string.IsNullOrWhiteSpace(resourceName))
+                throw new ArgumentException("Scene table key is empty.", nameof(resourceName));
+
+            var info = Global.Table.SceneDataInfos.Get(resourceName);
+
+            if (info == null || string.IsNullOrWhiteSpace(info.Path))
+                throw new ArgumentException($"Scene table entry is missing: {resourceName}");
+
+            return info.Path;
+        }
+
+        private async UniTask TransitionCoreAsync<T>(string path, LoadSceneMode mode, object[] data) where T : SceneBase
+        {
+            bool single = mode == LoadSceneMode.Single;
+            var previousScope = resource.SceneScope;
+            var previousScenes = new List<SceneEntry>(scenes.Values);
+            var entry = new SceneEntry { Scope = path == null ? previousScope : resource.CreateScope(), IsAdditive = !single };
+            bool loaded = false;
+            bool previousReleased = false;
+
+            try
+            {
+                if (single)
                 {
-                    for (int i = 0; i < currentScene.SubScenes.Count; ++i)
+                    PrevSceneName = currentScene?.Scene != null ? currentScene.Scene.GetType().ToString() : PrevSceneName;
+
+                    StopScenes();
+
+                    await UniTask.NextFrame(cancellationToken: LifetimeToken);
+
+                    if (path != null)
                     {
-                        currentScene.SubScenes[i].OnFinalize();
-                        currentScene.SubScenes[i].OnExit();
+                        await UnloadPreviousScenesAsync();
+
+                        LifetimeToken.ThrowIfCancellationRequested();
+                        scenes.Clear();
+                        currentScene = null;
+                        resource.SetSceneScope(entry.Scope);
+                        previousReleased = true;
+
+                        var errors = new List<Exception>();
+                        foreach (var previous in previousScenes)
+                        {
+                            try
+                            {
+                                previous.Scope.Dispose();
+                            }
+                            catch (Exception error)
+                            {
+                                errors.Add(error);
+                            }
+                        }
+                        try
+                        {
+                            previousScope.Dispose();
+                        }
+                        catch (Exception error)
+                        {
+                            errors.Add(error);
+                        }
+
+                        if (errors.Count > 0)
+                            throw new AggregateException(errors);
+
+                        await resource.UnloadUnusedAssetsAsync();
                     }
-
-                    currentScene.SubScenes.Clear();
                 }
 
-                currentScene.OnFinalize();
-                currentScene.OnExit();
-                GameObject.Destroy(currentScene);
+                if (path != null)
+                {
+                    var handle = await resource.LoadSceneAsync(path, mode, null);
+                    entry.Instance = handle.Result;
+                    entry.IsAddressable = true;
+                }
+
+                LifetimeToken.ThrowIfCancellationRequested();
+                loaded = true;
+
+                var root = new GameObject(typeof(T).Name);
+                root.transform.SetParent(RootObject, false);
+
+                entry.Scene = root.AddComponent<T>();
+
+                scenes.Add(typeof(T), entry);
+
+                await entry.Scene.EnterAsync(entry.Scope, LifetimeToken, data);
+
+                LifetimeToken.ThrowIfCancellationRequested();
+
+                if (single)
+                    currentScene = entry;
             }
-
-            await resource.ReleaseAllAsync();
-            await Resources.UnloadUnusedAssets();
-            await UniTask.Yield(cancellationToken: LifetimeToken);
-
-            float currentProgress = 0.0f;
-            const float sceneLoadingProgressRate = 0.0f;
-
-            Global.Instance.Log("Next SceneTransition Enter");
-            if (!string.IsNullOrEmpty(sceneName))
+            catch
             {
-                UnityEngine.SceneManagement.Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                if (activeScene != null)
-                    prevResourceName = activeScene.name;
-
-                Global.Instance.Log($"{sceneName} Scene File Inner Object Load");
-
-                await resource.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Single,
-                    (progress) =>
+                if (entry.Scene != null)
+                {
+                    try
                     {
-                        if (progress == 1.0f)
-                            Global.Instance.LogWarning("OnTransitionTask => Completed LoadScene.");
-                        else
-                            Global.Instance.LogWarning($"OnTransitionTask => LoadScene {progress * 100}%");
-                    });
-            }
-            else
-                currentProgress = sceneLoadingProgressRate;
+                        entry.Scene.Stop();
+                    }
+                    catch (Exception error)
+                    {
+                        Global.LogException(error);
+                    }
+                }
 
-            currentScene = FindPage(typeof(T).ToString());
-
-            if (currentScene == null)
-            {
-                currentScene = RootObject.GetOrAddComponent<T>();
-                AddPage(currentScene);
-            }
-
-            if (currentScene != null)
-            {
-                await currentScene.OnEnter(currentProgress, data);
-                currentScene.OnInitialize();
-            }
-
-            await currentScene.LoadAdditiveScene(() =>
-            {
                 if (State == ManagerState.Ready)
-                    completed?.Invoke(eSceneTransitionErrorCode.Success);
-            });
+                {
+                    if (!loaded)
+                    {
+                        if (single)
+                            resource.SetSceneScope(previousReleased ? resource.CreateScope() : previousScope);
 
-            for (int i = 0; i < 3; ++i)
-                await UniTask.NextFrame(cancellationToken: LifetimeToken);
+                        if (!ReferenceEquals(entry.Scope, previousScope))
+                            entry.Scope.Dispose();
+                    }
+                    else if (!single)
+                    {
+                        try
+                        {
+                            await CloseEntryAsync(typeof(T), entry);
+                        }
+                        catch (Exception error)
+                        {
+                            Global.LogException(error);
+                        }
+                    }
+                    else if (!scenes.ContainsKey(typeof(T)))
+                        scenes.Add(typeof(T), entry);
+                }
+
+                throw;
+            }
         }
 
-        private async UniTask OnTransitionTaskAdditive<T>(string sceneName, float fadeInDuration, float fadeOutDuration, System.Action<eSceneTransitionErrorCode> completed, bool hideLoading = true, params object[] data) where T : SceneBase
+        private async UniTask UnloadPreviousScenesAsync()
         {
-            float currentProgress = 0.0f;
-            const float sceneLoadingProgressRate = 0.0f;
+            if (!transitionScene.IsValid() || !transitionScene.isLoaded)
+                transitionScene = UnityEngine.SceneManagement.SceneManager.CreateScene("SceneTransition");
 
-            if (!string.IsNullOrEmpty(sceneName))
+            UnityEngine.SceneManagement.SceneManager.SetActiveScene(transitionScene);
+
+            var previous = new List<UnityEngine.SceneManagement.Scene>();
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; ++i)
             {
-                UnityEngine.SceneManagement.Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                if (activeScene != null)
-                    prevResourceName = activeScene.name;
-
-                await resource.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive,
-                    (progress) =>
-                    {
-                        if (progress == 1.0f)
-                            Debug.LogWarning("OnTransitionTask => Compelted LoadScene.");
-                        else
-                            Debug.LogWarning($"OnTransitionTask => LoadScene {progress * 100}%");
-                    });
-            }
-            else
-                currentProgress = sceneLoadingProgressRate;
-
-
-            var currentAdditiveScene = RootObject.GetOrAddComponent<T>();
-            if (currentAdditiveScene != null)
-            {
-                await currentAdditiveScene.OnEnter(currentProgress, data);
-                currentAdditiveScene.OnInitialize();
-
-                currentScene.SubScenes.Add(currentAdditiveScene);
+                var scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (scene != transitionScene && scene.isLoaded)
+                    previous.Add(scene);
             }
 
-            if (State == ManagerState.Ready)
-                completed?.Invoke(eSceneTransitionErrorCode.Success);
+            foreach (var scene in previous)
+            {
+                await resource.UnLoadSceneAsync(scene);
+                LifetimeToken.ThrowIfCancellationRequested();
+            }
+        }
 
+        private void StopScenes()
+        {
+            var errors = new List<Exception>();
+
+            foreach (var entry in new List<SceneEntry>(scenes.Values))
+            {
+                if (ReferenceEquals(entry, currentScene) || entry.Scene == null)
+                    continue;
+
+                try
+                {
+                    entry.Scene.Stop();
+                }
+                catch (Exception error)
+                {
+                    errors.Add(error);
+                }
+            }
+
+            if (currentScene?.Scene != null)
+            {
+                try
+                {
+                    currentScene.Scene.Stop();
+                }
+                catch (Exception error)
+                {
+                    errors.Add(error);
+                }
+            }
+            if (errors.Count > 0)
+                throw new AggregateException(errors);
+        }
+
+        public async UniTask UnloadAdditiveAsync<T>() where T : SceneBase
+        {
+            if (State != ManagerState.Ready || isTransitioning)
+                throw new InvalidOperationException("Scene transition is unavailable.");
+
+            if (!scenes.TryGetValue(typeof(T), out var entry) || !entry.IsAdditive)
+                throw new InvalidOperationException("The requested additive scene is not registered.");
+
+            transitionVersion++;
+            isTransitioning = true;
+
+            try
+            {
+                await CloseEntryAsync(typeof(T), entry);
+            }
+            finally
+            {
+                isTransitioning = false;
+            }
+        }
+
+        private async UniTask CloseEntryAsync(Type type, SceneEntry entry)
+        {
+            Exception stopError = null;
+
+            try
+            {
+                entry.Scene?.Stop();
+            }
+            catch (Exception error)
+            {
+                stopError = error;
+            }
+
+            await UniTask.NextFrame();
+
+            if (State != ManagerState.Ready)
+                return;
+
+            if (entry.IsAddressable && entry.Instance.Scene.isLoaded)
+                await resource.UnLoadSceneAsync(entry.Instance, null);
+
+            scenes.Remove(type);
+            entry.Scope.Dispose();
+
+            if (stopError != null)
+                throw stopError;
         }
 
         public void GoTitle()
         {
-            float percent = 0.0f;
-            Transition<TitleScene>("TitleScene", percent, 1.0f, UnityEngine.SceneManagement.LoadSceneMode.Single,
-            (result) =>
+            Transition<TitleScene>("TitleScene", LoadSceneMode.Single, result =>
             {
-                Debug.Log(result);
-
-                localStorage.LoadAllData();
-            }, null);
+                if (result == eSceneTransitionErrorCode.Success)
+                    localStorage.LoadAllData();
+            });
         }
     }
 }

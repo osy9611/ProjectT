@@ -82,31 +82,11 @@ namespace ProjectT
                     break;
             }
 
-            TextAsset textAsset = null;
-
-            await resource.LoadAssetAsync<TextAsset>(localPath,
-                (resAsset) =>
-                {
-                    if (resAsset == null)
-                    {
-                        Global.Instance.LogError("Local Asset Is Null");
-                        callback?.Invoke(false);
-                        return;
-                    }
-
-                    textAsset = resAsset;
-                }, cancelToken: token);
-
-            token.ThrowIfCancellationRequested();
-            if (textAsset == null)
-                throw new System.InvalidOperationException($"Missing localization asset: {localPath}");
-            try
+            using (var scope = resource.CreateScope())
             {
+                var textAsset = await resource.LoadAndGetAsync<TextAsset>(localPath, cancelToken: token, scope: scope);
+
                 localData.LoadData(textAsset.bytes);
-            }
-            finally
-            {
-                resource.Release(localPath);
             }
             callback?.Invoke(true);
         }
@@ -124,31 +104,10 @@ namespace ProjectT
             {
                 string tablePath = $"Assets/Automation/Table/{tableID}.bytes";
 
-                TextAsset textAsset = null;
-
-                await resource.LoadAssetAsync<TextAsset>(tablePath,
-                    (resAsset) =>
-                    {
-                        if (resAsset == null)
-                        {
-                            Global.Instance.LogError("Table Asset Is Null");
-                            callback?.Invoke(false);
-                            return;
-                        }
-
-                        textAsset = resAsset;
-                    }, cancelToken: token);
-
-                token.ThrowIfCancellationRequested();
-                if (textAsset == null)
-                    throw new System.InvalidOperationException($"Missing table asset: {tablePath}");
-                try
+                using (var scope = resource.CreateScope())
                 {
+                    var textAsset = await resource.LoadAndGetAsync<TextAsset>(tablePath, cancelToken: token, scope: scope);
                     tableData.LoadData(tableID, textAsset.bytes);
-                }
-                finally
-                {
-                    resource.Release(tablePath);
                 }
 
                 Global.Instance.Log($"[Table] {tableID} Load Complete!!");

@@ -127,12 +127,12 @@ namespace ProjectT
             }
             catch (Exception error)
             {
-                Debug.LogException(error);
+                LogException(error);
             }
             finally
             {
                 foreach (var error in owner.ShutdownErrors) 
-                    Debug.LogException(error);
+                    LogException(error);
             }
         }
 
@@ -215,7 +215,7 @@ namespace ProjectT
                 if (host != null)
                 {
                     foreach (var error in host.ShutdownErrors)
-                        Debug.LogException(error);
+                        LogException(error);
                 }
             }
             finally
@@ -242,8 +242,13 @@ namespace ProjectT
             Debug.LogError(MakeTimeStampLog($"[Global] {msg}", "ERROR"));
         }
 
+        public static void LogException(Exception error)
+        {
+            Debug.LogError(MakeTimeStampLog($"[Global] {error}", "ERROR"));
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private string MakeTimeStampLog(string msg, string type)
+        private static string MakeTimeStampLog(string msg, string type)
         {
 #if UNITY_EDITOR
             return msg;

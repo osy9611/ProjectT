@@ -200,7 +200,7 @@ namespace ProjectT.UGUI
                         var obj = GameObject.Instantiate(result);
                         widget = obj.GetComponent<T>();
                     }
-                });
+                }, dontDestroy: true);
 
             return widget;
         }
@@ -216,7 +216,7 @@ namespace ProjectT.UGUI
                         var obj = GameObject.Instantiate(result);
                         widget = obj.GetComponent<T>();
                     }
-                });
+                }, dontDestroy: true);
 
             return widget;
         }
@@ -230,7 +230,6 @@ namespace ProjectT.UGUI
                 uiDatas[type].OnHide();
                 uiDatas.Remove(type);
 
-                Global.Resource.Release(path);
             }
         }
 
