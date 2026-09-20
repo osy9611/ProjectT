@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -13,41 +14,59 @@ namespace ProjectT.Addressable
         Resources
     }
 
-    internal sealed class ResourceEntry : IDisposable
+    public abstract class IResource
     {
         private readonly UniTaskCompletionSource<bool> ready = new UniTaskCompletionSource<bool>();
-        private readonly Action<ResourceEntry> onFailed;
-        private object result;
+        private Action<IResource> onFailed;
+        protected object resourceData;
         private Exception error;
         private bool isReleased;
-        public string Path { get; }
-        public ResourceSource Source { get; }
-        public ResourceRequest Request { get; private set; }
-        public Type AssetType { get; }
-        public AsyncOperationHandle Handle { get; }
-        public HashSet<ResourceScope> Owners { get; } = new HashSet<ResourceScope>();
+        public string Path { get; private set; }
+        public ResourceSource Source { get; private set; }
+        internal ResourceRequest Request { get; private set; }
+        public abstract Type AssetType { get; }
+        private AsyncOperationHandle Handle { get; set; }
+        internal HashSet<ResourceScope> Owners { get; } = new HashSet<ResourceScope>();
         public bool IsDone { get; private set; }
-        public UniTask<bool> WhenReady => ready.Task;
+        internal UniTask<bool> WhenReady => ready.Task;
 
-        public ResourceEntry(string path, Type assetType, AsyncOperationHandle handle, Action<ResourceEntry> onFailed)
+        internal void Initialize(string path, ResourceSource source, bool asynchronous, Action<IResource> onFailed)
         {
             Path = path;
-            AssetType = assetType;
-            Handle = handle;
+            Source = source;
             this.onFailed = onFailed;
+
+            if (source == ResourceSource.Addressables)
+                Handle = LoadAddressable(path);
+            else if (asynchronous)
+                Request = Resources.LoadAsync(path, AssetType);
         }
 
-        public ResourceEntry(string path, Type assetType, bool asynchronous, Action<ResourceEntry> onFailed)
+        protected abstract AsyncOperationHandle LoadAddressable(string path);
+
+        protected virtual void OnInitialize() { }
+
+        protected virtual void OnRelease() { }
+
+        private void SetResult(object asset)
         {
-            Path = path;
-            AssetType = assetType;
-            Source = ResourceSource.Resources;
-            this.onFailed = onFailed;
-            if (asynchronous)
-                Request = Resources.LoadAsync(path, assetType);
+            resourceData = asset;
+
+            try
+            {
+                OnInitialize();
+            }
+            catch (Exception exception)
+            {
+                Fail(exception);
+                return;
+            }
+
+            IsDone = true;
+            ready.TrySetResult(true);
         }
 
-        public void WaitForCompletion()
+        internal void WaitForCompletion()
         {
             if (Source == ResourceSource.Resources)
                 CompleteResource(Resources.Load(Path, AssetType));
@@ -60,7 +79,7 @@ namespace ProjectT.Addressable
 
         private void CompleteResource(AsyncOperation operation)
         {
-            CompleteResource(Request.asset);
+            CompleteResource(((ResourceRequest)operation).asset);
         }
 
         private void CompleteResource(UnityEngine.Object asset)
@@ -74,26 +93,30 @@ namespace ProjectT.Addressable
                 return;
             }
 
-            IsDone = true;
             if (Request != null)
                 Request.completed -= CompleteResource;
             Request = null;
-            result = asset;
-            ready.TrySetResult(true);
+            SetResult(asset);
         }
 
-        public void Observe()
+        internal void Observe()
         {
             if (Source == ResourceSource.Resources)
             {
-                if (Request == null)
-                    WaitForCompletion();
-                else
+                // 완료 콜백이 등록 즉시 실행되면 Request가 비워지므로 지역 변수로 고정한다.
+                var request = Request;
+
+                if (request == null)
                 {
-                    Request.completed += CompleteResource;
-                    if (Request.isDone)
-                        CompleteResource((AsyncOperation)Request);
+                    WaitForCompletion();
+                    return;
                 }
+
+                request.completed += CompleteResource;
+
+                if (request.isDone)
+                    CompleteResource(request);
+
                 return;
             }
 
@@ -103,7 +126,7 @@ namespace ProjectT.Addressable
                 Complete(Handle);
         }
 
-        public void Complete(AsyncOperationHandle handle)
+        internal void Complete(AsyncOperationHandle handle)
         {
             if (IsDone || isReleased)
                 return;
@@ -114,14 +137,11 @@ namespace ProjectT.Addressable
                 return;
             }
 
-            IsDone = true;
-
             handle.Completed -= Complete;
-            result = handle.Result;
-            ready.TrySetResult(true);
+            SetResult(handle.Result);
         }
 
-        public void Fail(Exception exception)
+        internal void Fail(Exception exception)
         {
             if (IsDone || isReleased)
                 return;
@@ -135,6 +155,10 @@ namespace ProjectT.Addressable
             {
                 ReleaseHandle();
             }
+            catch (Exception releaseError)
+            {
+                error = new AggregateException(exception, releaseError);
+            }
             finally
             {
                 ready.TrySetResult(true);
@@ -143,13 +167,14 @@ namespace ProjectT.Addressable
 
         public T GetResult<T>()
         {
+            // 공유 리소스의 실패는 여러 호출자에게 전달되므로 최초 실패 지점의 스택을 보존한다.
             if (error != null)
-                throw error;
+                ExceptionDispatchInfo.Capture(error).Throw();
 
             if (isReleased)
                 throw new ObjectDisposedException(Path);
 
-            return (T)result;
+            return (T)resourceData;
         }
 
         private void ReleaseHandle()
@@ -163,16 +188,22 @@ namespace ProjectT.Addressable
                 Request.completed -= CompleteResource;
             Request = null;
 
-            if (Source == ResourceSource.Addressables && Handle.IsValid())
+            try
             {
-                Handle.Completed -= Complete;
-                Addressables.Release(Handle);
+                OnRelease();
             }
-
-            result = null;
+            finally
+            {
+                resourceData = null;
+                if (Source == ResourceSource.Addressables && Handle.IsValid())
+                {
+                    Handle.Completed -= Complete;
+                    Addressables.Release(Handle);
+                }
+            }
         }
 
-        public void Dispose()
+        internal void Dispose()
         {
             try
             {

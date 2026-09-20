@@ -10,6 +10,7 @@ using UnityEngine.AddressableAssets;
 using System.Threading.Tasks;
 using ProjectT.UGUI;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class Test : MonoBehaviour
 {
@@ -27,7 +28,6 @@ public class Test : MonoBehaviour
 
     private void Awake()
     {
-        Tests();
         //string profileName = "FireBaseBuild";
 //#if UNITY_EDITOR
 
@@ -41,91 +41,6 @@ public class Test : MonoBehaviour
 //#endif
     }
 
-    private void Tests()
-    {
-
-        Debug.Log($"Current cach : {Caching.defaultCache.path}");
-
-        var cachePaths = new List<string>();
-        Caching.GetAllCachePaths(cachePaths);
-        foreach (var cachePath in cachePaths)
-        {
-            Debug.Log($"Cach path : {cachePath}");
-        }
-
-
-        Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageAssetBundleProvider());
-        Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageJsonAssetProvider());
-        Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageHashProvider());
-
-        Addressables.InternalIdTransformFunc += FirebaseAddressablesCache.IdTransformFunc;
-        const string downloadAssetKey = "default";
-        FirebaseAddressablesCache.PreWarmDependencies(downloadAssetKey,
-            () =>
-            { 
-
-                Downloader.GetDownloadSize(new List<string>() { "default" },
-                    (result, size) =>
-                    {
-                        Debug.Log($"Result {result} Size {size}");
-                        //Downloader.Download(new List<string>() { "default" },
-                        //    (type, info) =>
-                        //    {
-                        //        Debug.Log($"Type {type}, Info {info.progress}");
-                        //    }).Forget();
-                    }).Forget();
-
-                //var handler = Addressables.GetDownloadSizeAsync(downloadAssetKey);
-
-                //handler.Completed += handle =>
-                //{
-                //    if (handle.Status == AsyncOperationStatus.Failed)
-                //    {
-                //        Debug.LogError($"Get Download size failed because of error: {handle.OperationException}");
-                //    }
-                //    else
-                //    {
-                //        Debug.Log($"Got download size of: {handle.Result}");
-                //    }
-
-                //    Addressables.DownloadDependenciesAsync(downloadAssetKey).Completed +=
-                //        operationHandle =>
-                //        {
-                //            var dependencyList = (List<IAssetBundleResource>)operationHandle.Result;
-                //            foreach (IAssetBundleResource resource in dependencyList)
-                //            {
-                //                AssetBundle assetBundle = resource.GetAssetBundle();
-                //                Debug.Log($"Downloaded dependency: {assetBundle}");
-                //            }
-                //        };
-                //};
-            });
-
-        // Make sure to continue on MAIN THREAD for addressables initialization
-        Firebase.FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task => {
-            var dependencyStatus = task.Result;
-            if (dependencyStatus == Firebase.DependencyStatus.Available)
-            {
-                // Create and hold a reference to your FirebaseApp,
-                // where app is a Firebase.FirebaseApp property of your application class.
-                //   app = Firebase.FirebaseApp.DefaultInstance;
-
-                Debug.Log("FIREBASE INIT FINISHED");
-                FirebaseAddressablesManager.IsFirebaseSetupFinished = true;
-
-                // Set a flag here to indicate whether Firebase is ready to use by your app.
-            }
-            else
-            {
-                UnityEngine.Debug.LogError(System.String.Format(
-                    "Could not resolve all Firebase dependencies: {0}", dependencyStatus));
-                // Firebase Unity SDK is not safe to use here.
-            }
-        });
-
-        Debug.Log("Getting download size");
-    }
-
     async UniTask TESTTask()
     {
         await UniTask.Yield();
@@ -137,7 +52,7 @@ public class Test : MonoBehaviour
         //OpenUI();
         //if (Application.isPlaying)
         //{
-        //    // Firebase √ ±‚»≠ π◊ ∞¸∑√ ¿€æ˜¿ª Startø°º≠ ºˆ«‡
+        //    // Firebase Ï¥àÍ∏∞Ìôî Î∞è Í¥ÄÎ†® ÏûëÏóÖÏùÑ StartÏóêÏÑú ÏàòÌñâ
         //    FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
         //    {
         //        FirebaseStorage storage = FirebaseStorage.DefaultInstance;
@@ -146,14 +61,14 @@ public class Test : MonoBehaviour
         //        Debug.Log("Bucket : " + storageRef.Bucket);
         //        Debug.Log("Path : " + storageRef.Path);
         //        Debug.Log("Storage : " + storageRef.Storage);
-        //        // FirebaseøÕ ∞¸∑√µ» ¿€æ˜ ºˆ«‡
+        //        // FirebaseÏôÄ Í¥ÄÎ†®Îêú ÏûëÏóÖ ÏàòÌñâ
 
         //        StartCoroutine(InitAddressable());
         //        StartCoroutine(CheckUpdateFile());
         //    });
         //}        //if (Application.isPlaying)
         //{
-        //    // Firebase √ ±‚»≠ π◊ ∞¸∑√ ¿€æ˜¿ª Startø°º≠ ºˆ«‡
+        //    // Firebase Ï¥àÍ∏∞Ìôî Î∞è Í¥ÄÎ†® ÏûëÏóÖÏùÑ StartÏóêÏÑú ÏàòÌñâ
         //    FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
         //    {
         //        FirebaseStorage storage = FirebaseStorage.DefaultInstance;
@@ -162,7 +77,7 @@ public class Test : MonoBehaviour
         //        Debug.Log("Bucket : " + storageRef.Bucket);
         //        Debug.Log("Path : " + storageRef.Path);
         //        Debug.Log("Storage : " + storageRef.Storage);
-        //        // FirebaseøÕ ∞¸∑√µ» ¿€æ˜ ºˆ«‡
+        //        // FirebaseÏôÄ Í¥ÄÎ†®Îêú ÏûëÏóÖ ÏàòÌñâ
 
         //        StartCoroutine(InitAddressable());
         //        StartCoroutine(CheckUpdateFile());
@@ -196,16 +111,6 @@ public class Test : MonoBehaviour
         Debug.Log(patchSize);
     }
 
-    public void StartScene()
-    {
-        float percent = 0.0f;
-
-        Global.Scene.Transition<TestScene2>("TestScene2", percent, 1.0f, UnityEngine.SceneManagement.LoadSceneMode.Single,
-            (result) =>
-            {
-                Debug.Log(result);
-            }, null);
-    }
 
     public void OpenUI()
     {
@@ -225,4 +130,23 @@ public class Test : MonoBehaviour
         //Global.Atlas.LoadAtlasAndImage(sprite, "Skill3");
     }
 
+    public void GoTitle()
+    {
+        Global.Scene.Transition<TitleScene>("TitleScene", LoadSceneMode.Single, result =>
+        {
+            if (result == eSceneTransitionErrorCode.Success)
+                Global.LocalStorage.LoadAllData();
+        });
+    }
+
+    public void GoDownload()
+    {
+        Global.Scene.Transition<DownloadScene>("DownloadScene", LoadSceneMode.Single, result =>
+        {
+            if(result==eSceneTransitionErrorCode.Success)
+            {
+                Global.Instance.Log("[TEST] GoDownload");
+            }
+        });
+    }
 }

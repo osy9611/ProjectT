@@ -22,6 +22,9 @@ namespace ProjectT.Controller
         protected InputUser inputUser;
         protected InputActionRebindingExtensions.RebindingOperation rebindingOperation;
 
+        private bool inputAllowed = true;
+        private bool enableRequested;
+
         protected string actionKey = "Player";
         public string ActionKey { get => actionKey; }
 
@@ -44,6 +47,7 @@ namespace ProjectT.Controller
                 this.inputUser = inputUser.Value;
 
             CacheInputActions();
+            SetInputAllowed(inputAllowed);
         }
 
         private void CacheInputActions()
@@ -68,7 +72,9 @@ namespace ProjectT.Controller
             if (inputActionAsset == null)
                 return;
 
-            inputActionAsset.FindActionMap(actionKey)?.Enable();
+            enableRequested = true;
+            if (inputAllowed)
+                inputActionAsset.FindActionMap(actionKey)?.Enable();
         }
 
         virtual public void Disable()
@@ -76,7 +82,27 @@ namespace ProjectT.Controller
             if (inputActionAsset == null)
                 return;
 
+            enableRequested = false;
             inputActionAsset.FindActionMap(actionKey)?.Disable();
+        }
+
+        internal void SetInputAllowed(bool allowed)
+        {
+            inputAllowed = allowed;
+            var map = inputActionAsset?.FindActionMap(actionKey);
+            if (allowed && enableRequested)
+                map?.Enable();
+            else
+                map?.Disable();
+        }
+
+        public virtual void Release()
+        {
+            Disable();
+            rebindingOperation?.Dispose();
+            rebindingOperation = null;
+            cachedActions.Clear();
+            inputActionAsset = null;
         }
 
         public void AddEvent(string actionName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
@@ -127,12 +153,12 @@ namespace ProjectT.Controller
 
         public bool IsPressed(string actionName)
         {
-            return cachedActions.ContainsKey(actionName) && cachedActions[actionName].IsPressed();
+            return inputAllowed && enableRequested && cachedActions.ContainsKey(actionName) && cachedActions[actionName].IsPressed();
         }
 
         public bool WasPressedThisFrame(string actionName)
         {
-            return cachedActions.ContainsKey(actionName) && cachedActions[actionName].WasPressedThisFrame();
+            return inputAllowed && enableRequested && cachedActions.ContainsKey(actionName) && cachedActions[actionName].WasPressedThisFrame();
         }
         
         virtual public void SetRebind(string actionName, Action onComplete = null, string excludeControl = null)

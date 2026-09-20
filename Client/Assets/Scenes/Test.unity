@@ -202,7 +202,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 836218961}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
         m_MethodName: LoadLocalStorage
         m_Mode: 1
@@ -811,9 +811,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 836218958}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cd87ac7e65ef5f3419b40831148d8284, type: 3}
+  m_Script: {fileID: 11500000, guid: f10505072731b91488db4e6a90f4c5b1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::Test
+  testObj: {fileID: 0}
+  defaultLabel:
+    m_LabelString: 
+  matLabel:
+    m_LabelString: 
+  sprite: {fileID: 0}
 --- !u!1 &985566741
 GameObject:
   m_ObjectHideFlags: 0
@@ -976,7 +982,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 836218961}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
         m_MethodName: CreateLocalStorage
         m_Mode: 1
@@ -1110,7 +1116,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 836218961}
-        m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
+        m_TargetAssemblyTypeName: Test, Assembly-CSharp
         m_MethodName: GoTitle
         m_Mode: 1
         m_Arguments:
@@ -1242,7 +1248,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 836218961}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
         m_MethodName: CreateUI
         m_Mode: 1
@@ -1375,7 +1381,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 836218961}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
         m_MethodName: RegisterSkill
         m_Mode: 1
@@ -1666,7 +1672,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 836218961}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
         m_MethodName: StartSkill
         m_Mode: 1
@@ -1849,14 +1855,14 @@ Light:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1787236040}
   m_Enabled: 1
-  serializedVersion: 11
+  serializedVersion: 12
   m_Type: 1
   m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
   m_Intensity: 1
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
-  m_CookieSize: 10
+  m_CookieSize2D: {x: 10, y: 10}
   m_Shadows:
     m_Type: 2
     m_Resolution: -1

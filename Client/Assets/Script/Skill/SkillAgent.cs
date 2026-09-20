@@ -40,7 +40,8 @@ namespace ProjectT.Skill
 
         public virtual void Reset()
         {
-            actionController.UnRegisterAbilities();
+            try { buffController?.Clear(); }
+            finally { actionController?.UnRegisterAbilities(); }
         }
 
         public virtual void OnUpdate(float deltaTime)

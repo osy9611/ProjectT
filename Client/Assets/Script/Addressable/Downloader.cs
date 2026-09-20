@@ -1,27 +1,13 @@
 namespace ProjectT.Addressable
 {
     using Cysharp.Threading.Tasks;
+    using System;
     using System.Collections.Generic;
+    using System.Threading;
     using UnityEngine;
     using UnityEngine.AddressableAssets;
     using UnityEngine.ResourceManagement.AsyncOperations;
-
-    public enum eDownloadStatus
-    {
-        None,
-        Failed,
-        Ing,
-        Complete
-    }
-
-    public enum eDownloadByLabelStatus
-    {
-        None,
-        Failed,
-        Ing,
-        CompleteOneLabel,
-        CompleteAll,
-    }
+    using UnityEngine.ResourceManagement.ResourceLocations;
 
     public class DownloadInfo
     {
@@ -35,141 +21,129 @@ namespace ProjectT.Addressable
         }
     }
 
-    public class DownloadByLabelsInfo
+    public static class Downloader
     {
-        public string lable;
+        // 번들 단위 재시도는 그룹 스키마의 RetryCount가 담당하고, 여기서는 라벨 전체 다운로드를 다시 시도한다.
+        private const int RetryCount = 2;
+        private const float RetryDelaySeconds = 1f;
 
-        public long size;
-        public long downloadedByte;
-        public float progress;
-
-        public long accmulateDownloadByte;
-
-        public long totalSize;
-        public float totalProgress;
-
-        public override string ToString()
+        public static async UniTask<long> GetDownloadSizeAsync(IList<string> labels, CancellationToken token)
         {
-            return JsonUtility.ToJson(this);
-        }
-    }
+            var locations = await LoadLocationsAsync(labels, token);
 
-    public class FirebaseDonwloader
-    {
-        //public async UniTask GetDownloadSize(List<string> lableKeys, System.Action<bool, long> callback)
-        //{
-        //    Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageAssetBundleProvider());
-        //    Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageJsonAssetProvider());
-        //    Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageHashProvider());
-        //}
-    }
-
-    public static class Downloader 
-    {
-        static public async UniTask GetDownloadSize(List<string> lableKeys, System.Action<bool,long> callback)
-        {
-            await UniTask.Yield();
-
-            List<string> keys = new List<string>();
-            keys.AddRange(lableKeys);
-
-#pragma warning disable CS0612 // Type or member is obsolete
-            var locHandle = UnityEngine.AddressableAssets.Addressables.LoadResourceLocationsAsync(keys,
-                UnityEngine.AddressableAssets.Addressables.MergeMode.Union);
-#pragma warning restore CS0612 // Type or member is obsolete
-            locHandle.WaitForCompletion();
-
-            using (AsyncOperationDisposer locDisposer = new AsyncOperationDisposer(locHandle))
+            try
             {
-                if (locHandle.Status == AsyncOperationStatus.Failed)
+                var handle = Addressables.GetDownloadSizeAsync(locations.Result);
+
+                try
                 {
-                    callback?.Invoke(false, 0);
-                    return;
+                    return await handle.ToUniTask(cancellationToken: token);
                 }
-
-                var sizeHandle = UnityEngine.AddressableAssets.Addressables.GetDownloadSizeAsync(locHandle.Result);
-                sizeHandle.WaitForCompletion();
-
-                using (AsyncOperationDisposer sizeDisposer = new AsyncOperationDisposer(sizeHandle))
+                finally
                 {
-                    if(sizeHandle.Status == AsyncOperationStatus.Failed)
-                    {
-                        callback?.Invoke(false, 0);
-                        return;
-                    }
-
-                    callback?.Invoke(true, sizeHandle.Result);
+                    if (handle.IsValid())
+                        Addressables.Release(handle);
                 }
+            }
+            finally
+            {
+                Addressables.Release(locations);
             }
         }
 
-        static async public UniTask Download(List<string> labelkeys, System.Action<eDownloadStatus, DownloadInfo> callback)
+        public static async UniTask DownloadAsync(IList<string> labels, Action<DownloadInfo> onProgress, CancellationToken token)
         {
-#pragma warning disable CS0612 // Type or member is obsolete
-            var locHandle = UnityEngine.AddressableAssets.Addressables.LoadResourceLocationsAsync(
-                labelkeys, UnityEngine.AddressableAssets.Addressables.MergeMode.Union);
-#pragma warning restore CS0612 // Type or member is obsolete
+            var locations = await LoadLocationsAsync(labels, token);
 
-            locHandle.WaitForCompletion();
-
-            using(AsyncOperationDisposer locDisposer = new AsyncOperationDisposer(locHandle))
+            try
             {
-                if(locHandle.Status == AsyncOperationStatus.Failed)
+                for (int attempt = 0; ; ++attempt)
                 {
-                    callback?.Invoke(eDownloadStatus.Failed, null);
-                    return;
-                }
-
-                AsyncOperationHandle<long> sizeHandle = UnityEngine.AddressableAssets.Addressables.GetDownloadSizeAsync(locHandle.Result);
-                sizeHandle.WaitForCompletion();
-
-                long size = 0;
-
-                using (AsyncOperationDisposer sizeDisposer = new AsyncOperationDisposer(sizeHandle))
-                {
-                    if(sizeHandle.Status == AsyncOperationStatus.Failed)
+                    try
                     {
-                        callback?.Invoke(eDownloadStatus.Failed, null);
+                        await DownloadInternalAsync(locations.Result, onProgress, token);
                         return;
                     }
-
-                    size = sizeHandle.Result;
-                }
-
-                if(size == 0)
-                {
-                    callback?.Invoke(eDownloadStatus.None, null);
-                    return;
-                }
-
-                DownloadInfo info = new DownloadInfo();
-                info.size = size;
-
-                AsyncOperationHandle downloadHandle = UnityEngine.AddressableAssets.Addressables.DownloadDependenciesAsync(locHandle.Result);
-
-                using (AsyncOperationDisposer downloadDisposer = new AsyncOperationDisposer(downloadHandle))
-                {
-                    while(downloadHandle.IsDone == false)
+                    catch (Exception) when (attempt < RetryCount && !token.IsCancellationRequested)
                     {
-                        info.progress = downloadHandle.PercentComplete;
-                        info.downloadedByte = downloadHandle.GetDownloadStatus().DownloadedBytes;
+                        await UniTask.Delay(TimeSpan.FromSeconds(RetryDelaySeconds), cancellationToken: token);
+                    }
+                }
+            }
+            finally
+            {
+                Addressables.Release(locations);
+            }
+        }
 
-                        callback?.Invoke(eDownloadStatus.Ing, info);
+        private static async UniTask DownloadInternalAsync(IList<IResourceLocation> locations, Action<DownloadInfo> onProgress, CancellationToken token)
+        {
+            var handle = Addressables.DownloadDependenciesAsync(locations, false);
 
-                        await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
+            try
+            {
+                var info = new DownloadInfo();
+
+                while (!handle.IsDone)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    if (onProgress != null)
+                    {
+                        var status = handle.GetDownloadStatus();
+                        info.size = status.TotalBytes;
+                        info.downloadedByte = status.DownloadedBytes;
+                        info.progress = status.Percent;
+                        onProgress(info);
                     }
 
-                    if(downloadHandle.Status == AsyncOperationStatus.Failed)
-                    {
-                        callback?.Invoke(eDownloadStatus.Failed, null);
-                        return;
-                    }
-
-                    info.progress = downloadHandle.PercentComplete;
-                    info.downloadedByte = downloadHandle.GetDownloadStatus().DownloadedBytes;
-
-                    callback?.Invoke(eDownloadStatus.Complete, info);
+                    await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate, token);
                 }
+
+                if (handle.Status != AsyncOperationStatus.Succeeded)
+                    throw handle.OperationException ?? new InvalidOperationException("Bundle download failed.");
+
+                if (onProgress != null)
+                {
+                    var status = handle.GetDownloadStatus();
+                    info.size = status.TotalBytes;
+                    info.downloadedByte = status.DownloadedBytes;
+                    info.progress = 1f;
+                    onProgress(info);
+                }
+            }
+            finally
+            {
+                if (handle.IsValid())
+                    Addressables.Release(handle);
+            }
+        }
+
+        private static async UniTask<AsyncOperationHandle<IList<IResourceLocation>>> LoadLocationsAsync(IList<string> labels, CancellationToken token)
+        {
+            if (labels == null || labels.Count == 0)
+                throw new ArgumentException("Download labels are empty.", nameof(labels));
+
+            var keys = new List<object>(labels.Count);
+            foreach (var label in labels)
+            {
+                keys.Add(label);
+            }
+
+            var handle = Addressables.LoadResourceLocationsAsync(keys, Addressables.MergeMode.Union, null);
+            bool retained = false;
+
+            try
+            {
+                await handle.ToUniTask(cancellationToken: token);
+                retained = true;
+
+                return handle;
+            }
+            finally
+            {
+                if (!retained && handle.IsValid())
+                    Addressables.Release(handle);
             }
         }
     }

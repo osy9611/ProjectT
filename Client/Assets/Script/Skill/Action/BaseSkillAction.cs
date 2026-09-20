@@ -33,7 +33,7 @@ namespace ProjectT.Skill
         }
     }
 
-    public abstract class BaseSkillAction
+    public abstract class BaseSkillAction : ProjectT.Pool.IPoolable
     {
         private SkillSpec spec;
         public SkillSpec Spec { get => spec; }
@@ -43,6 +43,30 @@ namespace ProjectT.Skill
         private BaseActor owner;
         public BaseActor Owner { get => owner; }
         public bool IsActive;
+
+        public void OnGet()
+        {
+        }
+
+        public void OnReturn()
+        {
+            try
+            {
+                if (IsActive)
+                    Cancel();
+                OnReset();
+            }
+            finally
+            {
+                IsActive = false;
+                owner = null;
+                spec = null;
+            }
+        }
+
+        protected virtual void OnReset()
+        {
+        }
 
         public virtual void Init(BaseActor owner, SkillSpec spec)
         {
@@ -65,7 +89,8 @@ namespace ProjectT.Skill
         //스킬 발동 요청
         public void TryActivate()
         {
-            if (!CanActivate()) return;
+            if (!CanActivate())
+                return;
 
             IsActive = true;
             Activate(); //실제 발동(애니메이션 판정 등)

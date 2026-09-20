@@ -16,7 +16,6 @@ namespace ProjectT
 
     public class SoundManager : ManagerBase
     {
-        private ResourceManager resource;
         private ResourceScope resourceScope;
 
         private AudioSource[] audioSources = new AudioSource[System.Enum.GetNames(typeof(eSound)).Length];
@@ -26,9 +25,7 @@ namespace ProjectT
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-            resource = Context.Get<ResourceManager>();
-
-            CreateRootObject(Context.Root, "SoundManager");
+            CreateRootObject("SoundManager");
 
             string[] soundNames = System.Enum.GetNames(typeof(eSound));
 
@@ -56,8 +53,8 @@ namespace ProjectT
 
             if (!audioClips.TryGetValue(path, out var clip))
             {
-                resourceScope = resourceScope ?? resource.CreateScope();
-                clip = resource.LoadAndGet<AudioClip>(path, scope: resourceScope);
+                resourceScope = resourceScope ?? Global.Resource.CreateScope();
+                clip = Global.Resource.LoadAndGet<AudioClip>(path, scope: resourceScope);
                 if (clip != null)
                     audioClips.Add(path, clip);
             }

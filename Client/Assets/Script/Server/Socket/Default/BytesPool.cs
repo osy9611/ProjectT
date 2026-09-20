@@ -1,6 +1,6 @@
 using ProjectT.Concurrent;
 using ProjectT.Server.Byte;
-using Unity.VisualScripting;
+
 
 namespace ProjectT.Server.Byte
 {
@@ -149,11 +149,11 @@ namespace ProjectT.Server.Byte
 
         public void Clear()
         {
-            pool128.Clear();
-            pool512.Clear();
-            pool1024.Clear();
-            pool2048.Clear();
-            pool8192.Clear();
+            pool128.ReturnAll();
+            pool512.ReturnAll();
+            pool1024.ReturnAll();
+            pool2048.ReturnAll();
+            pool8192.ReturnAll();
         }
     }
 

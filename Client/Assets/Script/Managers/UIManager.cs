@@ -13,9 +13,6 @@ namespace ProjectT
 {
     public class UIManager : ManagerBase
     {
-        private ResourceManager resource;
-        private PoolManager pool;
-
         public enum eHudType
         {
 
@@ -26,13 +23,11 @@ namespace ProjectT
         public List<UIBase> UIStack => uiContainer.UIStack;
         public Camera Canvas2DCam => uiContainer.Canvas2DCam;
         public Transform Canvas2D => uiContainer.UICanvas2D;
+        public bool InputAllowed { get; private set; } = true;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-            resource = Context.Get<ResourceManager>();
-            pool = Context.Get<PoolManager>();
-
-            CreateRootObject(Context.Root, "UIManager");
+            CreateRootObject("UIManager");
 
             uiContainer = new UIContainer(this);
             uiContainer.OnEnter();
@@ -48,6 +43,12 @@ namespace ProjectT
         public override void OnUpdate(float dt)
         {
             uiContainer.OnUpdate(dt);
+        }
+
+        public void SetInputAllowed(bool allowed)
+        {
+            InputAllowed = allowed;
+            uiContainer.SetInputAllowed(allowed);
         }
 
 
@@ -161,8 +162,13 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = resource.LoadAndGet<T>(path, dontDestroy: true);
-            hud = pool.Get(hud.gameObject).GetComponent<T>();
+            var obj = Global.Pool.Get(path);
+            T hud = obj.GetComponent<T>();
+            if (hud == null)
+            {
+                Global.Pool.Return(obj);
+                throw new InvalidOperationException($"HUD prefab has no {typeof(T).Name}.");
+            }
             hud.RegisterInfo(pivotInfo);
 
             return hud;
@@ -174,9 +180,13 @@ namespace ProjectT
             if (string.IsNullOrEmpty(path))
                 return default(T);
 
-            T hud = await resource.LoadAndGetAsync<T>(path, dontDestroy: true);
-            GameObject poolObj = await pool.GetAsync(hud.gameObject);
-            hud = poolObj.gameObject.GetComponent<T>();
+            GameObject poolObj = await Global.Pool.GetAsync(path, cancelToken: LifetimeToken);
+            T hud = poolObj.GetComponent<T>();
+            if (hud == null)
+            {
+                Global.Pool.Return(poolObj);
+                throw new InvalidOperationException($"HUD prefab has no {typeof(T).Name}.");
+            }
             hud.RegisterInfo(pivotInfo);
             return hud;
         }
@@ -186,15 +196,7 @@ namespace ProjectT
             if (hudAgent == null)
                 return;
 
-            pool.Release(hudAgent.gameObject);
-        }
-
-        public async UniTask ReleaseAsync<T>(T hudAgent) where T : ComHudAgent
-        {
-            if (hudAgent == null)
-                return;
-
-            await pool.ReleaseAsync(hudAgent.gameObject);
+            Global.Pool.Release(hudAgent.gameObject);
         }
     }
 }

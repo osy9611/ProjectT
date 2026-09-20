@@ -4,6 +4,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT.Addressable;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ProjectT.Scene
 {
@@ -11,6 +12,7 @@ namespace ProjectT.Scene
     {
         Created,
         Entering,
+        Prepared,
         Active,
         Stopped
     }
@@ -18,8 +20,12 @@ namespace ProjectT.Scene
     public abstract class SceneBase : MonoBehaviour
     {
         private CancellationTokenSource lifetime;
-        protected CancellationToken LifetimeToken { get; private set; }
-        protected ResourceScope ResourceScope { get; private set; }
+        private readonly List<INotifyHandler> handlers = new List<INotifyHandler>();
+        private readonly List<(ProjectT.Controller.Controller Controller, InputActionAsset Asset)> controllers = new List<(ProjectT.Controller.Controller, InputActionAsset)>();
+        private bool inputAllowed;
+        protected internal CancellationToken LifetimeToken { get; private set; }
+        protected internal ResourceScope ResourceScope { get; private set; }
+        internal event Action Stopped;
         public SceneState State { get; private set; }
 
         internal async UniTask EnterAsync(ResourceScope scope, CancellationToken token, params object[] data)
@@ -32,12 +38,37 @@ namespace ProjectT.Scene
             LifetimeToken = lifetime.Token;
             State = SceneState.Entering;
 
-            await OnEnter(0f, LifetimeToken, data).AttachExternalCancellation(LifetimeToken);
-
             LifetimeToken.ThrowIfCancellationRequested();
             OnInitialize();
             LifetimeToken.ThrowIfCancellationRequested();
+
+            await OnEnter(LifetimeToken, data).AttachExternalCancellation(LifetimeToken);
+
+            LifetimeToken.ThrowIfCancellationRequested();
+            State = SceneState.Prepared;
+        }
+
+        internal void Activate()
+        {
+            LifetimeToken.ThrowIfCancellationRequested();
+
+            if (State != SceneState.Prepared)
+                throw new InvalidOperationException($"Scene is {State}.");
+
+            OnLoadingAnimEnd();
+            LifetimeToken.ThrowIfCancellationRequested();
             State = SceneState.Active;
+        }
+
+        internal void SetInputAllowed(bool allowed)
+        {
+            inputAllowed = allowed && State == SceneState.Active;
+
+            foreach (var controller in controllers)
+            {
+                controller.Controller.SetInputAllowed(inputAllowed);
+            }
+
         }
 
         internal void Stop()
@@ -48,58 +79,97 @@ namespace ProjectT.Scene
             bool entered = State != SceneState.Created;
             State = SceneState.Stopped;
 
-            var errors = new List<Exception>();
-            try
-            {
-                lifetime?.Cancel();
-            }
-            catch (Exception error)
-            {
-                errors.Add(error);
-            }
+            List<Exception> errors = null;
+            ExecuteInternal(() => SetInputAllowed(false), ref errors);
+            ExecuteInternal(() => lifetime?.Cancel(), ref errors);
 
             if (entered)
             {
-                try
+                ExecuteInternal(OnFinalize, ref errors);
+                ExecuteInternal(OnExit, ref errors);
+            }
+
+            var stopped = Stopped;
+            Stopped = null;
+            if (stopped != null)
+            {
+                foreach (Action callback in stopped.GetInvocationList())
                 {
-                    OnFinalize();
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
-                }
-                try
-                {
-                    OnExit();
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
+                    ExecuteInternal(callback, ref errors);
                 }
             }
+
+            StopAllCoroutines();
+            foreach (var handler in handlers)
+            {
+                ExecuteInternal(() => Global.Notify.DisconnectHandler(handler), ref errors);
+            }
+
+            handlers.Clear();
+
+            foreach (var controller in controllers)
+            {
+                ExecuteInternal(controller.Controller.Release, ref errors);
+                ExecuteInternal(() => Destroy(controller.Asset), ref errors);
+            }
+
+            controllers.Clear();
 
             lifetime?.Dispose();
             gameObject.SetActive(false);
             Destroy(gameObject);
 
-            if (errors.Count > 0)
+            if (errors != null)
                 throw new AggregateException(errors);
         }
 
-        protected T LoadAndGet<T>(string path, ResourceSource source = ResourceSource.Addressables)
+        private static void ExecuteInternal(Action action, ref List<Exception> errors)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception error)
+            {
+                if (errors == null)
+                    errors = new List<Exception>();
+
+                errors.Add(error);
+            }
+        }
+
+        protected void ConnectHandler(INotifyHandler handler)
         {
             LifetimeToken.ThrowIfCancellationRequested();
-            return Global.Resource.LoadAndGet<T>(path, scope: ResourceScope, source: source);
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
+            if (handlers.Contains(handler))
+                return;
+            if (handler.IsConnected)
+                throw new InvalidOperationException("Handler already belongs to another lifetime.");
+            handlers.Add(handler);
+            Global.Notify.ConnectHandler(handler);
         }
 
-        protected UniTask<T> LoadAndGetAsync<T>(string path, ResourceSource source = ResourceSource.Addressables)
+        protected T CreateController<T>(InputActionAsset asset, string actionKey = "Player") where T : ProjectT.Controller.Controller, new()
         {
-            return Global.Resource.LoadAndGetAsync<T>(path, cancelToken: LifetimeToken, scope: ResourceScope, source: source);
+            LifetimeToken.ThrowIfCancellationRequested();
+            if (asset == null)
+                throw new ArgumentNullException(nameof(asset));
+            var ownedAsset = Instantiate(asset);
+            var controller = new T();
+            controllers.Add((controller, ownedAsset));
+            controller.SetInputAllowed(inputAllowed);
+            controller.Init(ownedAsset, actionKey);
+            controller.Enable();
+            return controller;
         }
 
-        public virtual UniTask OnEnter(float progress, CancellationToken token, params object[] data) => UniTask.CompletedTask;
+        public virtual UniTask OnEnter(CancellationToken token, params object[] data) => UniTask.CompletedTask;
 
         public virtual void OnExit() { }
+
+        public virtual void OnLoadingAnimEnd() { }
 
         public abstract void OnInitialize();
 

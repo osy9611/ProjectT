@@ -2,7 +2,6 @@ using ProjectT;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.U2D;
 
 public static class UtilFunc
 {
@@ -30,17 +29,16 @@ public static class UtilFunc
 
     public static bool LoadAtlasAndImage(UnityEngine.UI.Image image, DesignEnum.AtlasType type, string name)
     {
+        if (image == null)
+            return false;
+
         var tbData = Global.Table.AtlasDataInfos.Get((int)type);
         if (tbData == null)
             return false;
 
-        var spriteAtlas = Global.Resource.LoadAndGet<SpriteAtlas>(tbData.Path, dontDestroy: true);
+        var sprite = Global.Resource.GetSprite(tbData.Path, name, dontDestroy: true);
+        image.sprite = sprite;
 
-        if (spriteAtlas == null)
-            return false;
-
-        image.sprite = spriteAtlas.GetSprite(name);
-
-        return true;
+        return sprite != null;
     }
 }

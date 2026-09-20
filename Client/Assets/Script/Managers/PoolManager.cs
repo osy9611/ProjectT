@@ -1,56 +1,75 @@
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using ProjectT.Addressable;
 using ProjectT.Pool;
-using ProjectT.Skill;
-using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 namespace ProjectT
 {
     public class PoolManager : ManagerBase
     {
-        private Dictionary<string, GameObjectPool> gameObjectPools = new Dictionary<string, GameObjectPool>();
-        private Dictionary<System.Type, object> genericPools = new Dictionary<System.Type, object>();
+        private readonly struct PoolKey : IEquatable<PoolKey>
+        {
+            public readonly ResourceScope Scope;
+            public readonly GameObject Original;
+
+            public PoolKey(ResourceScope scope, GameObject original)
+            {
+                Scope = scope;
+                Original = original;
+            }
+
+            public bool Equals(PoolKey other)
+            {
+                return ReferenceEquals(Scope, other.Scope) && ReferenceEquals(Original, other.Original);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is PoolKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                return HashCode.Combine(Scope, Original);
+            }
+        }
+
+        private readonly Dictionary<PoolKey, GameObjectPool> gameObjectPools = new Dictionary<PoolKey, GameObjectPool>();
+        private readonly Dictionary<Type, IDisposable> genericPools = new Dictionary<Type, IDisposable>();
+        private readonly Dictionary<ResourceScope, CancellationTokenRegistration> scopeRegistrations = new Dictionary<ResourceScope, CancellationTokenRegistration>();
+        private ResourceScope appScope;
+
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-            CreateRootObject(Context.Root, "PoolManager");
+            CreateRootObject("PoolManager");
+            appScope = Global.Resource.CreateScope();
             return UniTask.CompletedTask;
         }
 
-
         protected override void OnShutdown(ShutdownReason reason)
         {
-            ClearAll();
-            genericPools.Clear();
+            try
+            {
+                Clear();
+            }
+            finally
+            {
+                appScope?.Dispose();
+                appScope = null;
+            }
         }
 
         public void CreatePool<T>() where T : new()
         {
-            var type = typeof(T);
-            if (genericPools.ContainsKey(type))
-                return;
-
-            genericPools[type] = new Pool<T>(() => new T(), true, 5, 20);
+            GetOrCreatePoolInternal<T>();
         }
 
-        public void CreatePool(GameObject original, int count = 5)
+        public T Get<T>() where T : new()
         {
-            GameObjectPool pool = new GameObjectPool();
-            pool.Init(original, count);
-            pool.Root.parent = RootObject;
-
-            gameObjectPools.Add(original.name, pool);
-        }
-
-        public async UniTask CreatePoolAsync(GameObject original, int count = 5)
-        {
-            await UniTask.Yield(cancellationToken: LifetimeToken);
-            GameObjectPool pool = new GameObjectPool();
-            pool.Init(original, count);
-            pool.Root.parent = RootObject;
-            gameObjectPools.Add(original.name, pool);
+            return GetOrCreatePoolInternal<T>().Get();
         }
 
         public void Return<T>(T obj)
@@ -58,139 +77,170 @@ namespace ProjectT
             if (obj == null)
                 return;
 
-            var type = typeof(T);
+            if (!genericPools.TryGetValue(typeof(T), out var pool))
+                throw new InvalidOperationException($"Pool<{typeof(T).Name}> not found.");
 
-            if (genericPools.TryGetValue(type, out var pool))
-            {
-                ((Pool<T>)pool).Return(obj);
-            }
-            else
-            {
-                Debug.LogWarning($"[PoolManager] Pool<{type.Name}> not found during Return");
-            }
+            ((Pool<T>)pool).Return(obj);
+        }
+
+        public void CreatePool(GameObject original, int count = 5, ResourceScope scope = null)
+        {
+            GetOrCreatePoolInternal(original, count, scope);
+        }
+
+        public GameObject Get(GameObject original, Transform parent = null, ResourceScope scope = null)
+        {
+            return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
+        }
+
+        public GameObject Get(string path, Transform parent = null, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        {
+            scope = scope ?? appScope;
+            var original = Global.Resource.LoadAndGet<GameObject>(path, scope: scope, source: source);
+            return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
+        }
+
+        public async UniTask<GameObject> GetAsync(string path, Transform parent = null, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables, CancellationToken cancelToken = default)
+        {
+            scope = scope ?? appScope;
+            var original = await Global.Resource.LoadAndGetAsync<GameObject>(path, cancelToken: cancelToken, scope: scope, source: source);
+            return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
         }
 
         public bool Return(GameObject obj)
         {
-            string name = obj.name;
-            if (gameObjectPools.TryGetValue(name, out var pool))
-            {
-                pool.Return(obj);
-                return true;
-            }
-            GameObject.Destroy(obj);
+            var item = obj == null ? null : obj.GetComponent<PooledObject>();
+            if (item == null || item.Owner == null)
+                return false;
 
-            return false;
+            item.Owner.Return(obj);
+            return true;
         }
 
-        public async UniTask<bool> ReturnAsync(GameObject obj)
+        public void Release(GameObject obj, bool isDestroy = false)
         {
-            await UniTask.Yield(cancellationToken: LifetimeToken);
-            string name = obj.name;
-            if (gameObjectPools.TryGetValue(name, out var pool))
+            if (obj == null)
+                return;
+
+            if (!isDestroy)
             {
-                pool.Return(obj);
-                return true;
-            }
-            GameObject.Destroy(obj);
-
-            return false;
-        }
-
-        public T Get<T>() where T : new()
-        {
-            var type = typeof(T);
-
-            if (!genericPools.TryGetValue(type, out var pool))
-            {
-                CreatePool<T>();
-                pool = genericPools[type];
+                Return(obj);
+                return;
             }
 
-            return ((Pool<T>)pool).Get();
-        }
-
-        public GameObject Get(GameObject original, Transform parent = null)
-        {
-            if (!gameObjectPools.ContainsKey(original.name))
-                CreatePool(original);
-
-            return gameObjectPools[original.name].Get(parent);
-        }
-
-        public async UniTask<GameObject> GetAsync(GameObject original, Transform parent = null)
-        {
-            if (!gameObjectPools.ContainsKey(original.name))
-                await CreatePoolAsync(original);
-
-            return gameObjectPools[original.name].Get(parent);
-        }
-
-        public async UniTask<T> GetAsync<T>(GameObject original, Transform parent = null) where T : UnityEngine.Object
-        {
-            UnityEngine.Object result = await GetAsync(original, parent);
-            return (T)result;
+            var item = obj.GetComponent<PooledObject>();
+            if (item == null || item.Owner == null || !item.Owner.Remove(obj))
+                UnityEngine.Object.Destroy(obj);
         }
 
         public GameObject GetOriginal(string name)
         {
-            if (!gameObjectPools.ContainsKey(name))
-                return null;
+            GameObject result = null;
 
-            return gameObjectPools[name].Original;
-        }
+            foreach (var pool in gameObjectPools.Values)
+            {
+                if (pool.Original == null || pool.Original.name != name)
+                    continue;
 
-        public void Release(GameObject go, bool isDestroy = false)
-        {
-            if (go == null)
-            {
-                Debug.LogError("Poolable object is null.");
-                return;
-            }
+                if (result != null && !ReferenceEquals(result, pool.Original))
+                    throw new InvalidOperationException($"Ambiguous original name: {name}");
 
-            if (isDestroy)
-            {
-                Return(go);
-            }
-            else
-            {
-                if (gameObjectPools.TryGetValue(go.name, out var gameObjectPool))
-                {
-                    UnityEngine.Object.Destroy(go);
-                }
-            }
-        }
-
-        public async UniTask ReleaseAsync(GameObject go, bool isDestroy = false)
-        {
-            if (go == null)
-            {
-                Debug.LogError("Poolable object is null.");
-                return;
+                result = pool.Original;
             }
 
-            if (isDestroy)
-            {
-                await ReturnAsync(go);
-            }
-            else
-            {
-                if (gameObjectPools.TryGetValue(go.name, out var gameObjectPool))
-                {
-                    UnityEngine.Object.Destroy(go);
-                }
-            }
+            return result;
         }
 
         public void Clear()
         {
+            var objects = new List<GameObjectPool>(gameObjectPools.Values);
+            var generics = new List<IDisposable>(genericPools.Values);
 
+            gameObjectPools.Clear();
+            genericPools.Clear();
+
+            foreach (var registration in scopeRegistrations.Values)
+            {
+                registration.Dispose();
+            }
+
+            scopeRegistrations.Clear();
+
+            List<Exception> errors = null;
+            foreach (var pool in objects)
+            {
+                ErrorCollector.Run(ref errors, pool, item => item.Dispose());
+            }
+
+            foreach (var pool in generics)
+            {
+                ErrorCollector.Run(ref errors, pool, item => item.Dispose());
+            }
+
+            ErrorCollector.ThrowIfAny(errors);
         }
 
-        public void ClearAll()
+        private void CheckReady()
         {
-            foreach (var pool in gameObjectPools.Values) pool.Dispose();
-            gameObjectPools.Clear();
+            LifetimeToken.ThrowIfCancellationRequested();
+
+            if (State != ManagerState.Ready)
+                throw new InvalidOperationException($"PoolManager is {State}.");
+        }
+
+        private Pool<T> GetOrCreatePoolInternal<T>() where T : new()
+        {
+            CheckReady();
+
+            if (!genericPools.TryGetValue(typeof(T), out var pool))
+            {
+                pool = new Pool<T>(() => new T(), true, 0, 20);
+                genericPools.Add(typeof(T), pool);
+            }
+
+            return (Pool<T>)pool;
+        }
+
+        private GameObjectPool GetOrCreatePoolInternal(GameObject original, int count, ResourceScope scope)
+        {
+            CheckReady();
+
+            if (original == null)
+                throw new ArgumentNullException(nameof(original));
+
+            // 해제되었거나 ResourceManager가 관리하지 않는 Scope로는 대여를 시작하지 않는다.
+            scope = Global.Resource.ResolveScope(false, scope ?? appScope);
+
+            var key = new PoolKey(scope, original);
+            if (gameObjectPools.TryGetValue(key, out var pool))
+                return pool;
+
+            pool = new GameObjectPool();
+            pool.Init(original, count, RootObject);
+            gameObjectPools.Add(key, pool);
+
+            if (!scopeRegistrations.ContainsKey(scope))
+                scopeRegistrations.Add(scope, scope.Token.Register(() => ReleaseScopeInternal(scope)));
+
+            return pool;
+        }
+
+        // Scope 취소 콜백은 리소스 반환보다 먼저 실행되므로 원본이 해제되기 전에 인스턴스 파괴를 요청한다.
+        private void ReleaseScopeInternal(ResourceScope scope)
+        {
+            scopeRegistrations.Remove(scope);
+
+            List<Exception> errors = null;
+            foreach (var pair in new List<KeyValuePair<PoolKey, GameObjectPool>>(gameObjectPools))
+            {
+                if (!ReferenceEquals(pair.Key.Scope, scope))
+                    continue;
+
+                gameObjectPools.Remove(pair.Key);
+                ErrorCollector.Run(ref errors, pair.Value, pool => pool.Dispose());
+            }
+
+            ErrorCollector.ThrowIfAny(errors);
         }
     }
 }

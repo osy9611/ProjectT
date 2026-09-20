@@ -18,8 +18,6 @@ namespace ProjectT
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         private readonly UniTaskCompletionSource ready = new UniTaskCompletionSource();
 
-        private readonly ManagerContext context;
-        
         private bool isInitializationStarted;
         
         public ManagerState State { get; private set; } = ManagerState.Created;
@@ -29,11 +27,10 @@ namespace ProjectT
         
         public UniTask WhenReady => ready.Task;
 
-        public ManagerHost(Transform root, bool loadData)
+        public ManagerHost(Transform root)
         {
             ShutdownErrors = shutdownErrors.AsReadOnly();
             token = lifetime.Token;
-            context = new ManagerContext(this, root, loadData);
         }
 
         public T Register<T>(T manager) where T : ManagerBase
@@ -100,11 +97,11 @@ namespace ProjectT
 
             isInitializationStarted = true;
             State = ManagerState.Initializing;
-            InitializeCoreAsync().Forget();
+            InitializeInternalAsync().Forget();
             return ready.Task;
         }
 
-        private async UniTask InitializeCoreAsync()
+        private async UniTask InitializeInternalAsync()
         {
             try
             {
@@ -112,7 +109,7 @@ namespace ProjectT
                 {
                     token.ThrowIfCancellationRequested();
                     ++startedCount;
-                    await manager.InitializeAsync(context, token);
+                    await manager.InitializeAsync(token);
                 }
 
                 token.ThrowIfCancellationRequested();

@@ -1,8 +1,10 @@
+using Cysharp.Threading.Tasks;
 using Firebase.Extensions;
 using Firebase.Storage;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.ResourceLocations;
@@ -33,6 +35,14 @@ namespace ProjectT.Addressable
         public static void PreWarmDependencies(object key, Action completed)
         {
             PreWarmDependencies(new List<object>() { key }, completed);
+        }
+
+        public static UniTask PreWarmDependenciesAsync(IList<string> keys, CancellationToken token)
+        {
+            var ready = new UniTaskCompletionSource();
+            PreWarmDependencies(new List<object>(keys), () => ready.TrySetResult());
+
+            return ready.Task.AttachExternalCancellation(token);
         }
 
         public static void PreWarmDependencies(List<object> keys, Action completed)
@@ -88,6 +98,10 @@ namespace ProjectT.Addressable
                     }
                 }
             }
+
+            // 로컬 카탈로그처럼 gs:// 의존성이 없으면 요청이 한 번도 시작되지 않으므로 여기서 완료를 알린다.
+            if (runningFetchUrlOperationCount == 0)
+                completed();
         }
 
         private static void StartUrlFetch(Action completed, StorageReference reference, string firebaseUrl)

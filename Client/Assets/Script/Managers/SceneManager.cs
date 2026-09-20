@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT.Addressable;
@@ -27,22 +28,25 @@ namespace ProjectT
             public bool IsAdditive;
         }
 
-        private ResourceManager resource;
-        private ClientLocalStorageManager localStorage;
         private readonly Dictionary<Type, SceneEntry> scenes = new Dictionary<Type, SceneEntry>();
         private SceneEntry currentScene;
+        private SceneTransitionView transitionView;
         private bool isTransitioning;
+        private bool inputAllowed = true;
         private int transitionVersion;
         private UnityEngine.SceneManagement.Scene transitionScene;
         public bool IsTransitioning => isTransitioning;
+        public bool IsInputAllowed => inputAllowed;
         public SceneBase CurrentScene => currentScene?.Scene != null && currentScene.Scene.State == SceneState.Active ? currentScene.Scene : null;
         public string PrevSceneName { get; private set; } = string.Empty;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
-            resource = Context.Get<ResourceManager>();
-            localStorage = Context.Get<ClientLocalStorageManager>();
-            CreateRootObject(Context.Root, "SceneRoot");
+            CreateRootObject("SceneRoot");
+
+            transitionView = new GameObject("SceneTransitionView").AddComponent<SceneTransitionView>();
+            transitionView.transform.SetParent(RootObject, false);
+            transitionView.Initialize();
             return UniTask.CompletedTask;
         }
 
@@ -56,6 +60,7 @@ namespace ProjectT
             {
                 scenes.Clear();
                 currentScene = null;
+                transitionView = null;
             }
         }
 
@@ -87,11 +92,6 @@ namespace ProjectT
         public bool IsHaveScene<T>() where T : SceneBase
         {
             return GetScene<T>() != null;
-        }
-
-        public void Transition<T>(string resourceName, float startLoadingGage, float fadeOutDuration, LoadSceneMode loadSceneMode, Action<eSceneTransitionErrorCode> completed, params object[] data) where T : SceneBase
-        {
-            Transition<T>(resourceName, loadSceneMode, completed, data);
         }
 
         public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionErrorCode> completed = null, params object[] data) where T : SceneBase
@@ -137,11 +137,13 @@ namespace ProjectT
 
             try
             {
-                await TransitionCoreAsync<T>(path, mode, data);
+                SetInputAllowed(false);
+                await transitionView.ShowAsync(LifetimeToken).AttachExternalCancellation(LifetimeToken);
+                await TransitionInternalAsync<T>(path, mode, data);
             }
             finally
             {
-                isTransitioning = false;
+                EndTransition();
             }
         }
 
@@ -164,12 +166,12 @@ namespace ProjectT
             return info.Path;
         }
 
-        private async UniTask TransitionCoreAsync<T>(string path, LoadSceneMode mode, object[] data) where T : SceneBase
+        private async UniTask TransitionInternalAsync<T>(string path, LoadSceneMode mode, object[] data) where T : SceneBase
         {
             bool single = mode == LoadSceneMode.Single;
-            var previousScope = resource.SceneScope;
+            var previousScope = Global.Resource.SceneScope;
             var previousScenes = new List<SceneEntry>(scenes.Values);
-            var entry = new SceneEntry { Scope = path == null ? previousScope : resource.CreateScope(), IsAdditive = !single };
+            var entry = new SceneEntry { Scope = path == null ? previousScope : Global.Resource.CreateScope(), IsAdditive = !single };
             bool loaded = false;
             bool previousReleased = false;
 
@@ -190,40 +192,25 @@ namespace ProjectT
                         LifetimeToken.ThrowIfCancellationRequested();
                         scenes.Clear();
                         currentScene = null;
-                        resource.SetSceneScope(entry.Scope);
+                        Global.Resource.SetSceneScope(entry.Scope);
                         previousReleased = true;
 
-                        var errors = new List<Exception>();
+                        List<Exception> errors = null;
                         foreach (var previous in previousScenes)
                         {
-                            try
-                            {
-                                previous.Scope.Dispose();
-                            }
-                            catch (Exception error)
-                            {
-                                errors.Add(error);
-                            }
-                        }
-                        try
-                        {
-                            previousScope.Dispose();
-                        }
-                        catch (Exception error)
-                        {
-                            errors.Add(error);
+                            ErrorCollector.Run(ref errors, previous.Scope, scope => scope.Dispose());
                         }
 
-                        if (errors.Count > 0)
-                            throw new AggregateException(errors);
+                        ErrorCollector.Run(ref errors, previousScope, scope => scope.Dispose());
+                        ErrorCollector.ThrowIfAny(errors);
 
-                        await resource.UnloadUnusedAssetsAsync();
+                        await Global.Resource.UnloadUnusedAssetsAsync();
                     }
                 }
 
                 if (path != null)
                 {
-                    var handle = await resource.LoadSceneAsync(path, mode, null);
+                    var handle = await Global.Resource.LoadSceneAsync(path, mode, null);
                     entry.Instance = handle.Result;
                     entry.IsAddressable = true;
                 }
@@ -239,35 +226,30 @@ namespace ProjectT
                 scenes.Add(typeof(T), entry);
 
                 await entry.Scene.EnterAsync(entry.Scope, LifetimeToken, data);
+                await transitionView.HideAsync(LifetimeToken).AttachExternalCancellation(LifetimeToken);
 
-                LifetimeToken.ThrowIfCancellationRequested();
+                entry.Scene.Activate();
 
                 if (single)
                     currentScene = entry;
             }
-            catch
+            catch (Exception error)
             {
-                if (entry.Scene != null)
-                {
-                    try
-                    {
-                        entry.Scene.Stop();
-                    }
-                    catch (Exception error)
-                    {
-                        Global.LogException(error);
-                    }
-                }
+                List<Exception> errors = null;
 
-                if (State == ManagerState.Ready)
+                if (entry.Scene != null)
+                    ErrorCollector.Run(ref errors, entry.Scene, scene => scene.Stop());
+
+                // 종료 취소 중에는 새 Scope를 만들거나 언로드를 시작하지 않고 매니저 종료 정리에 맡긴다.
+                if (!LifetimeToken.IsCancellationRequested)
                 {
                     if (!loaded)
                     {
                         if (single)
-                            resource.SetSceneScope(previousReleased ? resource.CreateScope() : previousScope);
+                            Global.Resource.SetSceneScope(previousReleased ? Global.Resource.CreateScope() : previousScope);
 
                         if (!ReferenceEquals(entry.Scope, previousScope))
-                            entry.Scope.Dispose();
+                            ErrorCollector.Run(ref errors, entry.Scope, scope => scope.Dispose());
                     }
                     else if (!single)
                     {
@@ -275,13 +257,20 @@ namespace ProjectT
                         {
                             await CloseEntryAsync(typeof(T), entry);
                         }
-                        catch (Exception error)
+                        catch (Exception closeError)
                         {
-                            Global.LogException(error);
+                            errors = errors ?? new List<Exception>();
+                            errors.Add(closeError);
                         }
                     }
                     else if (!scenes.ContainsKey(typeof(T)))
                         scenes.Add(typeof(T), entry);
+                }
+
+                if (errors != null)
+                {
+                    errors.Insert(0, error);
+                    throw new AggregateException(errors);
                 }
 
                 throw;
@@ -305,43 +294,50 @@ namespace ProjectT
 
             foreach (var scene in previous)
             {
-                await resource.UnLoadSceneAsync(scene);
+                await Global.Resource.UnLoadSceneAsync(scene);
                 LifetimeToken.ThrowIfCancellationRequested();
             }
         }
 
         private void StopScenes()
         {
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
 
             foreach (var entry in new List<SceneEntry>(scenes.Values))
             {
                 if (ReferenceEquals(entry, currentScene) || entry.Scene == null)
                     continue;
 
-                try
-                {
-                    entry.Scene.Stop();
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
-                }
+                ErrorCollector.Run(ref errors, entry.Scene, scene => scene.Stop());
             }
 
             if (currentScene?.Scene != null)
+                ErrorCollector.Run(ref errors, currentScene.Scene, scene => scene.Stop());
+
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        private void SetInputAllowed(bool allowed)
+        {
+            inputAllowed = allowed;
+            Global.UI.SetInputAllowed(allowed);
+
+            foreach (var entry in scenes.Values)
             {
-                try
-                {
-                    currentScene.Scene.Stop();
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
-                }
+                if (entry.Scene != null)
+                    entry.Scene.SetInputAllowed(allowed);
             }
-            if (errors.Count > 0)
-                throw new AggregateException(errors);
+        }
+
+        private void EndTransition()
+        {
+            isTransitioning = false;
+
+            if (LifetimeToken.IsCancellationRequested)
+                return;
+
+            transitionView.ResetView();
+            SetInputAllowed(true);
         }
 
         public async UniTask UnloadAdditiveAsync<T>() where T : SceneBase
@@ -357,11 +353,12 @@ namespace ProjectT
 
             try
             {
+                SetInputAllowed(false);
                 await CloseEntryAsync(typeof(T), entry);
             }
             finally
             {
-                isTransitioning = false;
+                EndTransition();
             }
         }
 
@@ -378,28 +375,16 @@ namespace ProjectT
                 stopError = error;
             }
 
-            await UniTask.NextFrame();
-
-            if (State != ManagerState.Ready)
-                return;
+            await UniTask.NextFrame(cancellationToken: LifetimeToken);
 
             if (entry.IsAddressable && entry.Instance.Scene.isLoaded)
-                await resource.UnLoadSceneAsync(entry.Instance, null);
+                await Global.Resource.UnLoadSceneAsync(entry.Instance, null);
 
             scenes.Remove(type);
             entry.Scope.Dispose();
 
             if (stopError != null)
-                throw stopError;
-        }
-
-        public void GoTitle()
-        {
-            Transition<TitleScene>("TitleScene", LoadSceneMode.Single, result =>
-            {
-                if (result == eSceneTransitionErrorCode.Success)
-                    localStorage.LoadAllData();
-            });
+                ExceptionDispatchInfo.Capture(stopError).Throw();
         }
     }
 }

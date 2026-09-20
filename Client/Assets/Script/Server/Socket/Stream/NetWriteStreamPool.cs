@@ -30,7 +30,7 @@ namespace ProjectT.Server.Stream
 
         public void Clear()
         {
-            pool.Clear();
+            pool.ReturnAll();
         }
     }
 }

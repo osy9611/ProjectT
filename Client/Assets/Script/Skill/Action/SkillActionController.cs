@@ -31,13 +31,28 @@ namespace ProjectT.Skill
 
         public void UnRegisterAbilities()
         {
-            CancelAllSkill();
-            foreach (var action in actions.Values)
-            {
-                SkillActionContainer.Return(action.SkillType, action);
-            }
+            if (actions == null)
+                return;
+            var pending = new List<BaseSkillAction>(actions.Values);
             actions.Clear();
+            activeActions.Clear();
+            removeActions.Clear();
+            var errors = new List<System.Exception>();
+            foreach (var action in pending)
+            {
+                try
+                {
+                    SkillActionContainer.Return(action.SkillType, action);
+                }
+                catch (System.Exception error)
+                {
+                    errors.Add(error);
+                }
+            }
+            if (errors.Count > 0)
+                throw new System.AggregateException(errors);
         }
+
 
         public void RegisterSkill(int skillID)
         {

@@ -28,6 +28,7 @@ namespace ProjectT.UGUI
 
         private CanvasScaler canvas2DScaler;
         private GraphicRaycaster raycaster2D;
+        private CanvasGroup canvas2DGroup;
 
         //AutoScale
         private Vector2 ratio = new Vector2(16, 9); //16:9
@@ -131,6 +132,14 @@ namespace ProjectT.UGUI
             raycaster2D.ignoreReversedGraphics = true;
             raycaster2D.blockingObjects = GraphicRaycaster.BlockingObjects.None;
             raycaster2D.blockingMask = LayerMask.GetMask("UI");
+
+            canvas2DGroup = uiCanvas2D.gameObject.AddComponent<CanvasGroup>();
+        }
+
+        public void SetInputAllowed(bool allowed)
+        {
+            canvas2DGroup.interactable = allowed;
+            canvas2DGroup.blocksRaycasts = allowed;
         }
 
 

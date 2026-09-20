@@ -14,6 +14,7 @@ namespace ProjectT
         Stopped,
         Failed
     }
+
     public enum ShutdownReason
     {
         Normal,
@@ -21,35 +22,19 @@ namespace ProjectT
         InitializationFailure
     }
 
-    public sealed class ManagerContext
-    {
-        private readonly ManagerHost host;
-        public Transform Root { get; }
-        public bool LoadData { get; }
-        internal ManagerContext(ManagerHost host, Transform root, bool loadData)
-        {
-            this.host = host;
-            Root = root;
-            LoadData = loadData;
-        }
-        public T Get<T>() where T : ManagerBase => host.GetInitialized<T>();
-    }
-
     public abstract class ManagerBase
     {
         public string Name => GetType().Name;
         public ManagerState State { get; private set; } = ManagerState.Created;
-        protected ManagerContext Context { get; private set; }
         protected CancellationToken LifetimeToken { get; private set; }
-        protected Transform m_rootObject;
-        public Transform RootObject => m_rootObject;
+        protected Transform rootObject;
+        public Transform RootObject => rootObject;
 
-        internal async UniTask InitializeAsync(ManagerContext context, CancellationToken token)
+        internal async UniTask InitializeAsync(CancellationToken token)
         {
             if (State != ManagerState.Created)
                 throw new InvalidOperationException($"{Name} cannot initialize from {State}.");
 
-            Context = context;
             LifetimeToken = token;
             State = ManagerState.Initializing;
 
@@ -93,22 +78,21 @@ namespace ProjectT
         {
         }
 
-        protected void CreateRootObject(Transform parent, string name)
+        protected void CreateRootObject(string name)
         {
-        
-            if (m_rootObject == null)
-                m_rootObject = new GameObject(name).transform;
+            if (rootObject == null)
+                rootObject = new GameObject(name).transform;
             
-            m_rootObject.SetParent(parent, false);
+            rootObject.SetParent(Global.Instance.transform, false);
         }
 
         private void DestroyRootObject()
         {
-            if (m_rootObject == null)
+            if (rootObject == null)
                 return;
 
-            var root = m_rootObject.gameObject;
-            m_rootObject = null;
+            var root = rootObject.gameObject;
+            rootObject = null;
             root.SetActive(false);
             UnityEngine.Object.Destroy(root);
         }

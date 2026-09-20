@@ -12,8 +12,7 @@ namespace ProjectT
 {
     public class DataManager : ManagerBase
     {
-        private ResourceManager resource;
-
+        private readonly bool loadData;
         private DesignTable.DataMgr tableData;
         public DesignTable.DataMgr Table { get => tableData; }
         private DesignLocal.LocalData localData = new DesignLocal.LocalData();
@@ -21,11 +20,14 @@ namespace ProjectT
 
         private bool isDone;
 
+        public DataManager(bool loadData = false)
+        {
+            this.loadData = loadData;
+        }
+
         protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
-            resource = Context.Get<ResourceManager>();
-
-            if (Context.LoadData)
+            if (loadData)
                 await GetTableDatas(token);
         }
 
@@ -82,9 +84,9 @@ namespace ProjectT
                     break;
             }
 
-            using (var scope = resource.CreateScope())
+            using (var scope = Global.Resource.CreateScope())
             {
-                var textAsset = await resource.LoadAndGetAsync<TextAsset>(localPath, cancelToken: token, scope: scope);
+                var textAsset = await Global.Resource.LoadAndGetAsync<TextAsset>(localPath, cancelToken: token, scope: scope);
 
                 localData.LoadData(textAsset.bytes);
             }
@@ -104,9 +106,9 @@ namespace ProjectT
             {
                 string tablePath = $"Assets/Automation/Table/{tableID}.bytes";
 
-                using (var scope = resource.CreateScope())
+                using (var scope = Global.Resource.CreateScope())
                 {
-                    var textAsset = await resource.LoadAndGetAsync<TextAsset>(tablePath, cancelToken: token, scope: scope);
+                    var textAsset = await Global.Resource.LoadAndGetAsync<TextAsset>(tablePath, cancelToken: token, scope: scope);
                     tableData.LoadData(tableID, textAsset.bytes);
                 }
 

@@ -12,6 +12,7 @@ namespace ProjectT
         private static Global s_instance;
         public static Global Instance => s_instance;
         public bool LoadData = false;
+        public bool UseRemoteResource = true;
         public bool UseDebugLog = true;
         private ManagerHost host;
         private bool focused = true;
@@ -19,54 +20,36 @@ namespace ProjectT
         public ManagerState State => host?.State ?? ManagerState.Created;
         public bool IsReady => State == ManagerState.Ready;
 
-        private ResourceManager resource;
-        public static ResourceManager Resource { get => ReadyInstance.resource; }
+        public static PatchManager Patch { get => GetManager<PatchManager>(); }
 
-        private DataManager data;
-        public static DataManager Data { get => ReadyInstance.data; }
+        public static ResourceManager Resource { get => GetManager<ResourceManager>(); }
 
-        private PoolManager pool;
-        public static PoolManager Pool { get => ReadyInstance.pool; }
+        public static DataManager Data { get => GetManager<DataManager>(); }
 
-        private SceneManager scene;
-        public static SceneManager Scene { get => ReadyInstance.scene; }
+        public static PoolManager Pool { get => GetManager<PoolManager>(); }
 
-        private UIManager ui;
-        public static UIManager UI { get => ReadyInstance.ui; }
+        public static SceneManager Scene { get => GetManager<SceneManager>(); }
 
-        private SoundManager sound;
-        public static SoundManager Sound { get => ReadyInstance.sound; }
+        public static UIManager UI { get => GetManager<UIManager>(); }
 
-        private NotificationManager notify;
-        public static NotificationManager Notify { get => ReadyInstance.notify; }
+        public static SoundManager Sound { get => GetManager<SoundManager>(); }
 
-        private ClientLocalStorageManager localStorage;
-        public static ClientLocalStorageManager LocalStorage { get => ReadyInstance.localStorage; }
+        public static NotificationManager Notify { get => GetManager<NotificationManager>(); }
 
-        private CostumeManager costume;
-        public static CostumeManager Costume { get => ReadyInstance.costume; }
+        public static ClientLocalStorageManager LocalStorage { get => GetManager<ClientLocalStorageManager>(); }
 
-        private static Global ReadyInstance
-        {
-            get
-            {
-                if (s_instance == null || !s_instance.IsReady)
-                    throw new InvalidOperationException("Global is not ready; await WhenReadyAsync first.");
-
-                return s_instance;
-            }
-        }
+        public static CostumeManager Costume { get => GetManager<CostumeManager>(); }
 
         public static DesignTable.DataMgr Table => Data.Table;
 
-        // ½Ã½ºÅÛ µî·Ï ½ÃÁ¡
+        // ì‹œìŠ¤í…œ ë“±ë¡ ì‹œì 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() 
         {
             s_instance = null;
         }
 
-        //Ã¹ ¾À ·Îµå ¹× ¿ÀºêÁ§Æ®µéÀÇ Awake È£Ãâ ÈÄ ½ÇÇàÇÔ 
+        //ì²« ì”¬ ë¡œë“œ ë° ì˜¤ë¸Œì íŠ¸ë“¤ì˜ Awake í˜¸ì¶œ í›„ ì‹¤í–‰í•¨
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void BootstrapRetainedObjects()
         {
@@ -86,7 +69,7 @@ namespace ProjectT
 
             if (s_instance != null)
             {
-                enabled = false;    //ÄÄÆ÷³ÍÆ®¸¦ Á¦¿ÜÇÔ
+                enabled = false;    //ì»´í¬ë„ŒíŠ¸ë¥¼ ì œì™¸í•¨
                 Destroy(this);
                 return;
             }
@@ -97,18 +80,19 @@ namespace ProjectT
             DontDestroyOnLoad(gameObject);
             focused = Application.isFocused;
 
-            host = new ManagerHost(transform, LoadData);
-            resource = host.Register(new ResourceManager());
-            notify = host.Register(new NotificationManager());
-            localStorage = host.Register(new ClientLocalStorageManager());
-            data = host.Register(new DataManager());
-            pool = host.Register(new PoolManager());
-            scene = host.Register(new SceneManager());
-            ui = host.Register(new UIManager());
-            sound = host.Register(new SoundManager());
-            costume = host.Register(new CostumeManager());
+            host = new ManagerHost(transform);
+            host.Register(new PatchManager(UseRemoteResource));
+            host.Register(new ResourceManager());
+            host.Register(new NotificationManager());
+            host.Register(new ClientLocalStorageManager(LoadData));
+            host.Register(new DataManager(LoadData));
+            host.Register(new PoolManager());
+            host.Register(new SceneManager());
+            host.Register(new UIManager());
+            host.Register(new SoundManager());
+            host.Register(new CostumeManager());
 
-            InitializeAsync(host).Forget();
+            InitializeAsync(host).Forget(LogException);
         }
 
         private async UniTask InitializeAsync(ManagerHost owner)
@@ -122,12 +106,8 @@ namespace ProjectT
                 owner.Focus(focused);
                 owner.Pause(paused);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (owner.State != ManagerState.Ready)
             {
-            }
-            catch (Exception error)
-            {
-                LogException(error);
             }
             finally
             {
@@ -154,7 +134,7 @@ namespace ProjectT
             if (s_instance == null || s_instance.host == null)
                 throw new InvalidOperationException("Global is not available.");
 
-            return s_instance.host.GetReady<T>();
+            return s_instance.host.GetInitialized<T>();
         }
 
         public static bool TryGetReady<T>(out T manager) where T : ManagerBase

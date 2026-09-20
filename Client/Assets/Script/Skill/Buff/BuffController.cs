@@ -42,7 +42,7 @@ namespace ProjectT.Skill
         {
             buffInfo info = Global.Table.BuffInfos.Get(buffId);
 
-            if (info == null)
+            if (info == null || buffTaskHandlers.ContainsKey(buffId))
                 return;
 
             //버프 생성
@@ -53,56 +53,109 @@ namespace ProjectT.Skill
                 return;
             }
 
-            buff.Init(actor, info);
-            buff.OnApply();
-
-            //Create Handler
-            CancellationTokenSource tokenSource = new CancellationTokenSource();
-            UniTask task = HandlerBuffHandlerExpiration(buff, tokenSource.Token);
-            BuffTaskHandler handler = new BuffTaskHandler(buff,tokenSource, task);
-
-            //버프 등록
-            buffTaskHandlers.Add(buffId, handler);
-        }
-
-        public void UnRegister(BaseBuff baseBuff)
-        {
-            if (buffTaskHandlers.TryGetValue(baseBuff.BuffID, out var handler))
+            try { buff.Init(actor, info); }
+            catch
             {
-                handler.TokenSource.Cancel();
-                handler.TokenSource.Dispose();
-                baseBuff.OnExpire();
-                BuffContainer.Return(baseBuff.buffType, baseBuff);
-
-                buffTaskHandlers.Remove(baseBuff.BuffID);
+                BuffContainer.Return((DesignEnum.BuffType)info.buff_type, buff);
+                throw;
+            }
+            var tokenSource = new CancellationTokenSource();
+            var handler = new BuffTaskHandler(buff, tokenSource, UniTask.CompletedTask);
+            buffTaskHandlers.Add(buffId, handler);
+            try
+            {
+                buff.OnApply();
+                if (!buffTaskHandlers.TryGetValue(buffId, out var current) || !ReferenceEquals(current, handler))
+                    return;
+                handler.Task = HandlerBuffHandlerExpiration(buffId, handler);
+                handler.Task.Forget(Global.LogException);
+            }
+            catch
+            {
+                UnRegister(buffId, handler);
+                throw;
             }
         }
 
-        async UniTask HandlerBuffHandlerExpiration(BaseBuff BaseBuff, CancellationToken Token)
+        public void Clear()
         {
+            if (buffTaskHandlers == null)
+                return;
+            var errors = new List<Exception>();
+            foreach (var pair in new List<KeyValuePair<int, BuffTaskHandler>>(buffTaskHandlers))
+            {
+                try { UnRegister(pair.Key, pair.Value); }
+                catch (Exception error) { errors.Add(error); }
+            }
+            if (errors.Count > 0)
+                throw new AggregateException(errors);
+        }
+
+
+        public void UnRegister(BaseBuff baseBuff)
+        {
+            if (baseBuff == null)
+                return;
+            BuffTaskHandler found = null;
+            int id = 0;
+            foreach (var pair in buffTaskHandlers)
+            {
+                if (!ReferenceEquals(pair.Value.BaseBuff, baseBuff))
+                    continue;
+                found = pair.Value;
+                id = pair.Key;
+                break;
+            }
+            if (found != null)
+                UnRegister(id, found);
+        }
+
+        private void UnRegister(int id, BuffTaskHandler handler)
+        {
+            if (!buffTaskHandlers.TryGetValue(id, out var current) || !ReferenceEquals(current, handler))
+                return;
+            buffTaskHandlers.Remove(id);
+            var buff = handler.BaseBuff;
+            var type = buff.buffType;
+            try { handler.TokenSource.Cancel(); }
+            finally
+            {
+                handler.TokenSource.Dispose();
+                try { buff.OnExpire(); }
+                finally { BuffContainer.Return(type, buff); }
+            }
+        }
+
+        async UniTask HandlerBuffHandlerExpiration(int id, BuffTaskHandler handler)
+        {
+            var BaseBuff = handler.BaseBuff;
+            var Token = handler.TokenSource.Token;
+            var interval = BaseBuff.Interval;
+            var duration = BaseBuff.Duration;
             try
             {
-                if (BaseBuff.Interval > 0)
+                if (interval > 0)
                 {
-                    int ticks = Mathf.FloorToInt(BaseBuff.Duration / BaseBuff.Interval);
+                    int ticks = Mathf.FloorToInt(duration / interval);
                     for (int i = 0; i < ticks; ++i)
                     {
+                        Token.ThrowIfCancellationRequested();
                         BaseBuff.OnExecute();
-                        await UniTask.Delay(TimeSpan.FromSeconds(BaseBuff.Interval), cancellationToken: Token);
+                        Token.ThrowIfCancellationRequested();
+                        await UniTask.Delay(TimeSpan.FromSeconds(interval), cancellationToken: Token);
                     }
                 }
                 else
                 {
-                    await UniTask.Delay(TimeSpan.FromSeconds(BaseBuff.Duration), cancellationToken: Token);
+                    await UniTask.Delay(TimeSpan.FromSeconds(duration), cancellationToken: Token);
                 }
             }
-            catch (OperationCanceledException ex)
+            catch (OperationCanceledException) when (Token.IsCancellationRequested)
             {
-                Global.Instance.LogError($"[BuffController] Error : {ex}");
             }
             finally
             {
-                UnRegister(BaseBuff);
+                UnRegister(id, handler);
             }
         }
     }

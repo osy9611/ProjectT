@@ -3,30 +3,41 @@ using System;
 
 namespace ProjectT.Concurrent
 {
-    public class ConcurrentPool<T>
+    public class ConcurrentPool<T> : IDisposable
     {
-        private Pool<T> pool;
+        private readonly Pool<T> pool;
+        private readonly object sync = new object();
 
         public int ActiveCount
         {
-            get { lock(this) { return pool.ActiveCount; } }
+            get { lock (sync) { return pool.ActiveCount; } }
+        }
+
+        public int InactiveCount
+        {
+            get { lock (sync) { return pool.InactiveCount; } }
         }
 
         public int Count
         {
-            get { lock (this) { return pool.InactiveCount; } }
+            get { lock (sync) { return pool.Count; } }
         }
 
         public ConcurrentPool(Func<T> objectGenerator, bool collectionChecks, int initGenerateCount, int initialCapacity, int maxPoolSize = 0)
         {
-            pool = new Pool<T>(objectGenerator, collectionChecks, initGenerateCount, initialCapacity, maxPoolSize);
+            pool = new Pool<T>(
+                objectGenerator: objectGenerator,
+                collectionChecks: collectionChecks,
+                initGenerateCount: initGenerateCount,
+                initialCapacity: initialCapacity,
+                maxPoolSize: maxPoolSize);
         }
 
         public T Get()
         {
             T item = default(T);
 
-            lock(this)
+            lock (sync)
             {
                 item = pool.Get();
             }
@@ -36,15 +47,25 @@ namespace ProjectT.Concurrent
 
         public void Return(T item)
         {
-            lock(this)
+            lock (sync)
             {
                 pool.Return(item);
             }
         }
 
+        public void ReturnAll()
+        {
+            lock (sync) { pool.ReturnAll(); }
+        }
+
+        public void Dispose()
+        {
+            lock (sync) { pool.Dispose(); }
+        }
+
         public void Clear()
         {
-            lock (this)
+            lock (sync)
             {
                 pool.Clear();
             }

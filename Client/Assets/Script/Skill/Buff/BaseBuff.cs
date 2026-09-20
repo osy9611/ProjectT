@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ProjectT.Skill
 {
 
-    public class BaseBuff
+    public class BaseBuff : ProjectT.Pool.IPoolable
     {
         protected BaseActor ownerActor;
         protected buffInfo buffInfo;
@@ -20,6 +20,24 @@ namespace ProjectT.Skill
         public float Interval { get => buffInfo.buff_interval; }
 
         public float Duration { get => buffInfo.buff_duration; }
+
+        public void OnGet()
+        {
+        }
+
+        public void OnReturn()
+        {
+            try { OnReset(); }
+            finally
+            {
+                ownerActor = null;
+                buffInfo = null;
+            }
+        }
+
+        protected virtual void OnReset()
+        {
+        }
 
         public virtual void Init(params object[] args)
         {

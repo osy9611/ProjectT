@@ -12,17 +12,23 @@ namespace ProjectT
 {
     public class ClientLocalStorageManager : ManagerBase
     {
+        private readonly bool loadData;
         private string assetFolderPath;
         public string AssetFolderPath { get => assetFolderPath; }
         private string defaultFolder = "ClientLocalStorage";
 
         private Dictionary<EClientLocalStorageType, ClientLocalStorage> StorageDatas = new Dictionary<EClientLocalStorageType, ClientLocalStorage>();
 
+        public ClientLocalStorageManager(bool loadData = false)
+        {
+            this.loadData = loadData;
+        }
+
         protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
             InitAssetFolderPath();
 
-            if (Context.LoadData)
+            if (loadData)
                 await LoadAllDataAsync(token);
         }
 
