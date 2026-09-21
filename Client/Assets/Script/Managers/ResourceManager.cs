@@ -73,35 +73,25 @@ namespace ProjectT
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
+
             foreach (var scene in loadedScenes)
             {
-                try
+                ErrorCollector.Run(ref errors, scene, handle =>
                 {
-                    if (scene.IsValid() && !unloadingScenes.ContainsKey(scene.Result.Scene))
-                        ReleaseScene(scene);
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
-                }
+                    if (handle.IsValid() && !unloadingScenes.ContainsKey(handle.Result.Scene))
+                        ReleaseScene(handle);
+                });
             }
 
             loadedScenes.Clear();
 
             foreach (var scope in new List<ResourceScope>(scopes))
             {
-                try
-                {
-                    scope.Dispose();
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
-                }
+                ErrorCollector.Run(ref errors, scope, target => target.Dispose());
             }
-            if (errors.Count > 0)
-                throw new AggregateException(errors);
+
+            ErrorCollector.ThrowIfAny(errors);
         }
 
 
@@ -352,6 +342,7 @@ namespace ProjectT
             resource = new TResource();
             if (source == ResourceSource.Resources && !typeof(UnityEngine.Object).IsAssignableFrom(resource.AssetType))
                 throw new ArgumentException("Resources requires a UnityEngine.Object type.");
+
             resource.Initialize(path, source, asynchronous, RemoveFailedResource);
 
             if (resource.Request != null && !resource.Request.isDone)
@@ -389,7 +380,7 @@ namespace ProjectT
             if (!scopes.Remove(scope))
                 return;
 
-            var errors = new List<Exception>();
+            List<Exception> errors = null;
 
             foreach (var pair in new List<KeyValuePair<ResourceKey, IResource>>(datas))
             {
@@ -397,19 +388,10 @@ namespace ProjectT
                     continue;
 
                 datas.Remove(pair.Key);
-
-                try
-                {
-                    pair.Value.Dispose();
-                }
-                catch (Exception error)
-                {
-                    errors.Add(error);
-                }
+                ErrorCollector.Run(ref errors, pair.Value, resource => resource.Dispose());
             }
 
-            if (errors.Count > 0)
-                throw new AggregateException(errors);
+            ErrorCollector.ThrowIfAny(errors);
         }
 
         private void OnResourceCompleted(AsyncOperation operation)

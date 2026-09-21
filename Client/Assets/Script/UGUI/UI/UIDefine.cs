@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -25,7 +26,7 @@ namespace ProjectT.UGUI
             {
                 case eUIType.Test: return "Assets/BundleRes/UI/Test.prefab";
                 default:
-                    return string.Empty;
+                    throw new ArgumentOutOfRangeException(nameof(type), type, "UI path is not defined.");
             }
         }
     }

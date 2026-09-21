@@ -114,7 +114,7 @@ public class Test : MonoBehaviour
 
     public void OpenUI()
     {
-        Global.UI.CreateWidget<TestUI>(UIDefine.eUIType.Test);
+        Global.UI.CreateWidget<TestUI>(UIDefine.eUIType.Test).Show();
     }
 
 

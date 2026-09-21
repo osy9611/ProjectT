@@ -183,6 +183,9 @@ namespace ProjectT
 
                     StopScenes();
 
+                    // 씬 오브젝트를 참조한 UI가 남지 않도록 언로드와 Scope 반환보다 먼저 정리한다.
+                    Global.UI.ClearTransientWidgets();
+
                     await UniTask.NextFrame(cancellationToken: LifetimeToken);
 
                     if (path != null)

@@ -4,16 +4,15 @@ namespace ProjectT.UGUI
     using System;
     using System.Collections.Generic;
     using TMPro;
-    using Unity.VisualScripting;
     using UnityEngine;
     using UnityEngine.EventSystems;
     using UnityEngine.UI;
 
     public enum eUIContainerType
     {
-        System,  // °ÔÀÓ ½Ã½ºÅÛ UI °ü·Ã
-        Dynamic, // µ¿Àû UI °ü·Ã
-        Static,   // Á¤Àû UI °ü·Ã
+        System,  // ê²Œìž„ ì‹œìŠ¤í…œ UI ê´€ë ¨
+        Dynamic, // ë™ì  UI ê´€ë ¨
+        Static,   // ì •ì  UI ê´€ë ¨
         HUD
     }
 
@@ -27,76 +26,98 @@ namespace ProjectT.UGUI
         protected bool isActive = false;
         public bool IsActive => isActive;
 
+        private UIContainer owner;
+        private bool released;
+
         public virtual void OnEnter() { }
 
-        public virtual void Show()
+        public virtual void OnLeave() { }
+
+        internal void InitializeInternal(UIContainer container)
         {
-            isActive = true;
-            gameObject.SetActive(isActive);
-
-            OnShow();
-
-            Global.UI.RegisterStackUI(this);
+            owner = container;
+            OnEnter();
         }
 
-        public virtual void Hide(bool activePrevUI = true)
+        public void Show()
         {
-            isActive = false;
-            gameObject.SetActive(isActive);
+            if (released || owner == null)
+                throw new InvalidOperationException("UI is not available.");
+            owner.ShowWidget(this);
+        }
 
-            if (activePrevUI)
+        internal void ShowInternal()
+        {
+            gameObject.SetActive(true);
+
+            if (isActive)
+                return;
+
+            isActive = true;
+            bool shown = false;
+
+            try
             {
-                if(Type == eUIContainerType.Static)
+                OnShow();
+                shown = true;
+            }
+            finally
+            {
+                if (!shown)
                 {
-                    UIBase currentUI = Global.UI.GetCurrentStackUI();
-                    UIBase prevUI = null;
-
-                    if (currentUI == this)
-                    {
-                        Global.UI.UnRegisterStackUI(); //ÀÚ±â¸¦ Áö¿ì¸é¼­ ´Ý°í
-                        prevUI = Global.UI.GetCurrentStackUI(); //»õ·Î °»½Å                       
-                    }
-                    else
-                        prevUI = currentUI;
-
-                    if(prevUI != null)
-                    {
-                        Global.Instance.Log($"[UIBase] Check Prev Active currentUI Name : {prevUI.name} currentUI.IsActive : {prevUI.IsActive} , " +
-                                            $"currentUI.gameObject.activeInHierarchy {prevUI.gameObject.activeInHierarchy}", "A45FF8");
-
-                        if(prevUI.isActive && !prevUI.gameObject.activeInHierarchy)
-                        {
-                            prevUI.gameObject.SetActive(true);
-                            CheckCurrentUIShow();
-                        }
-                        else
-                        {
-                            //ÄÑÁ®ÀÖ´Â UI¸¦ °¡Á®¿À´Â °æ¿ì°¡ ÀÖ±â ¶§¹®¿¡ ¿¹¿ÜÃ³¸®¸¦ ÁøÇàÇÔ
-                            if(prevUI.isActive && prevUI.gameObject.activeInHierarchy)
-                            {
-                                prevUI.gameObject.SetActive(true);
-                                CheckCurrentUIShow();
-                            }
-                            else
-                            {
-                                prevUI.Show();
-                            }
-                        }
-                    }
+                    isActive = false;
+                    gameObject.SetActive(false);
                 }
             }
+        }
 
+        public void Hide(bool activePrevUI = true)
+        {
+            if (released)
+                return;
+
+            if (owner == null)
+                throw new InvalidOperationException("UI is not initialized.");
+
+            owner.HideWidget(this, activePrevUI);
+        }
+
+        internal void HideInternal()
+        {
+            gameObject.SetActive(false);
+
+            if (!isActive)
+                return;
+
+            isActive = false;
             OnHide();
         }
 
+        internal void ReleaseInternal()
+        {
+            if (released)
+                return;
+
+            released = true;
+
+            owner?.DetachWidget(this);
+
+            List<Exception> errors = null;
+            ErrorCollector.Run(ref errors, this, widget => widget.HideInternal());
+            ErrorCollector.Run(ref errors, this, widget => widget.OnLeave());
+
+            owner = null;
+
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        protected virtual void OnDestroy()
+        {
+            ReleaseInternal();
+        }
 
         public abstract void OnShow();
         public abstract void OnHide();
-
-        private void CheckCurrentUIShow()
-        {
-            var currentUI = Global.UI.GetCurrentStackUI();
-        }
 
         public void ChangeFirstDepth()
         {
@@ -151,8 +172,7 @@ namespace ProjectT.UGUI
 
         protected T Get<T>(int idx) where T : UnityEngine.Object
         {
-            UnityEngine.Object[] objects = null;
-            if (!this.objects.ContainsKey(typeof(T)))
+            if (!this.objects.TryGetValue(typeof(T), out var objects))
                 return null;
 
             return objects[idx] as T;
@@ -160,8 +180,7 @@ namespace ProjectT.UGUI
 
         protected T[] Get<T>() where T : UnityEngine.Object
         {
-            UnityEngine.Object[] objects = null;
-            if (!this.objects.ContainsKey(typeof(T)))
+            if (!this.objects.TryGetValue(typeof(T), out var objects))
                 return null;
 
             return Array.ConvertAll(objects, x => (T)x);
@@ -175,12 +194,8 @@ namespace ProjectT.UGUI
 
         public static void BindEvent(GameObject go, Action<PointerEventData, System.Action<Vector2>> action, UIDefine.eUIEvent type = UIDefine.eUIEvent.Click)
         {
-            UIEventHandler handle = go.GetOrAddComponent<UIEventHandler>();
-            if (handle == null)
-            {
-                Debug.LogError("Null UI_EventHandler");
-                return;
-            }
+            if (!go.TryGetComponent(out UIEventHandler handle))
+                handle = go.AddComponent<UIEventHandler>();
 
             switch (type)
             {
