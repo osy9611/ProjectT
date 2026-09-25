@@ -11,7 +11,6 @@ namespace ProjectT
     public class UIManager : ManagerBase
     {
         private UIContainer uiContainer;
-
         public IReadOnlyList<UIBase> UIStack => uiContainer.UIStack;
         public Camera Canvas2DCam => uiContainer.Canvas2DCam;
         public Transform Canvas2D => uiContainer.UICanvas2D;
@@ -86,12 +85,15 @@ namespace ProjectT
                 return default(T);
 
             var obj = Global.Pool.Get(path);
+
             T hud = obj.GetComponent<T>();
+
             if (hud == null)
             {
                 Global.Pool.Return(obj);
                 throw new InvalidOperationException($"HUD prefab has no {typeof(T).Name}.");
             }
+
             hud.RegisterInfo(pivotInfo);
 
             return hud;
@@ -104,12 +106,15 @@ namespace ProjectT
                 return default(T);
 
             GameObject poolObj = await Global.Pool.GetAsync(path, cancelToken: LifetimeToken);
+
             T hud = poolObj.GetComponent<T>();
+
             if (hud == null)
             {
                 Global.Pool.Return(poolObj);
                 throw new InvalidOperationException($"HUD prefab has no {typeof(T).Name}.");
             }
+
             hud.RegisterInfo(pivotInfo);
             return hud;
         }

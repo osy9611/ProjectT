@@ -5,11 +5,11 @@ using ProjectT.UGUI;
 
 public class TestUI : UIBase
 {
-    public override void OnHide()
+    protected override void OnHide()
     {
     }
 
-    public override void OnShow()
+    protected override void OnShow()
     {
     }
 }

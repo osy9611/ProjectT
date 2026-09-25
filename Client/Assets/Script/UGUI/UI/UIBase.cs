@@ -29,9 +29,9 @@ namespace ProjectT.UGUI
         private UIContainer owner;
         private bool released;
 
-        public virtual void OnEnter() { }
+        protected virtual void OnEnter() { }
 
-        public virtual void OnLeave() { }
+        protected virtual void OnLeave() { }
 
         internal void InitializeInternal(UIContainer container)
         {
@@ -100,13 +100,17 @@ namespace ProjectT.UGUI
 
             released = true;
 
-            owner?.DetachWidget(this);
+            var container = owner;
+            bool restorePrevious = container != null && container.DetachWidget(this);
 
             List<Exception> errors = null;
             ErrorCollector.Run(ref errors, this, widget => widget.HideInternal());
             ErrorCollector.Run(ref errors, this, widget => widget.OnLeave());
 
             owner = null;
+
+            if (restorePrevious)
+                ErrorCollector.Run(ref errors, container, item => item.RestorePreviousInternal());
 
             ErrorCollector.ThrowIfAny(errors);
         }
@@ -116,66 +120,67 @@ namespace ProjectT.UGUI
             ReleaseInternal();
         }
 
-        public abstract void OnShow();
-        public abstract void OnHide();
+        protected abstract void OnShow();
+        protected abstract void OnHide();
 
-        public void ChangeFirstDepth()
+        internal void ChangeFirstDepth()
         {
             this.transform.SetAsLastSibling();
         }
 
         protected void Bind<T>(Type type) where T : UnityEngine.Object
         {
-            string[] names = Enum.GetNames(type);
-            UnityEngine.Object[] objects = new UnityEngine.Object[names.Length];
-            this.objects.Add(typeof(T), objects);
+            if (type == null || !type.IsEnum)
+                throw new ArgumentException("Binding type must be an enum.", nameof(type));
 
-            for(int i=0;i<names.Length;++i)
+            var values = Enum.GetValues(type);
+            for (int i = 0; i < values.Length; ++i)
             {
-                if(gameObject.name == names[i])
-                {
-                    if (typeof(T) == typeof(GameObject))
-                        objects[i] = gameObject;
-                    else
-                        objects[i] = GetComponent<T>();
-                }
-                else
-                {
-                    if (typeof(T) == typeof(GameObject))
-                        objects[i] = ComUtilFunc.FindChild(gameObject, names[i], true);
-                    else
-                        objects[i] = ComUtilFunc.FindChild<T>(gameObject, names[i], true);
-                }
-
-                if (objects[i] == null)
-                    Global.Instance.Log($"Fail To Bind({names[i]})");
+                if (!values.GetValue(i).Equals(Enum.ToObject(type, i)))
+                    throw new ArgumentException($"Binding enum must contain unique consecutive values starting at zero: {type.Name}", nameof(type));
             }
+            BindInternal<T>(Enum.GetNames(type));
         }
 
         protected void Bind<T>(string[] names) where T : UnityEngine.Object
         {
-            UnityEngine.Object[] objects = new UnityEngine.Object[names.Length];
-            this.objects.Add(typeof(T), objects);
-
-            for (int i = 0, range = names.Length; i < range; ++i)
-            {
-                if (typeof(T) == typeof(GameObject))
-                    objects[i] = ComUtilFunc.FindChild(gameObject, names[i], true);
-                else
-                    objects[i] = ComUtilFunc.FindChild<T>(gameObject, names[i], true);
-
-                if (objects[i] == null)
-                    Debug.LogError($"Fail To Bind({names[i]})");
-            }
+            BindInternal<T>(names);
         }
 
+        private void BindInternal<T>(string[] names) where T : UnityEngine.Object
+        {
+            if (names == null)
+                throw new ArgumentNullException(nameof(names));
+            if (objects.ContainsKey(typeof(T)))
+                throw new InvalidOperationException($"UI {name} already has a {typeof(T).Name} binding group.");
+
+            var bindings = new UnityEngine.Object[names.Length];
+            for (int i = 0; i < names.Length; ++i)
+            {
+                if (string.IsNullOrEmpty(names[i]))
+                    throw new ArgumentException($"UI {name} has an empty binding name at index {i}.", nameof(names));
+
+                if (gameObject.name == names[i])
+                    bindings[i] = typeof(T) == typeof(GameObject) ? gameObject : GetComponent<T>();
+                else
+                    bindings[i] = typeof(T) == typeof(GameObject)
+                        ? ComUtilFunc.FindChild(gameObject, names[i], true)
+                        : ComUtilFunc.FindChild<T>(gameObject, names[i], true);
+
+                if (bindings[i] == null)
+                    throw new InvalidOperationException($"UI {name} is missing required {typeof(T).Name} binding '{names[i]}' at index {i}.");
+            }
+            objects.Add(typeof(T), bindings);
+        }
 
         protected T Get<T>(int idx) where T : UnityEngine.Object
         {
-            if (!this.objects.TryGetValue(typeof(T), out var objects))
-                return null;
+            if (!objects.TryGetValue(typeof(T), out var bindings))
+                throw new InvalidOperationException($"UI {name} has no {typeof(T).Name} binding group.");
+            if (idx < 0 || idx >= bindings.Length)
+                throw new ArgumentOutOfRangeException(nameof(idx), idx, $"UI {name} {typeof(T).Name} binding index is out of range.");
 
-            return objects[idx] as T;
+            return bindings[idx] as T;
         }
 
         protected T[] Get<T>() where T : UnityEngine.Object

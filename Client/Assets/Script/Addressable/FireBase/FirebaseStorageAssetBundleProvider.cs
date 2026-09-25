@@ -44,7 +44,7 @@ namespace ProjectT.Addressable
         public override void Provide(ProvideHandle provideHandle)
         {
             string path = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
-            LogInfo($"Transformed {provideHandle.Location.InternalId} to {path}");
+            LogInfo("Resolved bundle resource location.");
             if (FirebaseAddressablesManager.IsFirebaseStorageLocation(path) == false)
             {
                 LogInfo("No Firebase file. Redirecting to base Unity provider");
@@ -67,20 +67,20 @@ namespace ProjectT.Addressable
         {
             string firebaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
 
-            LogInfo($"Loading from {firebaseUrl}");
+            LogInfo("Loading Firebase bundle.");
             var reference = FirebaseStorage.DefaultInstance.GetReferenceFromUrl(firebaseUrl);
 
             reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
             {
                 if (task.IsCanceled || task.IsFaulted)
                 {
-                    Debug.LogError($"Could not get url for: {firebaseUrl}, {task.Exception}");
+                    Debug.LogError($"Could not resolve Firebase bundle URL: {task.Exception}");
                     provideHandle.Complete(this, false, task.Exception);
                     return;
                 }
 
                 string url = task.Result.ToString();
-                LogInfo($"Applying cache from {firebaseUrl} to {url}");
+                LogInfo("Caching Firebase bundle download URL.");
                 FirebaseAddressablesCache.SetInternalIdToStorageUrlMapping(firebaseUrl, url);
                 IResourceLocation[] dependencies;
                 IList<IResourceLocation> originalDependencies = provideHandle.Location.Dependencies;
@@ -91,7 +91,7 @@ namespace ProjectT.Addressable
                     {
                         var dependency = originalDependencies[i];
 
-                        LogInfo($"Setting up dependency: {dependency.InternalId}");
+                        LogInfo("Setting up bundle dependency.");
                         dependencies[i] = dependency;
                     }
                 }
@@ -115,7 +115,7 @@ namespace ProjectT.Addressable
                         provideHandle.ResourceManager.Release(asyncOperationHandle);
                     }
                 }
-                LogInfo($"Passing fetched Firebase Url to Unity AssetBundle at: {bundleLoc.PrimaryKey}");
+                LogInfo("Passing resolved Firebase location to Unity AssetBundle provider.");
                 asyncOperationHandle = provideHandle.ResourceManager.ProvideResource<IAssetBundleResource>(bundleLoc);
                 bundleOperationHandles.Add(firebaseUrl, asyncOperationHandle);
                 asyncOperationHandle.Completed += handle =>

@@ -532,6 +532,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   LoadData: 1
+  UseRemoteResource: 1
   UseDebugLog: 1
 --- !u!4 &435296264
 Transform:
@@ -1381,9 +1382,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: TestReflection, Assembly-CSharp
-        m_MethodName: RegisterSkill
+      - m_Target: {fileID: 836218961}
+        m_TargetAssemblyTypeName: Test, Assembly-CSharp
+        m_MethodName: OpenUI
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

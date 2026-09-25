@@ -36,7 +36,7 @@ namespace ProjectT.Addressable
         private void LoadManifest()
         {
             FirebaseAddressablesManager.FirebaseSetupFinished -= LoadManifest;
-            Debug.Log("Loading manifest: " + provideHandle.Location.InternalId);
+            Debug.Log("Loading Firebase catalog hash.");
 
             var reference =
                 FirebaseStorage.DefaultInstance.GetReferenceFromUrl(provideHandle.Location.InternalId);
@@ -51,7 +51,7 @@ namespace ProjectT.Addressable
                 else
                 {
                     string url = task.Result.ToString();
-                    Debug.Log("Loading via URL: " + url);
+                    Debug.Log("Resolved Firebase catalog hash download URL.");
 
 
                     var catalogLoc =

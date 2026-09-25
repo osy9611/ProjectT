@@ -114,7 +114,22 @@ public class Test : MonoBehaviour
 
     public void OpenUI()
     {
-        Global.UI.CreateWidget<TestUI>(UIDefine.eUIType.Test).Show();
+        OpenUIInternalAsync().Forget(Global.LogException);
+    }
+
+    private async UniTask OpenUIInternalAsync()
+    {
+        var token = this.GetCancellationTokenOnDestroy();
+        if (await Global.Instance.WhenReadyAsync(token).SuppressCancellationThrow())
+            return;
+
+        var (canceled, widget) = await Global.UI.CreateWidgetAsync<TestUI>(
+            UIDefine.eUIType.Test, token).SuppressCancellationThrow();
+
+        if (canceled || token.IsCancellationRequested || widget == null)
+            return;
+
+        widget.Show();
     }
 
 

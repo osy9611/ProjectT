@@ -51,7 +51,7 @@ namespace ProjectT.Addressable
         {
             FirebaseAddressablesManager.FirebaseSetupFinished -= LoadManifest;
             var locationPath = UnityEngine.AddressableAssets.Addressables.ResourceManager.TransformInternalId(provideHandle.Location);
-            Debug.Log("Loading Json at: " + locationPath);
+            Debug.Log("Loading Firebase catalog.");
 
             var reference = FirebaseStorage.DefaultInstance.GetReferenceFromUrl(locationPath);
 
@@ -65,7 +65,7 @@ namespace ProjectT.Addressable
                 else
                 {
                     string url = task.Result.ToString();
-                    Debug.Log("Got URL: " + url);
+                    Debug.Log("Resolved Firebase catalog download URL.");
 
                     var catalogLoc = new ResourceLocationBase(url, url, typeof(JsonAssetProvider).FullName, typeof(IResourceLocator));
 

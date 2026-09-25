@@ -10,6 +10,7 @@ namespace ProjectT.UGUI
     using ProjectT.Util;
     using Cysharp.Threading.Tasks;
     using System.Linq;
+    using System.Runtime.ExceptionServices;
 
     public class UIContainer
     {
@@ -32,6 +33,7 @@ namespace ProjectT.UGUI
         private readonly Transform root;
         private bool stopped;
         private bool clearing;
+        private bool inputAllowed = true;
 
         private sealed class PendingCreation
         {
@@ -157,8 +159,19 @@ namespace ProjectT.UGUI
 
         public void SetInputAllowed(bool allowed)
         {
+            if (inputAllowed == allowed)
+                return;
+
+            inputAllowed = allowed;
             canvas2DGroup.interactable = allowed;
             canvas2DGroup.blocksRaycasts = allowed;
+            ApplyInputAllowedInternal(uiCanvas2D.gameObject);
+        }
+
+        private void ApplyInputAllowedInternal(GameObject target)
+        {
+            foreach (var handler in target.GetComponentsInChildren<UIEventHandler>(true))
+                handler.SetInputAllowedInternal(inputAllowed);
         }
 
         private void EnsureAvailable()
@@ -184,20 +197,13 @@ namespace ProjectT.UGUI
             {
                 var result = AttachWidget<T>(type, path, Global.Resource.LoadAndGet<GameObject>(path), creation.Cancellation.Token);
 
-                RemovePendingInternal(type, creation);
-
-                if (creation.Waiters > 0)
-                    creation.Completion.TrySetResult(result);
+                CompletePendingInternal(type, creation, result);
 
                 return result;
             }
             catch (Exception error)
             {
-                RemovePendingInternal(type, creation);
-
-                if (creation.Waiters > 0)
-                    creation.Completion.TrySetException(error);
-
+                FailPendingInternal(type, creation, error);
                 throw;
             }
             finally
@@ -234,6 +240,7 @@ namespace ProjectT.UGUI
                 var result = await creation.Completion.Task.AttachExternalCancellation(token);
                 if (result is T typed)
                     return typed;
+
                 throw new InvalidOperationException($"UI {type} is not {typeof(T).Name}.");
             }
             finally
@@ -250,23 +257,13 @@ namespace ProjectT.UGUI
                 var prefab = await Global.Resource.LoadAndGetAsync<GameObject>(path, cancelToken: token);
                 token.ThrowIfCancellationRequested();
                 var widget = AttachWidget<T>(type, path, prefab, token);
-                RemovePendingInternal(type, creation);
-                creation.Completion.TrySetResult(widget);
-            }
-            catch (OperationCanceledException error)
-            {
-                RemovePendingInternal(type, creation);
-                creation.Completion.TrySetCanceled(error.CancellationToken);
+                CompletePendingInternal(type, creation, widget);
             }
             catch (Exception error)
             {
-                RemovePendingInternal(type, creation);
-
                 // 모든 호출자가 대기를 취소했다면 결과를 받을 곳이 없으므로 Forget 경계에서 보고한다.
-                if (creation.Waiters == 0)
+                if (!FailPendingInternal(type, creation, error))
                     throw;
-
-                creation.Completion.TrySetException(error);
             }
             finally
             {
@@ -278,6 +275,25 @@ namespace ProjectT.UGUI
         {
             if (pending.TryGetValue(type, out var current) && ReferenceEquals(current, creation))
                 pending.Remove(type);
+        }
+
+        // 대기자 continuation은 동기로 실행되어 같은 타입을 다시 요청할 수 있으므로 결과를 넘기기 전에 등록을 해제한다.
+        private void CompletePendingInternal(UIDefine.eUIType type, PendingCreation creation, UIBase widget)
+        {
+            RemovePendingInternal(type, creation);
+            creation.Completion.TrySetResult(widget);
+        }
+
+        // 대기자 없이 실패를 넣으면 미관찰 예외로 다시 보고되므로 넣지 않는다. 호출자가 보고해야 하는 실패면 false를 반환한다.
+        private bool FailPendingInternal(UIDefine.eUIType type, PendingCreation creation, Exception error)
+        {
+            RemovePendingInternal(type, creation);
+
+            if (creation.Waiters == 0)
+                return error is OperationCanceledException;
+
+            creation.Completion.TrySetException(error);
+            return true;
         }
 
         private T AttachWidget<T>(UIDefine.eUIType type, string path, GameObject prefab, CancellationToken token) where T : UIBase
@@ -302,6 +318,7 @@ namespace ProjectT.UGUI
                 rect.InitRectTransform(typeRoot[(int)widget.Type], AnchorPresets.StretchAll, PivotPresets.MiddleCenter);
 
                 widget.InitializeInternal(this);
+                ApplyInputAllowedInternal(instance);
                 token.ThrowIfCancellationRequested();
 
                 EnsureAvailable();
@@ -334,8 +351,10 @@ namespace ProjectT.UGUI
                 uiDatas.Remove(type);
                 return null;
             }
+
             if (widget is T typed)
                 return typed;
+
             throw new InvalidOperationException($"UI {type} is not {typeof(T).Name}.");
         }
 
@@ -437,20 +456,44 @@ namespace ProjectT.UGUI
             uiStack.Add(widget);
 
             bool shown = false;
+            Exception showError = null;
+            Exception cleanupError = null;
             try
             {
                 widget.ShowInternal();
                 shown = true;
             }
+            catch (Exception error)
+            {
+                showError = error;
+            }
             finally
             {
                 if (!shown)
                     uiStack.Remove(widget);
+
+                // OnShow 중 다른 UI가 열리거나 표시가 실패해도 가장 위 UI만 보이도록 이전 UI를 정리한다.
+                try
+                {
+                    if (previous != null && previous != GetCurrentStackUI())
+                        previous.gameObject.SetActive(false);
+                }
+                catch (Exception error)
+                {
+                    cleanupError = error;
+                }
             }
 
-            // OnShow 중 이전 UI가 다시 열려 맨 위가 되었다면 가리지 않는다.
-            if (previous != null && previous != GetCurrentStackUI())
-                previous.gameObject.SetActive(false);
+            if (showError != null)
+            {
+                if (cleanupError != null)
+                    throw new AggregateException(showError, cleanupError);
+
+                ExceptionDispatchInfo.Capture(showError).Throw();
+            }
+
+            if (cleanupError != null)
+                ExceptionDispatchInfo.Capture(cleanupError).Throw();
         }
 
         internal void HideWidget(UIBase widget, bool activePrevUI)
@@ -469,10 +512,11 @@ namespace ProjectT.UGUI
             }
         }
 
-        private void RestorePreviousInternal()
+        internal void RestorePreviousInternal()
         {
             if (clearing || stopped || lifetimeToken.IsCancellationRequested)
                 return;
+
             var previous = GetCurrentStackUI();
             if (previous != null)
                 previous.Show();
@@ -484,17 +528,20 @@ namespace ProjectT.UGUI
             return uiStack.Count == 0 ? null : uiStack[uiStack.Count - 1];
         }
 
-        internal void DetachWidget(UIBase widget)
+        internal bool DetachWidget(UIBase widget)
         {
+            bool wasCurrent = uiStack.Count > 0 && ReferenceEquals(uiStack[uiStack.Count - 1], widget);
             uiStack.Remove(widget);
+
             foreach (var pair in uiDatas)
             {
                 if (ReferenceEquals(pair.Value, widget))
                 {
                     uiDatas.Remove(pair.Key);
-                    break;
+                    return wasCurrent;
                 }
             }
+            return false;
         }
 
         private void SetAutoScale()
