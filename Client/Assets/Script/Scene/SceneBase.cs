@@ -20,7 +20,6 @@ namespace ProjectT.Scene
     public abstract class SceneBase : MonoBehaviour
     {
         private CancellationTokenSource lifetime;
-        private readonly List<INotifyHandler> handlers = new List<INotifyHandler>();
         private readonly List<(ProjectT.Controller.Controller Controller, InputActionAsset Asset)> controllers = new List<(ProjectT.Controller.Controller, InputActionAsset)>();
         private bool inputAllowed;
         protected internal CancellationToken LifetimeToken { get; private set; }
@@ -100,12 +99,6 @@ namespace ProjectT.Scene
             }
 
             StopAllCoroutines();
-            foreach (var handler in handlers)
-            {
-                ExecuteInternal(() => Global.Notify.DisconnectHandler(handler), ref errors);
-            }
-
-            handlers.Clear();
 
             foreach (var controller in controllers)
             {
@@ -136,19 +129,6 @@ namespace ProjectT.Scene
 
                 errors.Add(error);
             }
-        }
-
-        protected void ConnectHandler(INotifyHandler handler)
-        {
-            LifetimeToken.ThrowIfCancellationRequested();
-            if (handler == null)
-                throw new ArgumentNullException(nameof(handler));
-            if (handlers.Contains(handler))
-                return;
-            if (handler.IsConnected)
-                throw new InvalidOperationException("Handler already belongs to another lifetime.");
-            handlers.Add(handler);
-            Global.Notify.ConnectHandler(handler);
         }
 
         protected T CreateController<T>(InputActionAsset asset, string actionKey = "Player") where T : ProjectT.Controller.Controller, new()

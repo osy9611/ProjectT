@@ -63,6 +63,7 @@ namespace ProjectT.Pool
                 initGenerateCount = Math.Min(initGenerateCount, maxPoolSize);
 
             inactiveObjects = new Stack<T>(Math.Max(initialCapacity, initGenerateCount));
+            activeObjects.EnsureCapacity(Math.Max(initialCapacity, initGenerateCount));
 
             try
             {

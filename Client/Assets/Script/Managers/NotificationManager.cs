@@ -1,378 +1,317 @@
+using Cysharp.Threading.Tasks;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using UnityEngine;
+using System.Threading;
 
 namespace ProjectT
 {
-    public static class MethodInfoExtensions
+    /// <remarks>Use public APIs on the Unity main thread. Owner tokens may be canceled from worker threads.</remarks>
+    public class NotificationManager : ManagerBase
     {
-        public static bool IsOverride(this MethodInfo m)
+        private sealed class Subscription
         {
-            if (m == null)
-                throw new System.ArgumentNullException("IsOverride");
-            return (m.GetBaseDefinition().DeclaringType != m.DeclaringType) ? true : false;
-        }
-    }
+            public readonly NotificationManager Owner;
+            public readonly NotificationId Id;
+            public readonly Action<object[]> Listener;
+            public readonly CancellationToken OwnerToken;
+            public readonly int Priority;
+            public bool IsOwnerCanceled;
+            public bool HasCancellationRegistration;
+            public CancellationTokenRegistration CancellationRegistration;
 
-    public class WaitForNotifyInfo : System.IDisposable
-    {
-        private string methodName = string.Empty;
-        public string MethodName { get => methodName; }
-
-        private eNotifyHandler receiverHandlerTypes = eNotifyHandler.Default;
-
-        public eNotifyHandler ReceiverHandlerTypes { get => receiverHandlerTypes; }
-
-        private object[] args = null;
-        public object[] Args { get => args; }
-
-        private float duration = 0.0f;
-        private float currentTime = 0.0f;
-
-        private int currentFrameCount = -1;
-
-        public WaitForNotifyInfo(string methodName, eNotifyHandler receiverHandlerTypes, params object[] args) : this(methodName, receiverHandlerTypes, 0.0f, args)
-        {
-        }
-
-        public WaitForNotifyInfo(string methodName, eNotifyHandler receiverHandlerTypes, float seconds, params object[] args)
-        {
-            this.methodName = methodName;
-            this.receiverHandlerTypes = receiverHandlerTypes;
-            this.args = args;
-            this.duration = seconds;
-            this.currentTime = 0.0f;
-
-            currentFrameCount = duration == 0.0f ? Time.frameCount : -1;
-        }
-
-        public bool CheckWaitStatus(float delta)
-        {
-            if (currentFrameCount != -1)
-                return (currentFrameCount != Time.frameCount) ? true : false;
-            else
+            public Subscription(NotificationManager owner, NotificationId id, Action<object[]> listener, CancellationToken ownerToken, int priority)
             {
-                currentTime = currentTime + delta;
-                return (currentTime > duration) ? true : false;
+                Owner = owner;
+                Id = id;
+                Listener = listener;
+                OwnerToken = ownerToken;
+                Priority = priority;
             }
         }
 
-        public void Dispose()
-        {
-            System.GC.SuppressFinalize(this);
-        }
-    }
+        private static readonly object[] EmptyArgs = Array.Empty<object>();
 
-    public class NotificationManager : ManagerBase
-    {
-        protected List<INotifyHandler> handlers = new List<INotifyHandler>();
-        protected List<WaitForNotifyInfo> waitForNotifyInfos = new List<WaitForNotifyInfo>();
+        private readonly object syncRoot = new object();
+        private readonly Dictionary<NotificationId, List<Subscription>> subscriptions = new Dictionary<NotificationId, List<Subscription>>();
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            var errors = new List<System.Exception>();
-            var snapshot = handlers.ToArray();
+            List<CancellationTokenRegistration> registrations = null;
 
-            handlers.Clear();
-            waitForNotifyInfos.Clear();
-
-            foreach (var handler in snapshot)
+            lock (syncRoot)
             {
-                try
+                foreach (var pair in subscriptions)
                 {
-                    handler.OnDisConnectHandler();
-                }
-                catch (System.Exception error)
-                {
-                    errors.Add(error);
-                }
-            }
-            if (errors.Count > 0)
-                throw new System.AggregateException(errors);
-        }
-
-        public override void OnUpdate(float dt)
-        {
-            UpdateHandler(dt);
-            UpdateWaitForNotify(dt);
-        }
-
-
-        public void ConnectHandler(INotifyHandler handler)
-        {
-            if (handlers.Contains(handler))
-                return;
-            if (handler == null)
-            {
-                Global.Instance.LogWarning("NotificationManager.ConnectHandler(null)");
-                return;
-            }
-
-            if (handlers != null)
-            {
-                handlers.Add(handler);
-
-                handlers.Sort((a, b) =>
-                {
-                    return b.GetOrder().CompareTo(a.GetOrder());
-                });
-
-                Global.Instance.Log($"NotificationManager.ConnectHandler({handler.HandlerName}) -> Handler Count: {handlers.Count}");
-            }
-
-            handler.OnConnectHandler();
-        }
-
-        public void DisconnectHandler(INotifyHandler handler)
-        {
-            if (handler == null)
-            {
-                Global.Instance.LogWarning("NotifycationManager.DisconnectHandler( null )");
-                return;
-            }
-
-            handler.OnDisConnectHandler();
-
-            if (handlers == null)
-                return;
-
-            handlers.Remove(handler);
-
-            Global.Instance.Log($"NotificationManager.DisconnectHandler({handler.HandlerName}) -> Handler Count {handlers.Count}");
-        }
-
-        protected void AllDisconnectHandler()
-        {
-            foreach (var info in waitForNotifyInfos)
-            {
-                if (info == null)
-                    continue;
-
-                info.Dispose();
-            }
-
-            waitForNotifyInfos.Clear();
-
-            foreach (var handler in handlers)
-            {
-                if (handler == null)
-                    continue;
-
-                handler.OnDisConnectHandler();
-            }
-
-            handlers.Clear();
-        }
-
-        protected void UpdateHandler(float delta)
-        {
-            List<INotifyHandler> eventHandlers = null;
-
-            foreach (var handler in handlers)
-            {
-                if (handler == null)
-                    continue;
-                if (handler.IsActiveAndEnabled())
-                    continue;
-
-                if (eventHandlers == null)
-                    eventHandlers = new List<INotifyHandler>();
-
-                eventHandlers.Add(handler);
-            }
-
-            if (eventHandlers != null)
-            {
-                foreach (var handler in eventHandlers)
-                    DisconnectHandler(handler);
-            }
-        }
-
-        private void UpdateWaitForNotify(float delta)
-        {
-            if (waitForNotifyInfos.Count == 0 || waitForNotifyInfos.Any() == false)
-                return;
-
-            List<WaitForNotifyInfo> removeWaitForNotifyInfos = new List<WaitForNotifyInfo>();
-            for (int i = 0; i < waitForNotifyInfos.Count; ++i)
-            {
-                bool isCompleted = waitForNotifyInfos[i].CheckWaitStatus(delta);
-                if (isCompleted)
-                {
-                    NotifyToEventHandler(waitForNotifyInfos[i].MethodName, waitForNotifyInfos[i].ReceiverHandlerTypes, waitForNotifyInfos[i].Args);
-                    removeWaitForNotifyInfos.Add(waitForNotifyInfos[i]);
-                }
-            }
-
-            for (int i = 0; i < removeWaitForNotifyInfos.Count; ++i)
-            {
-                removeWaitForNotifyInfos[i].Dispose();
-                waitForNotifyInfos.Remove(removeWaitForNotifyInfos[i]);
-            }
-        }
-
-        public void WaitForFrameOfNextNotifyToEventHandler(string methodName, eNotifyHandler notifyHandlerTypes, params object[] args)
-        {
-            waitForNotifyInfos.Add(new WaitForNotifyInfo(methodName, notifyHandlerTypes, 0.0f, args));
-        }
-
-        public void WaitForSecondsNotifyToEventHandler(string methodName, eNotifyHandler notifyHandlerTypes, float seconds, params object[] args)
-        {
-            waitForNotifyInfos.Add(new WaitForNotifyInfo(methodName, notifyHandlerTypes, seconds, args));
-        }
-
-        public string NotifyToEventHandler(string methodName, eNotifyHandler notifyHandlerTypes, params object[] args)
-        {
-            return NotifyToEventHandler(methodName, notifyHandlerTypes, false, args);
-        }
-
-        public string NotifyToEventHandler(string methodName, eNotifyHandler notifyHandlerTypes, bool includeInActive, params object[] args)
-        {
-            string result = string.Empty;
-
-            List<INotifyHandler> eventHandlers = new List<INotifyHandler>();
-            foreach (INotifyHandler handler in handlers)
-            {
-                if (handler == null)
-                    continue;
-
-                if (!includeInActive && !handler.IsActiveAndEnabled())
-                    continue;
-
-                eNotifyHandler notifyHandlerType = handler.GetHandlerType();
-                if ((notifyHandlerType & notifyHandlerTypes) == notifyHandlerType)
-                    eventHandlers.Add(handler);
-            }
-
-            result = NotifyToHandler<INotifyHandler>(eventHandlers, false, true, methodName, args);
-            if (!string.IsNullOrEmpty(result))
-                Global.Instance.LogError(result);
-            else
-                Global.Instance.Log($"NotifyToPluginHandler({methodName})");
-
-
-            return result;
-        }
-
-        public string NotifyToEventHandler(params object[] args)
-        {
-            string result = string.Empty;
-
-            List<INotifyHandler> eventHandlers = new List<INotifyHandler>();
-            foreach (INotifyHandler handler in handlers)
-            {
-                if (handler == null)
-                    continue;
-
-                if (!handler.IsActiveAndEnabled())
-                    continue;
-
-                eventHandlers.Add(handler);
-            }
-
-            result = NotifyToHandler<INotifyHandler>(eventHandlers, false, true, "OnNotify", args);
-            if (!string.IsNullOrEmpty(result))
-                Global.Instance.LogError(result);
-            else
-                Global.Instance.Log($"NotifyToPluginHandler(OnNotify)");
-
-            return result;
-        }
-
-        public string NotifyToEventHandler(string methodName, params object[] args)
-        {
-            string result = string.Empty;
-
-            List<INotifyHandler> eventHandlers = new List<INotifyHandler>();
-            foreach(INotifyHandler handler in handlers)
-            {
-                if (handler == null)
-                    continue;
-
-                if (!handler.IsActiveAndEnabled())
-                    continue;
-
-                eventHandlers.Add(handler);
-            }
-
-            result = NotifyToHandler<INotifyHandler>(eventHandlers, false, true, methodName, args);
-            if (!string.IsNullOrEmpty(result))
-                Global.Instance.LogError(result);
-            else
-                Global.Instance.Log($"NotifyToPluginHandler({methodName})");
-
-
-            return result;
-        }
-
-        protected string NotifyToHandler<T>(List<T> handlers, bool hasOverride, bool hasResultValue, string methodName, params object[] args)
-        {
-            if (handlers == null)
-                return $"NotificationManager.NotifyToHandler -> null is handlers. method name :{methodName}";
-
-            if (handlers.Count == 0)
-                return $"NotificationManager.NotifyToHandler -> zero count handler list. method name : {methodName}";
-
-            System.Type[] types = new System.Type[args.Length];
-            for(int i=0;i<types.Length;++i)
-            {
-                if (args[i] == null)
-                    continue;
-
-                types[i] = args[i].GetType();
-            }
-
-            string result = string.Empty;
-            foreach(T handler in handlers)
-            {
-                if (handler == null)
-                    continue;
-
-                MethodInfo method = handler.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                                                                System.Type.DefaultBinder, types, null);
-
-                bool returnValue = false;
-                bool IsNotify = false;
-
-                if(method != null)
-                {
-                    try
+                    var listeners = pair.Value;
+                    for (int i = 0; i < listeners.Count; ++i)
                     {
-                        IsNotify = true;
-                        if(hasOverride)
-                            IsNotify = method.IsOverride();
-
-                        if(IsNotify)
-                        {
-                            var returnValueObject = method.Invoke(handler, args);
-                            if (hasResultValue && returnValueObject != null)
-                                returnValue = System.Convert.ToBoolean(returnValueObject);
-                        }
-                    }
-                    catch(System.Exception ex)
-                    {
-                        System.Exception ex2 = ex.InnerException;
-                        while (ex2 != null)
-                        {
-                            Global.Instance.LogError(ex2.Message + ex2.StackTrace);
-                            ex2 = ex2.InnerException;
-                        }
+                        var subscription = listeners[i];
+                        subscription.IsOwnerCanceled = true;
+                        AddCancellationRegistrationInternal(subscription, ref registrations);
                     }
                 }
+
+                subscriptions.Clear();
+            }
+
+            DisposeRegistrationsInternal(registrations);
+        }
+
+        public void Subscribe(NotificationId id, Action<object[]> listener, CancellationToken cancellationToken = default, int priority = 0)
+        {
+            ValidateIdInternal(id);
+
+            if (listener == null)
+                throw new ArgumentNullException(nameof(listener));
+
+            ThrowIfWorkUnavailableInternal();
+
+            List<CancellationTokenRegistration> registrations = null;
+
+            try
+            {
+                lock (syncRoot)
+                {
+                    ThrowIfWorkUnavailableInternal();
+
+                    subscriptions.TryGetValue(id, out var listeners);
+
+                    int expiredIndex = -1;
+                    for (int i = 0; listeners != null && i < listeners.Count; ++i)
+                    {
+                        var existing = listeners[i];
+                        if (existing.Listener != listener)
+                            continue;
+                        if (!existing.IsOwnerCanceled && !existing.OwnerToken.IsCancellationRequested)
+                            return;
+
+                        expiredIndex = i;
+                        break;
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (expiredIndex >= 0)
+                    {
+                        var existing = listeners[expiredIndex];
+                        existing.IsOwnerCanceled = true;
+                        listeners.RemoveAt(expiredIndex);
+                        AddCancellationRegistrationInternal(existing, ref registrations);
+                    }
+
+                    if (listeners == null)
+                    {
+                        listeners = new List<Subscription>();
+                        subscriptions.Add(id, listeners);
+                    }
+
+                    var subscription = new Subscription(this, id, listener, cancellationToken, priority);
+                    int insertionIndex = listeners.Count;
+                    for (int i = 0; i < listeners.Count; ++i)
+                    {
+                        if (priority > listeners[i].Priority)
+                        {
+                            insertionIndex = i;
+                            break;
+                        }
+                    }
+
+                    listeners.Insert(insertionIndex, subscription);
+
+                    if (cancellationToken.CanBeCanceled)
+                    {
+                        var registration = cancellationToken.Register(OnSubscriptionCanceledInternal, subscription);
+                        subscription.CancellationRegistration = registration;
+                        subscription.HasCancellationRegistration = true;
+
+                        if (subscription.IsOwnerCanceled)
+                            AddCancellationRegistrationInternal(subscription, ref registrations);
+                    }
+                }
+            }
+            finally
+            {
+                DisposeRegistrationsInternal(registrations);
+            }
+        }
+
+        public void Unsubscribe(NotificationId id, Action<object[]> listener)
+        {
+            ValidateIdInternal(id);
+
+            if (listener == null)
+                throw new ArgumentNullException(nameof(listener));
+
+            CancellationTokenRegistration registration = default;
+            bool shouldDisposeRegistration = false;
+
+            lock (syncRoot)
+            {
+                if (!subscriptions.TryGetValue(id, out var listeners))
+                    return;
+
+                for (int i = 0; i < listeners.Count; ++i)
+                {
+                    var subscription = listeners[i];
+                    if (subscription.Listener != listener)
+                        continue;
+
+                    listeners.RemoveAt(i);
+                    if (listeners.Count == 0)
+                        subscriptions.Remove(id);
+
+                    if (subscription.HasCancellationRegistration)
+                    {
+                        registration = subscription.CancellationRegistration;
+                        subscription.HasCancellationRegistration = false;
+                        shouldDisposeRegistration = true;
+                    }
+
+                    break;
+                }
+            }
+
+            if (shouldDisposeRegistration)
+                registration.Dispose();
+        }
+
+        public void Publish(NotificationId id, params object[] args)
+        {
+            ValidateIdInternal(id);
+
+            ThrowIfWorkUnavailableInternal();
+
+            Subscription[] snapshot;
+            lock (syncRoot)
+            {
+                if (!IsWorkAllowedInternal() || !subscriptions.TryGetValue(id, out var listeners) || listeners.Count == 0)
+                    return;
+
+                snapshot = listeners.ToArray();
+            }
+
+            var normalizedArgs = args ?? EmptyArgs;
+            for (int i = 0; i < snapshot.Length; ++i)
+            {
+                var subscription = snapshot[i];
+                lock (syncRoot)
+                {
+                    if (!IsWorkAllowedInternal())
+                        return;
+                    if (subscription.IsOwnerCanceled || subscription.OwnerToken.IsCancellationRequested)
+                        continue;
+                }
+
+                subscription.Listener(normalizedArgs);
+            }
+        }
+
+        public async UniTask PublishNextFrameAsync(NotificationId id, CancellationToken cancellationToken = default, params object[] args)
+        {
+            ValidateIdInternal(id);
+
+            ThrowIfWorkUnavailableInternal();
+
+            var scheduledArgs = CloneArgsInternal(args);
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
+            {
+                await UniTask.NextFrame(cancellationToken: linked.Token);
+                linked.Token.ThrowIfCancellationRequested();
+                Publish(id, scheduledArgs);
+            }
+        }
+
+        public async UniTask PublishAfterSecondsAsync(NotificationId id, float seconds, CancellationToken cancellationToken = default, params object[] args)
+        {
+            ValidateIdInternal(id);
+
+            if (float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0.0f)
+                throw new ArgumentOutOfRangeException(nameof(seconds));
+
+            ThrowIfWorkUnavailableInternal();
+
+            var scheduledArgs = CloneArgsInternal(args);
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
+            {
+                if (seconds == 0.0f)
+                    await UniTask.NextFrame(cancellationToken: linked.Token);
                 else
+                    await UniTask.Delay(TimeSpan.FromSeconds(seconds), cancellationToken: linked.Token);
+
+                linked.Token.ThrowIfCancellationRequested();
+                Publish(id, scheduledArgs);
+            }
+        }
+
+        private static void OnSubscriptionCanceledInternal(object state)
+        {
+            var subscription = (Subscription)state;
+            subscription.Owner.CancelSubscriptionInternal(subscription);
+        }
+
+        private void CancelSubscriptionInternal(Subscription subscription)
+        {
+            CancellationTokenRegistration registration = default;
+            bool shouldDisposeRegistration = false;
+
+            lock (syncRoot)
+            {
+                subscription.IsOwnerCanceled = true;
+
+                if (subscriptions.TryGetValue(subscription.Id, out var listeners))
                 {
-                    if (string.IsNullOrEmpty(result))
-                        return $"NotificationManager.NotifyToHandler -> not find method. handler name : {handler}, method name : {methodName}";
-                    else
-                        return $"{result}NotificationManager.NotifyToHandler -> not find method. handler name : {handler}, method name : {methodName}";
+                    listeners.Remove(subscription);
+                    if (listeners.Count == 0)
+                        subscriptions.Remove(subscription.Id);
                 }
 
-                if (returnValue)
-                    return result;
+                if (subscription.HasCancellationRegistration)
+                {
+                    registration = subscription.CancellationRegistration;
+                    subscription.HasCancellationRegistration = false;
+                    shouldDisposeRegistration = true;
+                }
             }
 
-            return result;
+            if (shouldDisposeRegistration)
+                registration.Dispose();
+        }
+
+        private void AddCancellationRegistrationInternal(Subscription subscription, ref List<CancellationTokenRegistration> registrations)
+        {
+            if (!subscription.HasCancellationRegistration)
+                return;
+
+            if (registrations == null)
+                registrations = new List<CancellationTokenRegistration>();
+
+            registrations.Add(subscription.CancellationRegistration);
+            subscription.HasCancellationRegistration = false;
+        }
+
+        private static void DisposeRegistrationsInternal(List<CancellationTokenRegistration> registrations)
+        {
+            if (registrations == null)
+                return;
+
+            for (int i = 0; i < registrations.Count; ++i)
+                registrations[i].Dispose();
+        }
+
+        private bool IsWorkAllowedInternal()
+        {
+            return State == ManagerState.Ready && !LifetimeToken.IsCancellationRequested;
+        }
+
+        private static object[] CloneArgsInternal(object[] args)
+        {
+            return args == null || args.Length == 0 ? EmptyArgs : (object[])args.Clone();
+        }
+
+        private static void ValidateIdInternal(NotificationId id)
+        {
+            if (id == NotificationId.None)
+                throw new ArgumentOutOfRangeException(nameof(id));
         }
     }
 }

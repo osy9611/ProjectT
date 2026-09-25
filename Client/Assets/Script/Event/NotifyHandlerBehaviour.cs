@@ -1,113 +1,95 @@
 using Cysharp.Threading.Tasks;
+using ProjectT;
 using System;
 using System.Threading;
-using ProjectT;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public abstract class NotifyHandlerBehaviour : MonoBehaviour, INotifyHandler
+public abstract class NotifyHandlerBehaviour : MonoBehaviour
 {
-    protected bool isConnected = false;
-    private CancellationTokenSource connectionWait;
-    private NotificationManager connectedManager;
-    #region Event
+    private CancellationTokenSource subscriptionLifetime;
+
     protected virtual void OnEnable()
     {
-        connectionWait?.Cancel();
-        connectionWait?.Dispose();
-        connectionWait = new CancellationTokenSource();
-        ConnectWhenReady(connectionWait.Token).Forget();
+        ReleaseSubscriptionsInternal();
+        subscriptionLifetime = new CancellationTokenSource();
+        SubscribeInternalAsync(subscriptionLifetime).Forget(Global.LogException);
     }
 
     protected virtual void OnDisable()
     {
-        connectionWait?.Cancel();
-        connectionWait?.Dispose();
-        connectionWait = null;
-        DisconnectHandler();
-    }
-    #endregion
-
-    #region EventHandler
-    public bool IsConnected { get => isConnected; }
-
-    public string HandlerName
-    {
-        get => this.gameObject.name;
-        set => this.gameObject.name = value;
+        ReleaseSubscriptionsInternal();
     }
 
-
-    public virtual bool IsActiveAndEnabled()
+    protected virtual void OnDestroy()
     {
-        if (isConnected == false)
-            return false;
-
-        if (enabled == false)
-            return false;
-
-        if (gameObject == null)
-            return false;
-
-        if (gameObject.activeSelf == false)
-            return false;
-
-        return isActiveAndEnabled;
+        ReleaseSubscriptionsInternal();
     }
 
-    public abstract eNotifyHandler GetHandlerType();
+    protected abstract void OnSubscribe(CancellationToken token);
 
-    public int GetOrder()
+    private async UniTask SubscribeInternalAsync(CancellationTokenSource lifetime)
     {
-        return (int)GetHandlerType();
-    }
+        var token = lifetime.Token;
+        bool subscribed = false;
 
-
-    private async UniTask ConnectWhenReady(CancellationToken token)
-    {
         try
         {
-            await UniTask.WaitUntil(() => Global.Instance != null, cancellationToken: token);
+            if (Global.Instance == null)
+                await UniTask.WaitUntil(() => Global.Instance != null, cancellationToken: token);
+
             await Global.Instance.WhenReadyAsync(token);
+
             token.ThrowIfCancellationRequested();
-            if (this != null && isActiveAndEnabled)
-                ConnectHandler();
+
+            if (this == null || !isActiveAndEnabled)
+                return;
+
+            OnSubscribe(token);
+            subscribed = true;
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested || Global.Instance == null ||
+            Global.Instance.State == ManagerState.Stopping || Global.Instance.State == ManagerState.Stopped)
+        {
+        }
         catch (Exception error)
         {
-            UnityEngine.Debug.LogException(error);
+            if (ReferenceEquals(subscriptionLifetime, lifetime))
+            {
+                try
+                {
+                    ReleaseSubscriptionsInternal();
+                }
+                catch (Exception cleanupError)
+                {
+                    throw new AggregateException(error, cleanupError);
+                }
+            }
+
+            throw;
+        }
+        finally
+        {
+            // A previous activation must not release subscriptions created by a later OnEnable.
+            if (!subscribed && ReferenceEquals(subscriptionLifetime, lifetime))
+                ReleaseSubscriptionsInternal();
         }
     }
 
-    public virtual void ConnectHandler()
+    private void ReleaseSubscriptionsInternal()
     {
-        if (isConnected || !Global.TryGetReady<NotificationManager>(out var manager))
+        var lifetime = subscriptionLifetime;
+        subscriptionLifetime = null;
+
+        if (lifetime == null)
             return;
-        connectedManager = manager;
-        manager.ConnectHandler(this);
-    }
 
-    public virtual void DisconnectHandler()
-    {
-        var manager = connectedManager;
-        connectedManager = null;
-        if (manager != null && manager.State == ManagerState.Ready)
-            manager.DisconnectHandler(this);
-        isConnected = false;
+        try
+        {
+            lifetime.Cancel();
+        }
+        finally
+        {
+            lifetime.Dispose();
+        }
     }
-
-    public void OnConnectHandler()
-    {
-        isConnected = true;
-    }
-
-    public void OnDisConnectHandler()
-    {
-        isConnected = false;
-    }
-
-    public abstract void OnNotify(INotify notify);
-    #endregion
 }

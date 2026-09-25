@@ -180,17 +180,9 @@ namespace ProjectT
             ErrorCollector.ThrowIfAny(errors);
         }
 
-        private void CheckReady()
-        {
-            LifetimeToken.ThrowIfCancellationRequested();
-
-            if (State != ManagerState.Ready)
-                throw new InvalidOperationException($"PoolManager is {State}.");
-        }
-
         private Pool<T> GetOrCreatePoolInternal<T>() where T : new()
         {
-            CheckReady();
+            ThrowIfWorkUnavailableInternal();
 
             if (!genericPools.TryGetValue(typeof(T), out var pool))
             {
@@ -203,7 +195,7 @@ namespace ProjectT
 
         private GameObjectPool GetOrCreatePoolInternal(GameObject original, int count, ResourceScope scope)
         {
-            CheckReady();
+            ThrowIfWorkUnavailableInternal();
 
             if (original == null)
                 throw new ArgumentNullException(nameof(original));

@@ -72,6 +72,14 @@ namespace ProjectT
             }
         }
 
+        protected void ThrowIfWorkUnavailableInternal()
+        {
+            LifetimeToken.ThrowIfCancellationRequested();
+
+            if (State != ManagerState.Ready)
+                throw new InvalidOperationException($"{Name} cannot accept work from {State}.");
+        }
+
         protected virtual UniTask OnInitializeAsync(CancellationToken token) => UniTask.CompletedTask;
 
         protected virtual void OnShutdown(ShutdownReason reason)

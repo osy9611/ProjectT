@@ -56,10 +56,7 @@ namespace ProjectT
 
         private CancellationTokenSource CreateLinkedTokenSource(CancellationToken cancelToken)
         {
-            LifetimeToken.ThrowIfCancellationRequested();
-
-            if (State != ManagerState.Ready)
-                throw new InvalidOperationException($"PatchManager is {State}.");
+            ThrowIfWorkUnavailableInternal();
 
             return CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancelToken);
         }

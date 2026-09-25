@@ -1,6 +1,4 @@
-using DesignEnum;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -9,89 +7,145 @@ namespace ProjectT.Sound
 {
     public class UIClickSound : MonoBehaviour
     {
-        [SerializeField] private string clickSoundType;
+        [SerializeField, Tooltip("Addressable AudioClip path used when Click Sound is not assigned.")]
+        private string clickSoundType;
+        [SerializeField] private AudioClip clickSound;
+        [SerializeField] private AudioClip toggleOffSound;
+
         public string ClickSoundType { get => clickSoundType; set => clickSoundType = value; }
 
         public bool isToggle = false;
-        private bool isOn = true;
-        private bool reRegister = false;
-        private bool isStart = false;
 
-        private void Awake()
+        private Button button;
+        private Toggle toggle;
+        private EventTrigger.Entry pointerClickEntry;
+        private bool isRegistered;
+        private bool isStarted;
+
+        private void OnEnable()
         {
-            GetUIComponent(false);
+            if (isStarted)
+                RegisterInternal();
         }
 
         private void Start()
         {
-            isOn = true;
-            isStart = true;
+            isStarted = true;
+            RegisterInternal();
+        }
+
+        private void OnDisable()
+        {
+            UnregisterInternal();
         }
 
         public void GetUIComponent(bool reRegister)
         {
-            this.reRegister = reRegister;
+            if (reRegister)
+                UnregisterInternal();
 
-            Button button = GetComponent<Button>();
+            if (isActiveAndEnabled && isStarted)
+                RegisterInternal();
+        }
 
-            if (button != null)
+        private void RegisterInternal()
+        {
+            if (isRegistered)
+                return;
+
+            if (isToggle)
             {
-                button.onClick.AddListener(PlayClickSound);
-            }
-
-            EventTrigger eventTrigger = null;
-            if(isToggle)
-            {
-                isOn = false;
-                Toggle toggle = GetComponent<Toggle>();
-                if(toggle != null)
+                toggle = GetComponent<Toggle>();
+                if (toggle != null)
                 {
-                    eventTrigger = GetComponent<EventTrigger>();
-                    if (eventTrigger != null)
-                        Destroy(eventTrigger);
-
-                    toggle.onValueChanged.AddListener((isOn) =>
-                    {
-                        if (isOn)
-                            PlayClickSound();
-                    });
-
+                    toggle.onValueChanged.AddListener(PlayToggleSound);
+                    isRegistered = true;
                     return;
                 }
             }
 
-            eventTrigger = GetComponent<EventTrigger>();
-            if(eventTrigger != null)
+            button = GetComponent<Button>();
+            if (button != null)
             {
-                EventTrigger.Entry clickEntry = eventTrigger.triggers.Find(elem => elem.eventID == EventTriggerType.PointerClick);
-
-                if(clickEntry == null)
-                {
-                    clickEntry = new EventTrigger.Entry();
-                    clickEntry.eventID = EventTriggerType.PointerClick;
-                    eventTrigger.triggers.Add(clickEntry);
-                }
-
-                clickEntry.callback.AddListener(elem => PlayClickSound());
+                button.onClick.AddListener(PlayClickSound);
+                isRegistered = true;
+                return;
             }
+
+            EventTrigger eventTrigger = GetComponent<EventTrigger>();
+            if (eventTrigger == null)
+                return;
+
+            pointerClickEntry = eventTrigger.triggers.Find(entry => entry.eventID == EventTriggerType.PointerClick);
+            if (pointerClickEntry == null)
+            {
+                pointerClickEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
+                eventTrigger.triggers.Add(pointerClickEntry);
+            }
+
+            pointerClickEntry.callback.AddListener(PlayPointerClickSound);
+            isRegistered = true;
+        }
+
+        private void UnregisterInternal()
+        {
+            if (!isRegistered)
+                return;
+
+            if (toggle != null)
+                toggle.onValueChanged.RemoveListener(PlayToggleSound);
+
+            if (button != null)
+                button.onClick.RemoveListener(PlayClickSound);
+
+            if (pointerClickEntry != null)
+                pointerClickEntry.callback.RemoveListener(PlayPointerClickSound);
+
+            button = null;
+            toggle = null;
+            pointerClickEntry = null;
+            isRegistered = false;
         }
 
         private void PlayClickSound()
         {
-            if (reRegister && isStart)
+            PlayInternal(clickSound, clickSoundType);
+        }
+
+        private void PlayToggleSound(bool value)
+        {
+            if (value)
             {
-                isOn = true;
+                PlayClickSound();
+                return;
             }
 
-            if (isOn)
-            {
-                SoundList soundList = (SoundList)System.Enum.Parse(typeof(SoundList), clickSoundType);
-                //TODO : 사운드 재생 해야함
-            }
-            else
-            {
+            PlayInternal(toggleOffSound, null);
+        }
 
+        private void PlayPointerClickSound(BaseEventData _)
+        {
+            PlayClickSound();
+        }
+
+        private void PlayInternal(AudioClip clip, string path)
+        {
+            if (!isActiveAndEnabled)
+                return;
+
+            if (!Global.TryGetReady<SoundManager>(out _))
+                return;
+
+            if (clip != null)
+            {
+                Global.Sound.Play(clip, eSound.UI);
+                return;
             }
+
+            if (string.IsNullOrWhiteSpace(path) || string.Equals(path, "None", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            Global.Sound.Play(path.Trim(), eSound.UI);
         }
     }
 }
