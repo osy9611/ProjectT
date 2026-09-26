@@ -48,76 +48,66 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<monster_deployInfo> dataInfo = new List<monster_deployInfo>();
         
-        public Dictionary<ArraySegment<byte>, monster_deployInfo> datas = new Dictionary<ArraySegment<byte>, monster_deployInfo>(new DataComparer());
+        public Dictionary<System.ValueTuple<System.Int16, System.Int16>, monster_deployInfo> datas = new Dictionary<System.ValueTuple<System.Int16, System.Int16>, monster_deployInfo>();
         
-        public Dictionary<ArraySegment<byte>, List<monster_deployInfo>> listData = new Dictionary<ArraySegment<byte>, List<monster_deployInfo>>(new DataComparer());
+        public Dictionary<System.Int16, List<monster_deployInfo>> listData = new Dictionary<System.Int16, List<monster_deployInfo>>();
         
         public bool Insert(short mon_fieldType, short mon_id, short mon_type)
         {
-			ArraySegment<byte> key = GetIdRule(mon_fieldType, mon_id);
+			System.ValueTuple<System.Int16, System.Int16> key = new System.ValueTuple<System.Int16, System.Int16>(mon_fieldType, mon_id);
 			if (datas.ContainsKey(key))
 				return false;
 			monster_deployInfo newInfo = new monster_deployInfo(mon_fieldType, mon_id, mon_type);
 			dataInfo.Add(newInfo);
 			datas.Add(key, newInfo);
+			System.Int16 listKey = mon_fieldType;
+			List<monster_deployInfo> listValues = null;
+			if (!listData.TryGetValue(listKey, out listValues))
+			{
+				listValues = new List<monster_deployInfo>();
+				listData.Add(listKey, listValues);
+			}
+			listValues.Add(newInfo);
 			return true;
         }
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.ValueTuple<System.Int16, System.Int16>, monster_deployInfo>();
+			var newListData = new Dictionary<System.Int16, List<monster_deployInfo>>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.mon_fieldType, data.mon_id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.ValueTuple<System.Int16, System.Int16> key = new System.ValueTuple<System.Int16, System.Int16>(data.mon_fieldType, data.mon_id);
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'monster_deploy': " + key);
+				newDatas.Add(key, data);
+				System.Int16 listKey = data.mon_fieldType;
+				List<monster_deployInfo> listValues = null;
+				if (!newListData.TryGetValue(listKey, out listValues))
+				{
+					listValues = new List<monster_deployInfo>();
+					newListData.Add(listKey, listValues);
+				}
+				listValues.Add(data);
 			}
+			datas = newDatas;
+			listData = newListData;
         }
         
         public monster_deployInfo Get(short mon_fieldType, short mon_id)
         {
 			monster_deployInfo value = null;
-			if (datas.TryGetValue(GetIdRule(mon_fieldType, mon_id), out value))
+			if (datas.TryGetValue(new System.ValueTuple<System.Int16, System.Int16>(mon_fieldType, mon_id), out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(short mon_fieldType, short mon_id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(short);
-			total += sizeof(short);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(mon_fieldType), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			Array.Copy(BitConverter.GetBytes(mon_id), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			return new System.ArraySegment<byte>(bytes);
         }
         
         public List<monster_deployInfo> GetListById(short mon_fieldType)
         {
 			List<monster_deployInfo> value = null;
-			ArraySegment<byte> bytes = GetListIdRule(mon_fieldType);
-			if (listData.TryGetValue(bytes, out value))
+			if (listData.TryGetValue(mon_fieldType, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetListIdRule(short mon_fieldType)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(short);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(mon_fieldType), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

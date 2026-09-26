@@ -44,11 +44,13 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<SceneDataInfo> dataInfo = new List<SceneDataInfo>();
         
-        public Dictionary<ArraySegment<byte>, SceneDataInfo> datas = new Dictionary<ArraySegment<byte>, SceneDataInfo>(new DataComparer());
+        public Dictionary<System.String, SceneDataInfo> datas = new Dictionary<System.String, SceneDataInfo>();
         
         public bool Insert(string SceneName, string Path)
         {
-			ArraySegment<byte> key = GetIdRule(SceneName);
+			if (SceneName == null)
+				throw new ArgumentNullException("SceneName", "Primary key in table 'SceneData' cannot be null.");
+			System.String key = SceneName;
 			if (datas.ContainsKey(key))
 				return false;
 			SceneDataInfo newInfo = new SceneDataInfo(SceneName, Path);
@@ -59,36 +61,27 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.String, SceneDataInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.SceneName);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				if (data.SceneName == null)
+					throw new InvalidOperationException("Primary key 'SceneName' in table 'SceneData' cannot be null.");
+				System.String key = data.SceneName;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'SceneData': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public SceneDataInfo Get(string SceneName)
         {
+			if (SceneName == null)
+				throw new ArgumentNullException("SceneName", "Primary key in table 'SceneData' cannot be null.");
 			SceneDataInfo value = null;
-			if (datas.TryGetValue(GetIdRule(SceneName), out value))
+			if (datas.TryGetValue(SceneName, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(string SceneName)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += (ushort)System.Text.Encoding.UTF8.GetByteCount(SceneName);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			byte[] stringBytes;
-			stringBytes = System.Text.Encoding.UTF8.GetBytes(SceneName);
-			Array.Copy(stringBytes, 0, bytes, count, stringBytes.Length);
-			count += (ushort)stringBytes.Length;
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

@@ -44,11 +44,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<skill_effectInfo> dataInfo = new List<skill_effectInfo>();
         
-        public Dictionary<ArraySegment<byte>, skill_effectInfo> datas = new Dictionary<ArraySegment<byte>, skill_effectInfo>(new DataComparer());
+        public Dictionary<System.Int32, skill_effectInfo> datas = new Dictionary<System.Int32, skill_effectInfo>();
         
         public bool Insert(int effect_Id, string effect_path)
         {
-			ArraySegment<byte> key = GetIdRule(effect_Id);
+			System.Int32 key = effect_Id;
 			if (datas.ContainsKey(key))
 				return false;
 			skill_effectInfo newInfo = new skill_effectInfo(effect_Id, effect_path);
@@ -59,34 +59,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int32, skill_effectInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.effect_Id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int32 key = data.effect_Id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'skill_effect': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public skill_effectInfo Get(int effect_Id)
         {
 			skill_effectInfo value = null;
-			if (datas.TryGetValue(GetIdRule(effect_Id), out value))
+			if (datas.TryGetValue(effect_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(int effect_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(int);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(effect_Id), 0, bytes, count, sizeof(int));
-			count += sizeof(int);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

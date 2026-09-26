@@ -12,31 +12,8 @@ namespace DesignTable
 {
     using System;
     using System.IO;
-    using System.Linq;
     using System.Collections.Generic;
-    using System.Diagnostics.CodeAnalysis;
     
-    
-    public class DataComparer : System.Collections.Generic.IEqualityComparer<ArraySegment<byte>>
-    {
-        
-        public bool Equals(System.ArraySegment<byte> x, System.ArraySegment<byte> y)
-        {
-			return x.SequenceEqual(y);
-        }
-        
-        public int GetHashCode(System.ArraySegment<byte> obj)
-        {
-			if (obj.Array == null) return 0;
-			unchecked
-			{
-				int hash = (int)2166136261;
-				for (int i = obj.Offset; i < obj.Offset + obj.Count; ++i)
-					hash = (hash ^ obj.Array[i]) * 16777619;
-				return hash;
-			}
-        }
-    }
     
     public enum TableId
     {
@@ -206,93 +183,119 @@ namespace DesignTable
         
         private void Loaduser_characterInfos(byte[] data)
         {
-			user_characterInfos = serializer.Deserialize(1011, data) as user_characterInfos;
-			if (user_characterInfos != null)
-				user_characterInfos.Initialize();
+			var loaded = serializer.Deserialize(1011, data) as user_characterInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'user_character' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			user_characterInfos = loaded;
         }
         
         private void LoadskillInfos(byte[] data)
         {
-			skillInfos = serializer.Deserialize(1013, data) as skillInfos;
-			if (skillInfos != null)
-				skillInfos.Initialize();
+			var loaded = serializer.Deserialize(1013, data) as skillInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'skill' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			skillInfos = loaded;
         }
         
         private void LoadbuffInfos(byte[] data)
         {
-			buffInfos = serializer.Deserialize(1014, data) as buffInfos;
-			if (buffInfos != null)
-				buffInfos.Initialize();
+			var loaded = serializer.Deserialize(1014, data) as buffInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'buff' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			buffInfos = loaded;
         }
         
         private void Loadskill_effectInfos(byte[] data)
         {
-			skill_effectInfos = serializer.Deserialize(1015, data) as skill_effectInfos;
-			if (skill_effectInfos != null)
-				skill_effectInfos.Initialize();
+			var loaded = serializer.Deserialize(1015, data) as skill_effectInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'skill_effect' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			skill_effectInfos = loaded;
         }
         
         private void Loadmonster_masterInfos(byte[] data)
         {
-			monster_masterInfos = serializer.Deserialize(1016, data) as monster_masterInfos;
-			if (monster_masterInfos != null)
-				monster_masterInfos.Initialize();
+			var loaded = serializer.Deserialize(1016, data) as monster_masterInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'monster_master' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			monster_masterInfos = loaded;
         }
         
         private void Loadmonster_normalInfos(byte[] data)
         {
-			monster_normalInfos = serializer.Deserialize(1017, data) as monster_normalInfos;
-			if (monster_normalInfos != null)
-				monster_normalInfos.Initialize();
+			var loaded = serializer.Deserialize(1017, data) as monster_normalInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'monster_normal' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			monster_normalInfos = loaded;
         }
         
         private void Loadmonster_bossInfos(byte[] data)
         {
-			monster_bossInfos = serializer.Deserialize(1018, data) as monster_bossInfos;
-			if (monster_bossInfos != null)
-				monster_bossInfos.Initialize();
+			var loaded = serializer.Deserialize(1018, data) as monster_bossInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'monster_boss' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			monster_bossInfos = loaded;
         }
         
         private void Loadmonster_deployInfos(byte[] data)
         {
-			monster_deployInfos = serializer.Deserialize(1019, data) as monster_deployInfos;
-			if (monster_deployInfos != null)
-				monster_deployInfos.Initialize();
+			var loaded = serializer.Deserialize(1019, data) as monster_deployInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'monster_deploy' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			monster_deployInfos = loaded;
         }
         
         private void LoadquestInfos(byte[] data)
         {
-			questInfos = serializer.Deserialize(1020, data) as questInfos;
-			if (questInfos != null)
-				questInfos.Initialize();
+			var loaded = serializer.Deserialize(1020, data) as questInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'quest' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			questInfos = loaded;
         }
         
         private void LoadpassiveInfos(byte[] data)
         {
-			passiveInfos = serializer.Deserialize(1021, data) as passiveInfos;
-			if (passiveInfos != null)
-				passiveInfos.Initialize();
+			var loaded = serializer.Deserialize(1021, data) as passiveInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'passive' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			passiveInfos = loaded;
         }
         
         private void LoadprojectileInfos(byte[] data)
         {
-			projectileInfos = serializer.Deserialize(1022, data) as projectileInfos;
-			if (projectileInfos != null)
-				projectileInfos.Initialize();
+			var loaded = serializer.Deserialize(1022, data) as projectileInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'projectile' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			projectileInfos = loaded;
         }
         
         private void LoadAtlasDataInfos(byte[] data)
         {
-			atlasDataInfos = serializer.Deserialize(1023, data) as AtlasDataInfos;
-			if (atlasDataInfos != null)
-				atlasDataInfos.Initialize();
+			var loaded = serializer.Deserialize(1023, data) as AtlasDataInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'AtlasData' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			atlasDataInfos = loaded;
         }
         
         private void LoadSceneDataInfos(byte[] data)
         {
-			sceneDataInfos = serializer.Deserialize(1024, data) as SceneDataInfos;
-			if (sceneDataInfos != null)
-				sceneDataInfos.Initialize();
+			var loaded = serializer.Deserialize(1024, data) as SceneDataInfos;
+			if (loaded == null)
+				throw new InvalidOperationException("테이블 'SceneData' 역직렬화 결과가 비었습니다.");
+			loaded.Initialize();
+			sceneDataInfos = loaded;
         }
         
         private void ClearDatauser_characterInfos()

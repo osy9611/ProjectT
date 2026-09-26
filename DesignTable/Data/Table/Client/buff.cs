@@ -72,11 +72,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<buffInfo> dataInfo = new List<buffInfo>();
         
-        public Dictionary<ArraySegment<byte>, buffInfo> datas = new Dictionary<ArraySegment<byte>, buffInfo>(new DataComparer());
+        public Dictionary<System.Int32, buffInfo> datas = new Dictionary<System.Int32, buffInfo>();
         
         public bool Insert(int buff_Id, sbyte buff_type, float buff_duration, float buff_interval, float buff_usePercent, float buff_arg1, float buff_arg2, float buff_arg3, string buff_arg4)
         {
-			ArraySegment<byte> key = GetIdRule(buff_Id);
+			System.Int32 key = buff_Id;
 			if (datas.ContainsKey(key))
 				return false;
 			buffInfo newInfo = new buffInfo(buff_Id, buff_type, buff_duration, buff_interval, buff_usePercent, buff_arg1, buff_arg2, buff_arg3, buff_arg4);
@@ -87,34 +87,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int32, buffInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.buff_Id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int32 key = data.buff_Id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'buff': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public buffInfo Get(int buff_Id)
         {
 			buffInfo value = null;
-			if (datas.TryGetValue(GetIdRule(buff_Id), out value))
+			if (datas.TryGetValue(buff_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(int buff_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(int);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(buff_Id), 0, bytes, count, sizeof(int));
-			count += sizeof(int);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

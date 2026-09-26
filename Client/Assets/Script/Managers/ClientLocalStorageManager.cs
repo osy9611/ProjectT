@@ -1,10 +1,8 @@
 using Cysharp.Threading.Tasks;
-using ProjectT;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Text;
 using System.Threading;
 using UnityEngine;
 
@@ -12,24 +10,57 @@ namespace ProjectT
 {
     public class ClientLocalStorageManager : ManagerBase
     {
-        private readonly bool loadData;
-        private string assetFolderPath;
-        public string AssetFolderPath { get => assetFolderPath; }
-        private string defaultFolder = "ClientLocalStorage";
-
-        private Dictionary<EClientLocalStorageType, ClientLocalStorage> StorageDatas = new Dictionary<EClientLocalStorageType, ClientLocalStorage>();
-
-        public ClientLocalStorageManager(bool loadData = false)
+        [Serializable]
+        private sealed class StorageFile
         {
-            this.loadData = loadData;
+            public int Version;
+            public string Data;
         }
 
-        protected override async UniTask OnInitializeAsync(CancellationToken token)
+        private sealed class StorageDefinition
         {
-            InitAssetFolderPath();
+            public readonly Type Type;
+            public readonly string FileName;
+            public readonly int Version;
+            public readonly Func<ClientLocalStorage> Create;
+
+            public StorageDefinition(Type type, string fileName, int version, Func<ClientLocalStorage> create)
+            {
+                Type = type;
+                FileName = fileName;
+                Version = version;
+                Create = create;
+            }
+        }
+
+        private static readonly StorageDefinition[] StorageDefinitions =
+        {
+            new StorageDefinition(typeof(OptionStorage), "Option.json", 1, () => new OptionStorage())
+        };
+
+        private readonly bool loadData;
+        private readonly string storageRootOverride;
+        private readonly Dictionary<Type, ClientLocalStorage> StorageDatas = new Dictionary<Type, ClientLocalStorage>();
+        private string assetFolderPath;
+
+        public ClientLocalStorageManager(bool loadData = false, string storageRootOverride = null)
+        {
+            this.loadData = loadData;
+            this.storageRootOverride = storageRootOverride;
+        }
+
+        protected override UniTask OnInitializeAsync(CancellationToken token)
+        {
+            assetFolderPath = storageRootOverride == null
+                ? Path.Combine(Application.persistentDataPath, "ClientLocalStorage")
+                : Path.GetFullPath(storageRootOverride);
+
+            Directory.CreateDirectory(assetFolderPath);
 
             if (loadData)
-                await LoadAllDataAsync(token);
+                LoadAllDataInternal(token);
+
+            return UniTask.CompletedTask;
         }
 
         protected override void OnShutdown(ShutdownReason reason)
@@ -37,7 +68,7 @@ namespace ProjectT
             try
             {
                 if (reason != ShutdownReason.InitializationFailure)
-                    SaveAllData();
+                    SaveAllDataInternal();
             }
             finally
             {
@@ -45,148 +76,251 @@ namespace ProjectT
             }
         }
 
-        private void InitAssetFolderPath()
+        public T GetOrCreateData<T>() where T : ClientLocalStorage
         {
-            if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.OSXEditor)
-            {
-                assetFolderPath = Application.dataPath;
-            }
-            else
-            {
-                assetFolderPath = Application.persistentDataPath;
-            }
+            ThrowIfWorkUnavailableInternal();
 
-            assetFolderPath = Path.Combine(assetFolderPath, defaultFolder);
-            Directory.CreateDirectory(assetFolderPath);
+            StorageDefinition definition = GetDefinitionInternal(typeof(T));
+
+            if (StorageDatas.TryGetValue(definition.Type, out var storage))
+                return (T)storage;
+
+            // 기존 파일을 먼저 읽어야 loadData=false에서 기본값이 저장 데이터를 덮어쓰지 않는다.
+            storage = LoadStorageInternal(definition) ?? definition.Create();
+            StorageDatas.Add(definition.Type, storage);
+            return (T)storage;
         }
 
-        public T CreateData<T>(EClientLocalStorageType Type) where T : ClientLocalStorage, new()
+        public void SaveData<T>() where T : ClientLocalStorage
         {
-            if (StorageDatas.TryGetValue(Type, out var StorageData))
-            {
-                return StorageData as T;
-            }
+            ThrowIfWorkUnavailableInternal();
 
-            T NewStorage = new T();
+            StorageDefinition definition = GetDefinitionInternal(typeof(T));
 
-            if (NewStorage != null)
-            {
-                NewStorage.StorageType = Type;
-                StorageDatas.Add(Type, NewStorage);
-                return NewStorage;
-            }
+            if (!StorageDatas.TryGetValue(definition.Type, out var storage))
+                throw new InvalidOperationException($"{definition.Type.Name} has not been loaded.");
 
-            return default(T);
-        }
-
-        public T GetData<T>(EClientLocalStorageType Type) where T : ClientLocalStorage
-        {
-            if (StorageDatas.TryGetValue(Type, out var StorageData))
-            {
-                return StorageData as T;
-            }
-
-            return default(T);
-        }
-
-        public void SaveData(EClientLocalStorageType Type)
-        {
-            if (string.IsNullOrEmpty(assetFolderPath))
-            {
-                Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
-                return;
-            }
-
-            if (StorageDatas.TryGetValue(Type, out var StorageData))
-            {
-                StorageData.Save(assetFolderPath);
-            }
-        }
-
-        public async UniTask SaveDataAsync(EClientLocalStorageType Type, CancellationToken cancellationToken = default)
-        {
-            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
-            {
-                await UniTask.Yield(cancellationToken: linked.Token);
-                // 종료 시 저장과 충돌하지 않도록 실제 쓰기는 메인 스레드에서 완료한다.
-                SaveData(Type);
-            }
-        }
-
-        public void SaveAllData()
-        {
-            foreach (EClientLocalStorageType type in System.Enum.GetValues(typeof(EClientLocalStorageType)))
-            {
-                if (StorageDatas.TryGetValue(type, out var StorageData))
-                {
-                    StorageData.Save(assetFolderPath);
-                }
-            }
-        }
-
-        public void LoadData(EClientLocalStorageType Type)
-        {
-            if (string.IsNullOrEmpty(assetFolderPath))
-            {
-                Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
-                return;
-            }
-            if (!File.Exists(Path.Combine(assetFolderPath, $"{Type}.dat")))
-                return;
-            ClientLocalStorage StorageData = ClientLocalStorage.Load(assetFolderPath, Type);
-            if (StorageData == null)
-            {
-                Global.Instance.LogError($"[ClientLocalStorageManager] Load Fail Type : {Type}");
-                return;
-            }
-
-            StorageData.StorageType = Type;
-            StorageData.CompleteLoad();
-
-            StorageDatas[Type] = StorageData;
-        }
-
-        public async UniTask LoadDataAsync(EClientLocalStorageType Type, CancellationToken token = default)
-        {
-            await UniTask.Yield(cancellationToken: token);
-
-            if (string.IsNullOrEmpty(assetFolderPath))
-            {
-                Global.Instance.LogError($"[ClientLocalStorageManager] Fail Save Data This Asset Foler Path is Null");
-                return;
-            }
-
-            if (!File.Exists(Path.Combine(assetFolderPath, $"{Type}.dat")))
-                return;
-            ClientLocalStorage StorageData = ClientLocalStorage.Load(assetFolderPath, Type);
-            if (StorageData == null)
-            {
-                Global.Instance.LogError($"[ClientLocalStorageManager] Load Fail Type : {Type}");
-                return;
-            }
-
-
-            StorageData.StorageType = Type;
-            StorageData.CompleteLoad();
-
-            StorageDatas[Type] = StorageData;
-        }
-
-        public async UniTask LoadAllDataAsync(CancellationToken token = default)
-        {
-            foreach (EClientLocalStorageType Type in System.Enum.GetValues(typeof(EClientLocalStorageType)))
-            {
-                await LoadDataAsync(Type, token);
-            }
+            SaveStorageInternal(definition, storage);
         }
 
         public void LoadAllData()
         {
-            foreach (EClientLocalStorageType Type in System.Enum.GetValues(typeof(EClientLocalStorageType)))
+            ThrowIfWorkUnavailableInternal();
+            LoadAllDataInternal(LifetimeToken);
+        }
+
+        private static StorageDefinition GetDefinitionInternal(Type type)
+        {
+            foreach (var definition in StorageDefinitions)
             {
-                LoadData(Type);
+                if (definition.Type == type)
+                    return definition;
+            }
+
+            throw new ArgumentException($"Storage type {type.Name} is not registered.", nameof(type));
+        }
+
+        private void LoadAllDataInternal(CancellationToken token)
+        {
+            foreach (var definition in StorageDefinitions)
+            {
+                token.ThrowIfCancellationRequested();
+
+                try
+                {
+                    ClientLocalStorage storage = LoadStorageInternal(definition);
+
+                    if (storage != null)
+                        StorageDatas[definition.Type] = storage;
+                    else
+                        StorageDatas.Remove(definition.Type);
+                }
+                catch
+                {
+                    StorageDatas.Remove(definition.Type);
+                    throw;
+                }
             }
         }
-    }
 
+        private ClientLocalStorage LoadStorageInternal(StorageDefinition definition)
+        {
+            string path = Path.Combine(assetFolderPath, definition.FileName);
+            string backupPath = path + ".bak";
+            InvalidDataException invalidFile = null;
+
+            if (File.Exists(path))
+            {
+                try
+                {
+                    return ReadStorageInternal(path, definition);
+                }
+                catch (InvalidDataException error)
+                {
+                    invalidFile = error;
+                    QuarantineInternal(path);
+                }
+            }
+
+            if (File.Exists(backupPath))
+            {
+                try
+                {
+                    ClientLocalStorage storage = ReadStorageInternal(backupPath, definition);
+                    File.Copy(backupPath, path, true);
+
+                    if (invalidFile != null)
+                        Global.LogException(invalidFile);
+
+                    return storage;
+                }
+                catch (InvalidDataException error)
+                {
+                    QuarantineInternal(backupPath);
+                    invalidFile = invalidFile == null
+                        ? error
+                        : new InvalidDataException($"Both {definition.FileName} and its backup are invalid.", new AggregateException(invalidFile, error));
+                }
+            }
+
+            if (invalidFile != null)
+                Global.LogException(invalidFile);
+
+            return null;
+        }
+
+        private static ClientLocalStorage ReadStorageInternal(string path, StorageDefinition definition)
+        {
+            string json = File.ReadAllText(path);
+            StorageFile file;
+
+            try
+            {
+                file = JsonUtility.FromJson<StorageFile>(json);
+            }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException($"Failed to parse {path}.", error);
+            }
+
+            if (file == null)
+                throw new InvalidDataException($"{path} does not contain storage data.");
+
+            // 알 수 없는 버전을 손상 파일로 취급하면 종료 저장이 새 버전 데이터를 덮어쓸 수 있다.
+            if (file.Version != definition.Version)
+                throw new NotSupportedException($"{path} has unsupported storage version {file.Version}.");
+
+            if (string.IsNullOrEmpty(file.Data))
+                throw new InvalidDataException($"{path} does not contain storage data.");
+
+            try
+            {
+                ClientLocalStorage storage = JsonUtility.FromJson(file.Data, definition.Type) as ClientLocalStorage;
+
+                if (storage == null)
+                    throw new InvalidDataException($"{path} contains the wrong storage type.");
+
+                return storage;
+            }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException($"Failed to parse the data in {path}.", error);
+            }
+        }
+
+        private void SaveAllDataInternal()
+        {
+            List<Exception> errors = null;
+
+            foreach (var definition in StorageDefinitions)
+            {
+                if (!StorageDatas.TryGetValue(definition.Type, out var storage))
+                    continue;
+
+                try
+                {
+                    SaveStorageInternal(definition, storage);
+                }
+                catch (Exception error)
+                {
+                    if (errors == null)
+                        errors = new List<Exception>();
+
+                    errors.Add(error);
+                }
+            }
+
+            if (errors != null)
+                throw new AggregateException("One or more client storage files could not be saved.", errors);
+        }
+
+        private void SaveStorageInternal(StorageDefinition definition, ClientLocalStorage storage)
+        {
+            var file = new StorageFile
+            {
+                Version = definition.Version,
+                Data = JsonUtility.ToJson(storage)
+            };
+
+            string json = JsonUtility.ToJson(file);
+            string path = Path.Combine(assetFolderPath, definition.FileName);
+            string temporaryPath = path + ".tmp";
+            string backupPath = path + ".bak";
+
+            using (var stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(json);
+                writer.Flush();
+                stream.Flush(true);
+            }
+
+            if (File.Exists(path))
+            {
+                try
+                {
+                    File.Replace(temporaryPath, path, backupPath);
+                }
+                catch (NotSupportedException)
+                {
+                    ReplaceWithMovesInternal(temporaryPath, path, backupPath);
+                }
+            }
+            else
+            {
+                File.Move(temporaryPath, path);
+            }
+        }
+
+        private static void ReplaceWithMovesInternal(string temporaryPath, string path, string backupPath)
+        {
+            if (File.Exists(backupPath))
+                File.Delete(backupPath);
+
+            File.Move(path, backupPath);
+
+            try
+            {
+                File.Move(temporaryPath, path);
+            }
+            catch (Exception moveError)
+            {
+                try
+                {
+                    File.Move(backupPath, path);
+                }
+                catch (Exception rollbackError)
+                {
+                    throw new AggregateException("Storage replacement and rollback both failed.", moveError, rollbackError);
+                }
+
+                throw;
+            }
+        }
+
+        private static void QuarantineInternal(string path)
+        {
+            File.Move(path, path + ".corrupt." + Guid.NewGuid().ToString("N"));
+        }
+    }
 }

@@ -26,6 +26,12 @@ namespace DesignGenerator.Table
                         "PK 가 없으면 Get()/중복검사가 성립하지 않습니다.");
                 }
 
+                foreach (var pk in t.PKData)
+                {
+                    if (pk.Type == "float" || pk.Type == "double")
+                        diag.Error("TG2044", loc, $"PK 컬럼 '{pk.ColumnName}' 에 부동소수점 타입을 사용할 수 없습니다.");
+                }
+
                 //컬럼명 중복
                 foreach (var g in t.VarData.GroupBy(x => x.ColumnName, StringComparer.Ordinal))
                 {
@@ -63,6 +69,24 @@ namespace DesignGenerator.Table
                     if (!tables.ContainsKey(refId))
                     {
                         diag.Error("TG2008", loc, $"'{c.ColumnName}' 이 참조하는 테이블 G_{refId} 가 없습니다.");
+                        continue;
+                    }
+
+                    var target = tables[refId];
+                    if (target.PKData.Count != 1)
+                    {
+                        diag.Error("TG2045", loc, $"'{c.ColumnName}' 의 참조 대상 '{target.TableName}' 은 단일 PK 테이블이어야 합니다.");
+                        continue;
+                    }
+                    if (c.Type != target.PKData[0].Type)
+                    {
+                        diag.Error("TG2046", loc,
+                            $"'{c.ColumnName}' 의 타입 '{c.Type}' 이 참조 대상 '{target.TableName}' 의 PK 타입 '{target.PKData[0].Type}' 과 다릅니다.");
+                        continue;
+                    }
+                    if (c.Type != "sbyte" && c.Type != "short" && c.Type != "int" && c.Type != "long")
+                    {
+                        diag.Error("TG2047", loc, $"'{c.ColumnName}' 의 참조 타입 '{c.Type}' 에는 현재 -1 없음 값 규칙을 적용할 수 없습니다.");
                         continue;
                     }
 
@@ -105,15 +129,8 @@ namespace DesignGenerator.Table
                 }
 
                 //ID Rule
-                var pkNames = new HashSet<string>(t.PKData.Select(x => x.ColumnName), StringComparer.Ordinal);
-                foreach (var pk in t.PKData)
-                {
-                    if (pk.IsListRuleFindPK && !pkNames.Contains(pk.ColumnName))
-                        diag.Error("TG2009", loc, $"ID Rule 의 FindPKId 가 PK 가 아닌 '{pk.ColumnName}' 를 가리킵니다.");
-                }
-
                 if (t.UseListRule && !t.IsListIdRule())
-                    diag.Warning("TG2043", loc, "UseListRule 이 true 인데 FindPKId 로 지정된 컬럼이 없습니다.");
+                    diag.Error("TG2043", loc, "UseListRule 이 true 인데 FindPKId 로 지정된 PK 컬럼이 없습니다.");
             }
 
             if (enums != null)
@@ -177,15 +194,25 @@ namespace DesignGenerator.Table
             for (int r = 0; r < t.VarObjectData.Count; r++)
             {
                 var row = t.VarObjectData[r];
-                var key = string.Join("\u001F", pkIndex.Select(i =>
-                    i < row.Length && row[i] != null
-                        ? Convert.ToString(row[i], CultureInfo.InvariantCulture)
-                        : ""));
+                var key = string.Concat(pkIndex.Select(i =>
+                {
+                    if (i >= row.Length || row[i] == null)
+                        return "-1:";
+
+                    string value = Convert.ToString(row[i], CultureInfo.InvariantCulture);
+                    return value.Length.ToString(CultureInfo.InvariantCulture) + ":" + value;
+                }));
 
                 int prev;
                 if (seen.TryGetValue(key, out prev))
+                {
+                    string values = string.Join(", ", pkIndex.Select(i =>
+                        i < row.Length && row[i] != null
+                            ? Convert.ToString(row[i], CultureInfo.InvariantCulture)
+                            : "(null)"));
                     diag.Error("TG2032", SourceLocation.At(t.TableName, r + 1),
-                        $"PK 중복: [{key.Replace('\u001F', ',')}] (앞선 위치: #{prev + 1})");
+                        $"PK 중복: [{values}] (앞선 위치: #{prev + 1})");
+                }
                 else
                     seen[key] = r;
             }

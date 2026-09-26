@@ -88,18 +88,4 @@ public class TestReflection : MonoBehaviour
     //        skillAgent.OnUpdate(Time.deltaTime);
     //}
 
-    //public void LoadLocalStorage()
-    //{
-    //    OptionStorage optionStorage = Global.LocalStorage.GetData<OptionStorage>(EClientLocalStorageType.Option);
-
-    //    Debug.Log(optionStorage.TestName);
-    //}
-
-    //public void CreateLocalStorage()
-    //{
-    //    OptionStorage optionStorage = Global.LocalStorage.CreateData<OptionStorage>(EClientLocalStorageType.Option);
-    //    optionStorage.TestName = "TEST123";
-
-    //    Global.LocalStorage.SaveData(EClientLocalStorageType.Option);
-    //}
 }

@@ -7,3 +7,13 @@ D:\Project\ProjectT\Tools\TEMP\DesignGenerator\DesignTool\obj\Release\DesignTool
 D:\Project\ProjectT\Tools\TEMP\DesignGenerator\DesignTool\obj\Release\DesignTool.csproj.CoreCompileInputs.cache
 D:\Project\ProjectT\Tools\TEMP\DesignGenerator\DesignTool\obj\Release\DesignTool.exe
 D:\Project\ProjectT\Tools\TEMP\DesignGenerator\DesignTool\obj\Release\DesignTool.pdb
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\bin\Release\DesignTool.exe.config
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\bin\Release\DesignTool.exe
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\bin\Release\DesignTool.pdb
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.csproj.AssemblyReference.cache
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.exe.config
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.MainForm.resources
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.csproj.GenerateResource.cache
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.csproj.CoreCompileInputs.cache
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.exe
+D:\Project\ProjectT\Tools\DesignGenerator\DesignTool\obj\Release\DesignTool.pdb

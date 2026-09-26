@@ -56,11 +56,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<passiveInfo> dataInfo = new List<passiveInfo>();
         
-        public Dictionary<ArraySegment<byte>, passiveInfo> datas = new Dictionary<ArraySegment<byte>, passiveInfo>(new DataComparer());
+        public Dictionary<System.Int16, passiveInfo> datas = new Dictionary<System.Int16, passiveInfo>();
         
         public bool Insert(short passive_Id, short status_Type, short status_Arg, string passive_name, string image_Res)
         {
-			ArraySegment<byte> key = GetIdRule(passive_Id);
+			System.Int16 key = passive_Id;
 			if (datas.ContainsKey(key))
 				return false;
 			passiveInfo newInfo = new passiveInfo(passive_Id, status_Type, status_Arg, passive_name, image_Res);
@@ -71,34 +71,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int16, passiveInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.passive_Id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int16 key = data.passive_Id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'passive': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public passiveInfo Get(short passive_Id)
         {
 			passiveInfo value = null;
-			if (datas.TryGetValue(GetIdRule(passive_Id), out value))
+			if (datas.TryGetValue(passive_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(short passive_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(short);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(passive_Id), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

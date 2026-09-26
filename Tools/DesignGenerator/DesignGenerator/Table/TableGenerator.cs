@@ -83,10 +83,13 @@ namespace DesignGenerator.Table
             if (Diagnostics.HasError) return false;
 
             GenerateInfoData(target, outputScriptPath);
-            if (OnSerializerSet != null)
-                OnSerializerSet(target.TableID.ToString(CultureInfo.InvariantCulture), target.TableName);
-            if (OnMgrSet != null)
-                OnMgrSet(target.TableID.ToString(CultureInfo.InvariantCulture), target.TableName, BuildRefLinks(target));
+            foreach (var info in tableDataInfos.Values.OrderBy(x => x.TableID))
+            {
+                if (OnSerializerSet != null)
+                    OnSerializerSet(info.TableID.ToString(CultureInfo.InvariantCulture), info.TableName);
+                if (OnMgrSet != null)
+                    OnMgrSet(info.TableID.ToString(CultureInfo.InvariantCulture), info.TableName, BuildRefLinks(info));
+            }
             return true;
         }
 
@@ -139,7 +142,12 @@ namespace DesignGenerator.Table
                 Diagnostics.Error("TG2062", SourceLocation.InFile(fileName), $"TableId 를 읽을 수 없습니다: '{tableIdRaw}'");
                 return;
             }
-            if (tableDataInfos.ContainsKey(tableId)) return;    // 이미 읽음
+            if (tableDataInfos.ContainsKey(tableId))
+            {
+                Diagnostics.Error("TG2063", SourceLocation.InFile(fileName),
+                    $"TableId {tableId} 가 중복 지정됐습니다.");
+                return;
+            }
 
             var info = new TableDataInfo { TableName = root, TableID = tableId };
 
@@ -206,7 +214,7 @@ namespace DesignGenerator.Table
             if (jsonData != null)
             {
                 ApplyRule(jsonData, "PKIds", info.AddIsListRule);
-                ApplyRule(jsonData, "FindPKId", info.AddFindPKListRule);
+                ApplyFindPKRule(jsonData, info, fileName);
             }
 
             //record → 값
@@ -220,6 +228,25 @@ namespace DesignGenerator.Table
             var token = json[key];
             if (token == null) return;
             foreach (var t in JArray.Parse(token.ToString())) apply(t.ToString());
+        }
+
+        private void ApplyFindPKRule(JObject json, TableDataInfo info, string fileName)
+        {
+            var token = json["FindPKId"];
+            if (token == null) return;
+
+            foreach (var t in JArray.Parse(token.ToString()))
+            {
+                string columnName = t.ToString();
+                if (info.PKData.Any(x => x.ColumnName == columnName))
+                {
+                    info.AddFindPKListRule(columnName);
+                    continue;
+                }
+
+                Diagnostics.Error("TG2009", SourceLocation.InFile(fileName),
+                    $"ID Rule 의 FindPKId 가 PK 가 아닌 '{columnName}' 를 가리킵니다.");
+            }
         }
 
         private void FillRecords(TableDataInfo info, XmlNodeList recordNodes, string fileName)
@@ -387,22 +414,27 @@ namespace DesignGenerator.Table
                 "ProtoMember", new CodeAttributeArgument(new CodePrimitiveExpression(1))));
             infosClass.Members.Add(dataInfoVar);
 
+            string primaryKeyType = BuildKeyType(info.PKData);
             infosClass.Members.Add(new CodeMemberField(
-                $"Dictionary<ArraySegment<byte>, {info.TableName}Info>", "datas")
+                $"Dictionary<{primaryKeyType}, {info.TableName}Info>", "datas")
             {
                 Attributes = MemberAttributes.Public,
                 InitExpression = new CodeSnippetExpression(
-                    $"new Dictionary<ArraySegment<byte>, {info.TableName}Info>(new DataComparer())"),
+                    $"new Dictionary<{primaryKeyType}, {info.TableName}Info>()"),
             });
 
-            if (info.UseListRule)
+            var listPk = info.PKData.Where(x => x.IsListRuleFindPK).ToList();
+            bool hasListIndex = info.UseListRule && listPk.Count > 0;
+            string listKeyType = hasListIndex ? BuildKeyType(listPk) : null;
+
+            if (hasListIndex)
             {
                 infosClass.Members.Add(new CodeMemberField(
-                    $"Dictionary<ArraySegment<byte>, List<{info.TableName}Info>>", "listData")
+                    $"Dictionary<{listKeyType}, List<{info.TableName}Info>>", "listData")
                 {
                     Attributes = MemberAttributes.Public,
                     InitExpression = new CodeSnippetExpression(
-                        $"new Dictionary<ArraySegment<byte>, List<{info.TableName}Info>>(new DataComparer())"),
+                        $"new Dictionary<{listKeyType}, List<{info.TableName}Info>>()"),
                 });
             }
 
@@ -416,17 +448,29 @@ namespace DesignGenerator.Table
                 insertFunc.Parameters.Add(new CodeParameterDeclarationExpression(
                     DefineType.ConverSystemTypeName(data.Type), data.ColumnName));
 
-            string pkArgs = info.GetPkString("{0}", ", ");
             string newInfoParams = info.GetStringVerDatas("{0}", ", ");
 
             if (info.PKData.Count > 0)
             {
-                insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"ArraySegment<byte> key = GetIdRule({pkArgs});"));
+                AddNullKeyChecks(insertFunc.Statements, info.PKData, "{0}", info.TableName, Tab.TAB3, false);
+                insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"{primaryKeyType} key = {BuildKeyExpression(info.PKData, "{0}")};"));
                 insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "if (datas.ContainsKey(key))"));
                 insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "return false;"));
                 insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"{info.TableName}Info newInfo = new {info.TableName}Info({newInfoParams});"));
                 insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "dataInfo.Add(newInfo);"));
                 insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "datas.Add(key, newInfo);"));
+
+                if (hasListIndex)
+                {
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"{listKeyType} listKey = {BuildKeyExpression(listPk, "{0}")};"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"List<{info.TableName}Info> listValues = null;"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "if (!listData.TryGetValue(listKey, out listValues))"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "{"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"listValues = new List<{info.TableName}Info>();"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "listData.Add(listKey, listValues);"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "}"));
+                    insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "listValues.Add(newInfo);"));
+                }
             }
             else
             {
@@ -441,25 +485,34 @@ namespace DesignGenerator.Table
                 Attributes = MemberAttributes.Public | MemberAttributes.Final,
                 Name = "Initialize",
             };
+            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 +
+                $"var newDatas = new Dictionary<{primaryKeyType}, {info.TableName}Info>();"));
+            if (hasListIndex)
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 +
+                    $"var newListData = new Dictionary<{listKeyType}, List<{info.TableName}Info>>();"));
             initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "foreach (var data in dataInfo)"));
             initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "{"));
-            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"ArraySegment<byte> bytes = GetIdRule({info.GetPkString("data.{0}", ", ")});"));
-            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "if (datas.ContainsKey(bytes))"));
-            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + "continue;"));
-            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "datas.Add(bytes, data);"));
+            AddNullKeyChecks(initializeFunc.Statements, info.PKData, "data.{0}", info.TableName, Tab.TAB4, true);
+            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"{primaryKeyType} key = {BuildKeyExpression(info.PKData, "data.{0}")};"));
+            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "if (newDatas.ContainsKey(key))"));
+            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + $"throw new InvalidOperationException(\"Duplicate primary key in table '{info.TableName}': \" + key);"));
+            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "newDatas.Add(key, data);"));
 
-            if (info.UseListRule && !info.IsListIdRule())
+            if (hasListIndex)
             {
-                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"bytes = GetListIdRule({info.GetListIdRuleString("data.{0}", ", ")});"));
-                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "if (listData.ContainsKey(bytes))"));
-                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + "listData[bytes].Add(data);"));
-                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "else"));
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"{listKeyType} listKey = {BuildKeyExpression(listPk, "data.{0}")};"));
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"List<{info.TableName}Info> listValues = null;"));
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "if (!newListData.TryGetValue(listKey, out listValues))"));
                 initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "{"));
-                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + $"listData.Add(bytes, new List<{info.TableName}Info>());"));
-                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + "listData[bytes].Add(data);"));
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + $"listValues = new List<{info.TableName}Info>();"));
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + "newListData.Add(listKey, listValues);"));
                 initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "}"));
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "listValues.Add(data);"));
             }
             initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "}"));
+            initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "datas = newDatas;"));
+            if (hasListIndex)
+                initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "listData = newListData;"));
             infosClass.Members.Add(initializeFunc);
 
             //Get
@@ -472,19 +525,15 @@ namespace DesignGenerator.Table
             foreach (var data in info.PKData)
                 getFunc.Parameters.Add(new CodeParameterDeclarationExpression(
                     DefineType.ConverSystemTypeName(data.Type), data.ColumnName));
+            AddNullKeyChecks(getFunc.Statements, info.PKData, "{0}", info.TableName, Tab.TAB3, false);
             getFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"{info.TableName}Info value = null;"));
-            getFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"if (datas.TryGetValue(GetIdRule({pkArgs}), out value))"));
+            getFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"if (datas.TryGetValue({BuildKeyExpression(info.PKData, "{0}")}, out value))"));
             getFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "return value;"));
             getFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return null;"));
             infosClass.Members.Add(getFunc);
 
-            //GetIdRule
-            infosClass.Members.Add(BuildIdRuleFunc("GetIdRule", info.PKData, info));
-
-            if (info.IsListIdRule())
+            if (hasListIndex)
             {
-                var listPk = info.PKData.Where(x => x.IsListRuleFindPK).ToList();
-
                 var getListByIdFunc = new CodeMemberMethod
                 {
                     Attributes = MemberAttributes.Public | MemberAttributes.Final,
@@ -494,14 +543,12 @@ namespace DesignGenerator.Table
                 foreach (var d in listPk)
                     getListByIdFunc.Parameters.Add(new CodeParameterDeclarationExpression(
                         DefineType.ConverSystemTypeName(d.Type), d.ColumnName));
+                AddNullKeyChecks(getListByIdFunc.Statements, listPk, "{0}", info.TableName, Tab.TAB3, false);
                 getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"List<{info.TableName}Info> value = null;"));
-                getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"ArraySegment<byte> bytes = GetListIdRule({info.GetListIdRuleString("{0}", ", ")});"));
-                getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "if (listData.TryGetValue(bytes, out value))"));
+                getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"if (listData.TryGetValue({BuildKeyExpression(listPk, "{0}")}, out value))"));
                 getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "return value;"));
                 getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return null;"));
                 infosClass.Members.Add(getListByIdFunc);
-
-                infosClass.Members.Add(BuildIdRuleFunc("GetListIdRule", listPk, info));
             }
 
             //SetupRef_{ColumnName} 을 컬럼별로 생성
@@ -520,7 +567,12 @@ namespace DesignGenerator.Table
                 f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"foreach ({info.TableName}Info data in dataInfo)"));
                 f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "{"));
                 f.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"if (data.{data.ColumnName} != -1)"));
-                f.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + $"data.{data.ColumnName}_ref = infos.Get(({data.Type})data.{data.ColumnName});"));
+                f.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "{"));
+                f.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + $"data.{data.ColumnName}_ref = infos.Get(data.{data.ColumnName});"));
+                f.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + $"if (data.{data.ColumnName}_ref == null)"));
+                f.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + Tab.TAB1 +
+                    $"throw new InvalidOperationException(\"테이블 '{info.TableName}' 의 '{data.ColumnName}' 참조를 '{refName}' 에서 찾을 수 없습니다: \" + data.{data.ColumnName});"));
+                f.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "}"));
                 f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "}"));
                 infosClass.Members.Add(f);
             }
@@ -531,52 +583,71 @@ namespace DesignGenerator.Table
             GeneratorUtils.ExportGenerator(unit, Path.Combine(outputPath, info.TableName + ".cs"));
         }
 
-        private static CodeMemberMethod BuildIdRuleFunc(string name, List<TablePKData> pks, TableDataInfo info)
+        private static string BuildKeyType(List<TablePKData> pks)
         {
-            var f = new CodeMemberMethod
+            if (pks.Count == 0)
+                return "System.Byte";
+            if (pks.Count == 1)
+                return DefineType.ConverSystemTypeName(pks[0].Type);
+
+            return BuildCompositeKeyType(pks, 0);
+        }
+
+        private static string BuildKeyExpression(List<TablePKData> pks, string valueFormat)
+        {
+            if (pks.Count == 0)
+                return "0";
+            if (pks.Count == 1)
+                return string.Format(valueFormat, pks[0].ColumnName);
+
+            return BuildCompositeKeyExpression(pks, 0, valueFormat);
+        }
+
+        private static string BuildCompositeKeyType(List<TablePKData> pks, int startIndex)
+        {
+            int count = Math.Min(7, pks.Count - startIndex);
+            var types = new List<string>(count + 1);
+            for (int i = 0; i < count; i++)
+                types.Add(DefineType.ConverSystemTypeName(pks[startIndex + i].Type));
+
+            if (startIndex + count < pks.Count)
+                types.Add(BuildCompositeKeyType(pks, startIndex + count));
+
+            return $"System.ValueTuple<{string.Join(", ", types)}>";
+        }
+
+        private static string BuildCompositeKeyExpression(List<TablePKData> pks, int startIndex, string valueFormat)
+        {
+            int count = Math.Min(7, pks.Count - startIndex);
+            var values = new List<string>(count + 1);
+            for (int i = 0; i < count; i++)
+                values.Add(string.Format(valueFormat, pks[startIndex + i].ColumnName));
+
+            if (startIndex + count < pks.Count)
+                values.Add(BuildCompositeKeyExpression(pks, startIndex + count, valueFormat));
+
+            return $"new {BuildCompositeKeyType(pks, startIndex)}({string.Join(", ", values)})";
+        }
+
+        private static void AddNullKeyChecks(CodeStatementCollection statements, List<TablePKData> pks,
+                                             string valueFormat, string tableName, string indentation,
+                                             bool isDataValidation)
+        {
+            foreach (var pk in pks.Where(x => x.Type == "string"))
             {
-                Attributes = MemberAttributes.Public | MemberAttributes.Final,
-                Name = name,
-                ReturnType = new CodeTypeReference(typeof(ArraySegment<byte>)),
-            };
-            foreach (var d in pks)
-                f.Parameters.Add(new CodeParameterDeclarationExpression(
-                    DefineType.ConverSystemTypeName(d.Type), d.ColumnName));
-
-            f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "ushort total = 0;"));
-            f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "ushort count = 0;"));
-
-            foreach (var d in pks)
-            {
-                f.Statements.Add(new CodeSnippetStatement(d.Type == "string"
-                    ? Tab.TAB3 + $"total += (ushort)System.Text.Encoding.UTF8.GetByteCount({d.ColumnName});"
-                    : Tab.TAB3 + $"total += sizeof({d.Type});"));
-            }
-
-            f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "if (total == 0)"));
-            f.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "return default(System.ArraySegment<byte>);"));
-            f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "byte[] bytes = new byte[total];"));
-
-            if (pks.Exists(x => x.Type == "string"))
-                f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "byte[] stringBytes;"));
-
-            foreach (var d in pks)
-            {
-                if (d.Type == "string")
+                string value = string.Format(valueFormat, pk.ColumnName);
+                statements.Add(new CodeSnippetStatement(indentation + $"if ({value} == null)"));
+                if (isDataValidation)
                 {
-                    f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"stringBytes = System.Text.Encoding.UTF8.GetBytes({d.ColumnName});"));
-                    f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "Array.Copy(stringBytes, 0, bytes, count, stringBytes.Length);"));
-                    f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "count += (ushort)stringBytes.Length;"));
+                    statements.Add(new CodeSnippetStatement(indentation + Tab.TAB1 +
+                        $"throw new InvalidOperationException(\"Primary key '{pk.ColumnName}' in table '{tableName}' cannot be null.\");"));
                 }
                 else
                 {
-                    f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"Array.Copy(BitConverter.GetBytes({d.ColumnName}), 0, bytes, count, sizeof({d.Type}));"));
-                    f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"count += sizeof({d.Type});"));
+                    statements.Add(new CodeSnippetStatement(indentation + Tab.TAB1 +
+                        $"throw new ArgumentNullException(\"{pk.ColumnName}\", \"Primary key in table '{tableName}' cannot be null.\");"));
                 }
             }
-
-            f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return new System.ArraySegment<byte>(bytes);"));
-            return f;
         }
 
         //.byte 출력
@@ -601,6 +672,7 @@ namespace DesignGenerator.Table
             Directory.CreateDirectory(outputPath);
             ExportOne(LoadDesignDll(dllFolder), data, outputPath);
         }
+
         private static Assembly LoadDesignDll(string dllFolder)
         {
             //병합 모드면 Design.dll, 아니면 DataMgr.dll
@@ -619,8 +691,13 @@ namespace DesignGenerator.Table
                 throw new MissingMethodException(typeName, "Insert");
 
             object inst = Activator.CreateInstance(sType);
-            foreach (var row in data.VarObjectData)
-                addMethod.Invoke(inst, row);
+            for (int i = 0; i < data.VarObjectData.Count; i++)
+            {
+                object result = addMethod.Invoke(inst, data.VarObjectData[i]);
+                if (!(bool)result)
+                    throw new InvalidOperationException(
+                        $"테이블 '{data.TableName}' 의 {i + 1}번째 행을 삽입하지 못했습니다. PK 중복 여부를 확인하세요.");
+            }
 
             File.WriteAllBytes(Path.Combine(outputPath, data.TableName + ".bytes"), Serialize(inst));
         }

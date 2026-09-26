@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Xml;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -613,7 +614,7 @@ namespace DesignGenerator.Util
                     Console.WriteLine($"  [건너뜀] {Path.GetFileName(f)} — 유니티 프로젝트에 따로 두세요.");
                     continue;
                 }
-                File.Copy(f, Path.Combine(outputDir, Path.GetFileName(f)), true);
+                PublishDllInternal(File.ReadAllBytes(f), Path.Combine(outputDir, Path.GetFileName(f)));
                 Console.WriteLine("  복사: " + Path.GetFileName(f));
             }
 
@@ -833,7 +834,48 @@ namespace DesignGenerator.Util
                     throw new Exception(sb.ToString());
                 }
 
-                File.WriteAllBytes(outputPath, memoryStream.ToArray());
+                PublishDllInternal(memoryStream.ToArray(), outputPath);
+            }
+        }
+
+        private static void PublishDllInternal(byte[] bytes, string outputPath)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+            string tempPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+
+            try
+            {
+                File.WriteAllBytes(tempPath, bytes);
+
+                for (int attempt = 0; attempt < 40; attempt++)
+                {
+                    try
+                    {
+                        if (File.Exists(outputPath))
+                            File.Replace(tempPath, outputPath, null);
+                        else
+                            File.Move(tempPath, outputPath);
+
+                        return;
+                    }
+                    catch (IOException ex) when ((ex.HResult & 0xFFFF) == 32 ||
+                                                 (ex.HResult & 0xFFFF) == 33 ||
+                                                 (ex.HResult & 0xFFFF) == 1224)
+                    {
+                        if (attempt == 39)
+                            throw new IOException($"{outputPath} 파일을 10초 동안 교체하지 못했습니다. Unity 등에서 DLL 사용이 끝난 뒤 다시 실행하세요.", ex);
+
+                        if (attempt == 0)
+                            Console.WriteLine("  [대기] DLL 사용 중: " + outputPath);
+
+                        Thread.Sleep(250);
+                    }
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
             }
         }
 

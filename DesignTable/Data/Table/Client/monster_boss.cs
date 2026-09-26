@@ -60,11 +60,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<monster_bossInfo> dataInfo = new List<monster_bossInfo>();
         
-        public Dictionary<ArraySegment<byte>, monster_bossInfo> datas = new Dictionary<ArraySegment<byte>, monster_bossInfo>(new DataComparer());
+        public Dictionary<System.Int16, monster_bossInfo> datas = new Dictionary<System.Int16, monster_bossInfo>();
         
         public bool Insert(short mon_id, int mon_pathId, sbyte mon_type, short mon_spawnId, short mon_spawnTime, sbyte mon_spawnDayNight)
         {
-			ArraySegment<byte> key = GetIdRule(mon_id);
+			System.Int16 key = mon_id;
 			if (datas.ContainsKey(key))
 				return false;
 			monster_bossInfo newInfo = new monster_bossInfo(mon_id, mon_pathId, mon_type, mon_spawnId, mon_spawnTime, mon_spawnDayNight);
@@ -75,34 +75,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int16, monster_bossInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.mon_id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int16 key = data.mon_id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'monster_boss': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public monster_bossInfo Get(short mon_id)
         {
 			monster_bossInfo value = null;
-			if (datas.TryGetValue(GetIdRule(mon_id), out value))
+			if (datas.TryGetValue(mon_id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(short mon_id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(short);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(mon_id), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

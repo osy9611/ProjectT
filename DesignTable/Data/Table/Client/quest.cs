@@ -60,11 +60,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<questInfo> dataInfo = new List<questInfo>();
         
-        public Dictionary<ArraySegment<byte>, questInfo> datas = new Dictionary<ArraySegment<byte>, questInfo>(new DataComparer());
+        public Dictionary<System.Int16, questInfo> datas = new Dictionary<System.Int16, questInfo>();
         
         public bool Insert(short quest_Id, short quest_type, string reward, string quest_target, string quest_description, bool reward_auto)
         {
-			ArraySegment<byte> key = GetIdRule(quest_Id);
+			System.Int16 key = quest_Id;
 			if (datas.ContainsKey(key))
 				return false;
 			questInfo newInfo = new questInfo(quest_Id, quest_type, reward, quest_target, quest_description, reward_auto);
@@ -75,34 +75,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int16, questInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.quest_Id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int16 key = data.quest_Id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'quest': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public questInfo Get(short quest_Id)
         {
 			questInfo value = null;
-			if (datas.TryGetValue(GetIdRule(quest_Id), out value))
+			if (datas.TryGetValue(quest_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(short quest_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(short);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(quest_Id), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

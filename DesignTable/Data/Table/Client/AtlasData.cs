@@ -44,11 +44,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<AtlasDataInfo> dataInfo = new List<AtlasDataInfo>();
         
-        public Dictionary<ArraySegment<byte>, AtlasDataInfo> datas = new Dictionary<ArraySegment<byte>, AtlasDataInfo>(new DataComparer());
+        public Dictionary<System.Int32, AtlasDataInfo> datas = new Dictionary<System.Int32, AtlasDataInfo>();
         
         public bool Insert(int AtlasType, string Path)
         {
-			ArraySegment<byte> key = GetIdRule(AtlasType);
+			System.Int32 key = AtlasType;
 			if (datas.ContainsKey(key))
 				return false;
 			AtlasDataInfo newInfo = new AtlasDataInfo(AtlasType, Path);
@@ -59,34 +59,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int32, AtlasDataInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.AtlasType);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int32 key = data.AtlasType;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'AtlasData': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public AtlasDataInfo Get(int AtlasType)
         {
 			AtlasDataInfo value = null;
-			if (datas.TryGetValue(GetIdRule(AtlasType), out value))
+			if (datas.TryGetValue(AtlasType, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(int AtlasType)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(int);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(AtlasType), 0, bytes, count, sizeof(int));
-			count += sizeof(int);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

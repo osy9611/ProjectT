@@ -32,48 +32,8 @@ namespace DesignGenerator.DataManager
 
             nameSpace.Imports.Add(new CodeNamespaceImport("System"));
             nameSpace.Imports.Add(new CodeNamespaceImport("System.IO"));
-            nameSpace.Imports.Add(new CodeNamespaceImport("System.Linq"));
             nameSpace.Imports.Add(new CodeNamespaceImport("System.Collections.Generic"));
-            nameSpace.Imports.Add(new CodeNamespaceImport("System.Diagnostics.CodeAnalysis"));
             unit.Namespaces.Add(nameSpace);
-
-            var dataComparerClass = new CodeTypeDeclaration("DataComparer")
-            {
-                IsClass = true,
-                TypeAttributes = TypeAttributes.Public,
-            };
-            dataComparerClass.BaseTypes.Add(new CodeTypeReference(
-                "System.Collections.Generic.IEqualityComparer<ArraySegment<byte>>"));
-
-            var equalsFunc = new CodeMemberMethod
-            {
-                Attributes = MemberAttributes.Public | MemberAttributes.Final,
-                Name = "Equals",
-                ReturnType = new CodeTypeReference(typeof(bool)),
-            };
-            equalsFunc.Parameters.Add(new CodeParameterDeclarationExpression(typeof(ArraySegment<byte>), "x"));
-            equalsFunc.Parameters.Add(new CodeParameterDeclarationExpression(typeof(ArraySegment<byte>), "y"));
-            equalsFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return x.SequenceEqual(y);"));
-            dataComparerClass.Members.Add(equalsFunc);
-
-            var getHashFunc = new CodeMemberMethod
-            {
-                Attributes = MemberAttributes.Public | MemberAttributes.Final,
-                Name = "GetHashCode",
-                ReturnType = new CodeTypeReference(typeof(int)),
-            };
-            getHashFunc.Parameters.Add(new CodeParameterDeclarationExpression(typeof(ArraySegment<byte>), "obj"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "if (obj.Array == null) return 0;"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "unchecked"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "{"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "int hash = (int)2166136261;"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "for (int i = obj.Offset; i < obj.Offset + obj.Count; ++i)"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB5 + "hash = (hash ^ obj.Array[i]) * 16777619;"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + "return hash;"));
-            getHashFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "}"));
-            dataComparerClass.Members.Add(getHashFunc);
-
-            nameSpace.Types.Add(dataComparerClass);
 
             enumData = new CodeTypeDeclaration("TableId")
             {
@@ -225,9 +185,11 @@ namespace DesignGenerator.DataManager
                     Name = $"Load{t.TableName}Infos",
                 };
                 loadInfo.Parameters.Add(new CodeParameterDeclarationExpression("System.Byte[]", "data"));
-                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"{lower}Infos = serializer.Deserialize({t.TableId}, data) as {t.TableName}Infos;"));
-                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"if ({lower}Infos != null)"));
-                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"{lower}Infos.Initialize();"));
+                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"var loaded = serializer.Deserialize({t.TableId}, data) as {t.TableName}Infos;"));
+                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "if (loaded == null)"));
+                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB4 + $"throw new InvalidOperationException(\"테이블 '{t.TableName}' 역직렬화 결과가 비었습니다.\");"));
+                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "loaded.Initialize();"));
+                loadInfo.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + $"{lower}Infos = loaded;"));
                 dataMgr.Members.Add(loadInfo);
             }
 

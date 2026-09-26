@@ -80,11 +80,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<monster_masterInfo> dataInfo = new List<monster_masterInfo>();
         
-        public Dictionary<ArraySegment<byte>, monster_masterInfo> datas = new Dictionary<ArraySegment<byte>, monster_masterInfo>(new DataComparer());
+        public Dictionary<System.Int16, monster_masterInfo> datas = new Dictionary<System.Int16, monster_masterInfo>();
         
         public bool Insert(short mon_id, string mon_name, short mon_atk, short mon_def, short mon_hp, short mon_speed, sbyte mon_type, short mon_searchAngle, short mon_searchRange, float mon_keppRange, string mon_prefab)
         {
-			ArraySegment<byte> key = GetIdRule(mon_id);
+			System.Int16 key = mon_id;
 			if (datas.ContainsKey(key))
 				return false;
 			monster_masterInfo newInfo = new monster_masterInfo(mon_id, mon_name, mon_atk, mon_def, mon_hp, mon_speed, mon_type, mon_searchAngle, mon_searchRange, mon_keppRange, mon_prefab);
@@ -95,34 +95,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int16, monster_masterInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.mon_id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int16 key = data.mon_id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'monster_master': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public monster_masterInfo Get(short mon_id)
         {
 			monster_masterInfo value = null;
-			if (datas.TryGetValue(GetIdRule(mon_id), out value))
+			if (datas.TryGetValue(mon_id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(short mon_id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(short);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(mon_id), 0, bytes, count, sizeof(short));
-			count += sizeof(short);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

@@ -2,10 +2,6 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using DesignTable;
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Linq;
 using UnityEngine;
 
 namespace ProjectT
@@ -14,9 +10,16 @@ namespace ProjectT
     {
         private readonly bool loadData;
         private DesignTable.DataMgr tableData;
-        public DesignTable.DataMgr Table { get => tableData; }
-        private DesignLocal.LocalData localData = new DesignLocal.LocalData();
-        private SystemLanguage currentLanguage;
+        public DesignTable.DataMgr Table
+        {
+            get
+            {
+                EnsureDataLoadedInternal();
+                return tableData;
+            }
+        }
+        private DesignLocal.LocalData localData;
+        private UniTaskCompletionSource loadCompletion;
 
         private bool isDone;
 
@@ -33,6 +36,8 @@ namespace ProjectT
 
         protected override void OnShutdown(ShutdownReason reason)
         {
+            loadCompletion?.TrySetCanceled();
+            loadCompletion = null;
             tableData = null;
             localData = null;
             isDone = false;
@@ -41,36 +46,77 @@ namespace ProjectT
         public async UniTask GetTableDatas(CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
-            if (tableData == null)
-                tableData = new DataMgr();
+            LifetimeToken.ThrowIfCancellationRequested();
 
-            tableData.Init();
+            if (State != ManagerState.Initializing && State != ManagerState.Ready)
+                throw new InvalidOperationException($"{Name} cannot load data from {State}.");
 
-            //Load Locl Data
-            await LoadLocalDataAsync((result) =>
+            if (isDone)
+                return;
+
+            var pending = loadCompletion;
+            if (pending == null)
             {
-                Global.Instance.Log($"Local Data Load Result :  {GetResultString(result)}");
-            }, token);
+                pending = new UniTaskCompletionSource();
+                loadCompletion = pending;
+                LoadDataInternalAsync(pending).Forget();
+            }
 
-            //Load Table Data
-            await LoadTableDataAsync((result) =>
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, token))
             {
-                Global.Instance.Log($"Table Data Load Result :  {GetResultString(result)}");
-            }, token);
+                await pending.Task.AttachExternalCancellation(linked.Token);
+            }
         }
 
-        private string GetResultString(bool result)
+        private async UniTask LoadDataInternalAsync(UniTaskCompletionSource completion)
         {
-            return result == true ? "Success" : "Fail";
+            try
+            {
+                var loadedLocalData = new DesignLocal.LocalData();
+                var loadedTableData = new DataMgr();
+                loadedTableData.Init();
+
+                await LoadLocalDataInternalAsync(loadedLocalData, LifetimeToken);
+                Global.Instance.Log("Local Data Load Result :  Success");
+
+                await LoadTableDataInternalAsync(loadedTableData, LifetimeToken);
+                loadedTableData.SetUpRef();
+
+                LifetimeToken.ThrowIfCancellationRequested();
+                Global.Instance.Log("Table Data Load Result :  Success");
+
+                localData = loadedLocalData;
+                tableData = loadedTableData;
+                isDone = true;
+
+                ClearLoadCompletionInternal(completion);
+                completion.TrySetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                ClearLoadCompletionInternal(completion);
+                completion.TrySetCanceled();
+            }
+            catch (Exception error)
+            {
+                ClearLoadCompletionInternal(completion);
+                completion.TrySetException(error);
+            }
         }
 
-        public async UniTask LoadLocalDataAsync(System.Action<bool> callback = null, CancellationToken token = default)
+        private void ClearLoadCompletionInternal(UniTaskCompletionSource completion)
+        {
+            if (ReferenceEquals(loadCompletion, completion))
+                loadCompletion = null;
+        }
+
+        private async UniTask LoadLocalDataInternalAsync(DesignLocal.LocalData target, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            string localPath = "Assets/Automation/Local/";
-            currentLanguage = Application.systemLanguage;
 
-            switch (currentLanguage)
+            string localPath = "Assets/Automation/Local/";
+
+            switch (Application.systemLanguage)
             {
                 case SystemLanguage.Korean:
                     localPath += "Ko.bytes";
@@ -88,19 +134,13 @@ namespace ProjectT
             {
                 var textAsset = await Global.Resource.LoadAndGetAsync<TextAsset>(localPath, cancelToken: token, scope: scope);
 
-                localData.LoadData(textAsset.bytes);
+                target.LoadData(textAsset.bytes);
             }
-            callback?.Invoke(true);
         }
 
-        public async UniTask LoadTableDataAsync(System.Action<bool> callback = null, CancellationToken token = default)
+        private async UniTask LoadTableDataInternalAsync(DataMgr target, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            if (isDone)
-            {
-                callback?.Invoke(true);
-                return;
-            }
 
             foreach (TableId tableID in System.Enum.GetValues(typeof(DesignTable.TableId)))
             {
@@ -109,20 +149,23 @@ namespace ProjectT
                 using (var scope = Global.Resource.CreateScope())
                 {
                     var textAsset = await Global.Resource.LoadAndGetAsync<TextAsset>(tablePath, cancelToken: token, scope: scope);
-                    tableData.LoadData(tableID, textAsset.bytes);
+                    target.LoadData(tableID, textAsset.bytes);
                 }
 
                 Global.Instance.Log($"[Table] {tableID} Load Complete!!");
             }
-
-            tableData.SetUpRef();
-            callback?.Invoke(true);
-            isDone = true;
         }
 
         public string GetLocalString(DesignLocal.StringDef stringDef)
         {
+            EnsureDataLoadedInternal();
             return localData.localString[stringDef];
+        }
+
+        private void EnsureDataLoadedInternal()
+        {
+            if (!isDone || tableData == null || localData == null)
+                throw new InvalidOperationException($"{Name} data is not loaded. Await {nameof(GetTableDatas)} first.");
         }
     }
 }

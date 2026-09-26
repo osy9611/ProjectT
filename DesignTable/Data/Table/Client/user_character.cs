@@ -64,11 +64,11 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<user_characterInfo> dataInfo = new List<user_characterInfo>();
         
-        public Dictionary<ArraySegment<byte>, user_characterInfo> datas = new Dictionary<ArraySegment<byte>, user_characterInfo>(new DataComparer());
+        public Dictionary<System.Int32, user_characterInfo> datas = new Dictionary<System.Int32, user_characterInfo>();
         
         public bool Insert(int char_Id, sbyte char_classId, sbyte char_gender, short char_atk, short char_def, float char_moveSpeed, string char_prefab)
         {
-			ArraySegment<byte> key = GetIdRule(char_Id);
+			System.Int32 key = char_Id;
 			if (datas.ContainsKey(key))
 				return false;
 			user_characterInfo newInfo = new user_characterInfo(char_Id, char_classId, char_gender, char_atk, char_def, char_moveSpeed, char_prefab);
@@ -79,34 +79,23 @@ namespace DesignTable
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int32, user_characterInfo>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.char_Id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int32 key = data.char_Id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'user_character': " + key);
+				newDatas.Add(key, data);
 			}
+			datas = newDatas;
         }
         
         public user_characterInfo Get(int char_Id)
         {
 			user_characterInfo value = null;
-			if (datas.TryGetValue(GetIdRule(char_Id), out value))
+			if (datas.TryGetValue(char_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(int char_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(int);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(char_Id), 0, bytes, count, sizeof(int));
-			count += sizeof(int);
-			return new System.ArraySegment<byte>(bytes);
         }
     }
 }

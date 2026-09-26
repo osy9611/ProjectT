@@ -152,9 +152,9 @@ namespace DesignTable
         [ProtoMember(1)]
         public List<skillInfo> dataInfo = new List<skillInfo>();
         
-        public Dictionary<ArraySegment<byte>, skillInfo> datas = new Dictionary<ArraySegment<byte>, skillInfo>(new DataComparer());
+        public Dictionary<System.Int32, skillInfo> datas = new Dictionary<System.Int32, skillInfo>();
         
-        public Dictionary<ArraySegment<byte>, List<skillInfo>> listData = new Dictionary<ArraySegment<byte>, List<skillInfo>>(new DataComparer());
+        public Dictionary<System.Int32, List<skillInfo>> listData = new Dictionary<System.Int32, List<skillInfo>>();
         
         public bool Insert(
                     int unit_Class, 
@@ -180,67 +180,60 @@ namespace DesignTable
                     bool sound_Ani, 
                     int projectile_Id)
         {
-			ArraySegment<byte> key = GetIdRule(skill_Id);
+			System.Int32 key = skill_Id;
 			if (datas.ContainsKey(key))
 				return false;
 			skillInfo newInfo = new skillInfo(unit_Class, unit_type, skill_Id, skill_coolTime, skill_range, skill_radius, skill_scale, skill_buffId, skill_type, skill_attackType, skill_contoroll, skill_dash, skill_dashSpeed, skill_judgeAni, skill_judgeTime, effect_Id, hit_effect_Id, image_Res, sound_Res, hitSound_Res, sound_Ani, projectile_Id);
 			dataInfo.Add(newInfo);
 			datas.Add(key, newInfo);
+			System.Int32 listKey = skill_Id;
+			List<skillInfo> listValues = null;
+			if (!listData.TryGetValue(listKey, out listValues))
+			{
+				listValues = new List<skillInfo>();
+				listData.Add(listKey, listValues);
+			}
+			listValues.Add(newInfo);
 			return true;
         }
         
         public void Initialize()
         {
+			var newDatas = new Dictionary<System.Int32, skillInfo>();
+			var newListData = new Dictionary<System.Int32, List<skillInfo>>();
 			foreach (var data in dataInfo)
 			{
-				ArraySegment<byte> bytes = GetIdRule(data.skill_Id);
-				if (datas.ContainsKey(bytes))
-					continue;
-				datas.Add(bytes, data);
+				System.Int32 key = data.skill_Id;
+				if (newDatas.ContainsKey(key))
+					throw new InvalidOperationException("Duplicate primary key in table 'skill': " + key);
+				newDatas.Add(key, data);
+				System.Int32 listKey = data.skill_Id;
+				List<skillInfo> listValues = null;
+				if (!newListData.TryGetValue(listKey, out listValues))
+				{
+					listValues = new List<skillInfo>();
+					newListData.Add(listKey, listValues);
+				}
+				listValues.Add(data);
 			}
+			datas = newDatas;
+			listData = newListData;
         }
         
         public skillInfo Get(int skill_Id)
         {
 			skillInfo value = null;
-			if (datas.TryGetValue(GetIdRule(skill_Id), out value))
+			if (datas.TryGetValue(skill_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetIdRule(int skill_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(int);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(skill_Id), 0, bytes, count, sizeof(int));
-			count += sizeof(int);
-			return new System.ArraySegment<byte>(bytes);
         }
         
         public List<skillInfo> GetListById(int skill_Id)
         {
 			List<skillInfo> value = null;
-			ArraySegment<byte> bytes = GetListIdRule(skill_Id);
-			if (listData.TryGetValue(bytes, out value))
+			if (listData.TryGetValue(skill_Id, out value))
 				return value;
 			return null;
-        }
-        
-        public System.ArraySegment<byte> GetListIdRule(int skill_Id)
-        {
-			ushort total = 0;
-			ushort count = 0;
-			total += sizeof(int);
-			if (total == 0)
-				return default(System.ArraySegment<byte>);
-			byte[] bytes = new byte[total];
-			Array.Copy(BitConverter.GetBytes(skill_Id), 0, bytes, count, sizeof(int));
-			count += sizeof(int);
-			return new System.ArraySegment<byte>(bytes);
         }
         
         public void SetupRef_skill_buffId(buffInfos infos)
@@ -248,7 +241,11 @@ namespace DesignTable
 			foreach (skillInfo data in dataInfo)
 			{
 				if (data.skill_buffId != -1)
-					data.skill_buffId_ref = infos.Get((int)data.skill_buffId);
+				{
+					data.skill_buffId_ref = infos.Get(data.skill_buffId);
+					if (data.skill_buffId_ref == null)
+						throw new InvalidOperationException("테이블 'skill' 의 'skill_buffId' 참조를 'buff' 에서 찾을 수 없습니다: " + data.skill_buffId);
+				}
 			}
         }
         
@@ -257,7 +254,11 @@ namespace DesignTable
 			foreach (skillInfo data in dataInfo)
 			{
 				if (data.effect_Id != -1)
-					data.effect_Id_ref = infos.Get((int)data.effect_Id);
+				{
+					data.effect_Id_ref = infos.Get(data.effect_Id);
+					if (data.effect_Id_ref == null)
+						throw new InvalidOperationException("테이블 'skill' 의 'effect_Id' 참조를 'skill_effect' 에서 찾을 수 없습니다: " + data.effect_Id);
+				}
 			}
         }
         
@@ -266,7 +267,11 @@ namespace DesignTable
 			foreach (skillInfo data in dataInfo)
 			{
 				if (data.projectile_Id != -1)
-					data.projectile_Id_ref = infos.Get((int)data.projectile_Id);
+				{
+					data.projectile_Id_ref = infos.Get(data.projectile_Id);
+					if (data.projectile_Id_ref == null)
+						throw new InvalidOperationException("테이블 'skill' 의 'projectile_Id' 참조를 'projectile' 에서 찾을 수 없습니다: " + data.projectile_Id);
+				}
 			}
         }
     }
