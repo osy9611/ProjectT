@@ -134,14 +134,19 @@ namespace ProjectT.Scene
         protected T CreateController<T>(InputActionAsset asset, string actionKey = "Player") where T : ProjectT.Controller.Controller, new()
         {
             LifetimeToken.ThrowIfCancellationRequested();
+
             if (asset == null)
                 throw new ArgumentNullException(nameof(asset));
+
             var ownedAsset = Instantiate(asset);
             var controller = new T();
+
             controllers.Add((controller, ownedAsset));
+
             controller.SetInputAllowed(inputAllowed);
             controller.Init(ownedAsset, actionKey);
             controller.Enable();
+
             return controller;
         }
 
