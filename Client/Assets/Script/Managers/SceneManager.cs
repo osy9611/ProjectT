@@ -183,8 +183,9 @@ namespace ProjectT
 
                     StopScenes();
 
-                    // 씬 오브젝트를 참조한 UI가 남지 않도록 언로드와 Scope 반환보다 먼저 정리한다.
+                    // 씬 오브젝트를 참조한 UI와 씬 Scope 클립을 재생하는 공간 음원이 남지 않도록 언로드와 Scope 반환보다 먼저 정리한다.
                     Global.UI.ClearTransientWidgets();
+                    Global.Sound.StopAllSpatialSounds();
 
                     await UniTask.NextFrame(cancellationToken: LifetimeToken);
 

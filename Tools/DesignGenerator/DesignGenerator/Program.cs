@@ -237,10 +237,7 @@ namespace DesignGenerator
 
             DllExporter.ExportCSToDll(clientDir, Path.Combine(dllDir, "DataMgr.dll"));
 
-            if (mergeDll)
-                DllExporter.MergeDll(dllDir, Path.Combine(automationDll, "Design.dll"));
-            else
-                DllExporter.CopyDlls(dllDir, automationDll);
+            DeployDllsInternal(dllDir, automationDll);
 
             string tableOut = Path.Combine(outputPath, "Automation", "Table");
             if (genType == "One") tableGen.ExportDataByteFile(automationDll, tableOut, tableName);
@@ -269,21 +266,20 @@ namespace DesignGenerator
             if (code != 0)
                 return code;
 
-            if (mergeDll)
-            {
-                DllExporter.MergeDll(Path.Combine(folderPath, "Dll"),
-                                     Path.Combine(automation, "Dll", "Design.dll"));
-            }
-            else
-            {
-                DllExporter.CopyDlls(Path.Combine(folderPath, "Dll"),
-                                     Path.Combine(automation, "Dll"));
-            }
+            DeployDllsInternal(Path.Combine(folderPath, "Dll"), Path.Combine(automation, "Dll"));
 
             localGen.ExportDataByteFile(automation);
 
             Console.WriteLine("Local 완료");
             return 0;
+        }
+
+        private static void DeployDllsInternal(string sourcePath, string outputPath)
+        {
+            if (mergeDll)
+                DllExporter.MergeDll(sourcePath, Path.Combine(outputPath, "Design.dll"));
+            else
+                DllExporter.CopyDlls(sourcePath, outputPath);
         }
     }
 }

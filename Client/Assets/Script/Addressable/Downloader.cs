@@ -88,14 +88,7 @@ namespace ProjectT.Addressable
                 {
                     token.ThrowIfCancellationRequested();
 
-                    if (onProgress != null)
-                    {
-                        var status = handle.GetDownloadStatus();
-                        info.size = status.TotalBytes;
-                        info.downloadedByte = status.DownloadedBytes;
-                        info.progress = status.Percent;
-                        onProgress(info);
-                    }
+                    ReportProgressInternal(handle, info, onProgress, isComplete: false);
 
                     await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate, token);
                 }
@@ -103,20 +96,25 @@ namespace ProjectT.Addressable
                 if (handle.Status != AsyncOperationStatus.Succeeded)
                     throw handle.OperationException ?? new InvalidOperationException("Bundle download failed.");
 
-                if (onProgress != null)
-                {
-                    var status = handle.GetDownloadStatus();
-                    info.size = status.TotalBytes;
-                    info.downloadedByte = status.DownloadedBytes;
-                    info.progress = 1f;
-                    onProgress(info);
-                }
+                ReportProgressInternal(handle, info, onProgress, isComplete: true);
             }
             finally
             {
                 if (handle.IsValid())
                     Addressables.Release(handle);
             }
+        }
+
+        private static void ReportProgressInternal(AsyncOperationHandle handle, DownloadInfo info, Action<DownloadInfo> onProgress, bool isComplete)
+        {
+            if (onProgress == null)
+                return;
+
+            var status = handle.GetDownloadStatus();
+            info.size = status.TotalBytes;
+            info.downloadedByte = status.DownloadedBytes;
+            info.progress = isComplete ? 1f : status.Percent;
+            onProgress(info);
         }
 
         private static async UniTask<AsyncOperationHandle<IList<IResourceLocation>>> LoadLocationsAsync(IList<string> labels, CancellationToken token)

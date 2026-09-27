@@ -6,8 +6,6 @@ using UnityEngine.UI;
 
 namespace ProjectT.Sound
 {
-    
-
     public class UISoundTool : EditorWindow
     {
         //UI 클릭 컴포넌트 정보 관련 클래스
@@ -277,6 +275,7 @@ namespace ProjectT.Sound
 
         private void AddClickSound()
         {
+            System.Action<GameObject> edit = AddClickSoundInternal;
             foreach (var prefab in prefabs)
             {
                 if (prefab == null)
@@ -286,33 +285,27 @@ namespace ProjectT.Sound
                 if (string.IsNullOrEmpty(prefabPath))
                     continue;
 
-                GameObject prefabRoot = null;
-                try
-                {
-                    prefabRoot = PrefabUtility.LoadPrefabContents(prefabPath);
-                    Button[] buttons = prefabRoot.GetComponentsInChildren<Button>(true);
-                    foreach (var button in buttons)
-                    {
-                        UIClickSound uiClickSound = button.gameObject.GetComponent<UIClickSound>();
-                        if (uiClickSound != null)
-                            continue;
+                EditPrefabInternal(prefabPath, edit);
+            }
+        }
 
-                        uiClickSound = button.gameObject.AddComponent<UIClickSound>();
-                        uiClickSound.ClickSoundType = setSoundType;
-                    }
+        private void AddClickSoundInternal(GameObject prefabRoot)
+        {
+            Button[] buttons = prefabRoot.GetComponentsInChildren<Button>(true);
+            foreach (var button in buttons)
+            {
+                UIClickSound uiClickSound = button.gameObject.GetComponent<UIClickSound>();
+                if (uiClickSound != null)
+                    continue;
 
-                    PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
-                }
-                finally
-                {
-                    if (prefabRoot != null)
-                        PrefabUtility.UnloadPrefabContents(prefabRoot);
-                }
+                uiClickSound = button.gameObject.AddComponent<UIClickSound>();
+                uiClickSound.ClickSoundType = setSoundType;
             }
         }
 
         private void RemoveClickSound()
         {
+            System.Action<GameObject> edit = RemoveClickSoundInternal;
             for (int i = 0; i < prefabs.Count; ++i)
             {
                 GameObject prefab = prefabs[i];
@@ -323,22 +316,15 @@ namespace ProjectT.Sound
                 if (string.IsNullOrEmpty(prefabPath))
                     continue;
 
-                GameObject prefabRoot = null;
-                try
-                {
-                    prefabRoot = PrefabUtility.LoadPrefabContents(prefabPath);
-                    UIClickSound[] uiClickSounds = prefabRoot.GetComponentsInChildren<UIClickSound>(true);
-                    foreach (var component in uiClickSounds)
-                        DestroyImmediate(component);
-
-                    PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
-                }
-                finally
-                {
-                    if (prefabRoot != null)
-                        PrefabUtility.UnloadPrefabContents(prefabRoot);
-                }
+                EditPrefabInternal(prefabPath, edit);
             }
+        }
+
+        private void RemoveClickSoundInternal(GameObject prefabRoot)
+        {
+            UIClickSound[] uiClickSounds = prefabRoot.GetComponentsInChildren<UIClickSound>(true);
+            foreach (var component in uiClickSounds)
+                DestroyImmediate(component);
         }
 
         private void ChangeClickSound()
@@ -350,13 +336,24 @@ namespace ProjectT.Sound
             if (string.IsNullOrEmpty(prefabPath))
                 return;
 
+            System.Action<GameObject> edit = ChangeClickSoundInternal;
+            EditPrefabInternal(prefabPath, edit);
+            GetPrefabComponentList(selectPrefabIndex);
+        }
+
+        private void ChangeClickSoundInternal(GameObject prefabRoot)
+        {
+            foreach (var info in prefabSounds.Values)
+                info.SetType(prefabRoot);
+        }
+
+        private void EditPrefabInternal(string prefabPath, System.Action<GameObject> edit)
+        {
             GameObject prefabRoot = null;
             try
             {
                 prefabRoot = PrefabUtility.LoadPrefabContents(prefabPath);
-                foreach (var info in prefabSounds.Values)
-                    info.SetType(prefabRoot);
-
+                edit(prefabRoot);
                 PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
             }
             finally
@@ -364,8 +361,6 @@ namespace ProjectT.Sound
                 if (prefabRoot != null)
                     PrefabUtility.UnloadPrefabContents(prefabRoot);
             }
-
-            GetPrefabComponentList(selectPrefabIndex);
         }
 
         private void RemovePrefabIndex(int index)

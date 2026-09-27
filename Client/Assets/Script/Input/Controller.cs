@@ -153,12 +153,12 @@ namespace ProjectT.Controller
 
         public bool IsPressed(string actionName)
         {
-            return inputAllowed && enableRequested && cachedActions.ContainsKey(actionName) && cachedActions[actionName].IsPressed();
+            return inputAllowed && enableRequested && cachedActions.TryGetValue(actionName, out var inputAction) && inputAction.IsPressed();
         }
 
         public bool WasPressedThisFrame(string actionName)
         {
-            return inputAllowed && enableRequested && cachedActions.ContainsKey(actionName) && cachedActions[actionName].WasPressedThisFrame();
+            return inputAllowed && enableRequested && cachedActions.TryGetValue(actionName, out var inputAction) && inputAction.WasPressedThisFrame();
         }
         
         virtual public void SetRebind(string actionName, Action onComplete = null, string excludeControl = null)

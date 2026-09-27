@@ -345,7 +345,14 @@ namespace DesignGenerator.Table
             ns.Imports.Add(new CodeNamespaceImport("ProtoBuf"));
             unit.Namespaces.Add(ns);
 
-            #region Info 클래스
+            ns.Types.Add(GenerateInfoClassInternal(info));
+            ns.Types.Add(GenerateInfosClassInternal(info));
+
+            GeneratorUtils.ExportGenerator(unit, Path.Combine(outputPath, info.TableName + ".cs"));
+        }
+
+        private CodeTypeDeclaration GenerateInfoClassInternal(TableDataInfo info)
+        {
             var infoClass = new CodeTypeDeclaration(info.TableName + "Info")
             {
                 IsClass = true,
@@ -394,10 +401,11 @@ namespace DesignGenerator.Table
                     Tab.TAB3 + $"this.{data.ColumnName} = {data.ColumnName};"));
             }
             infoClass.Members.Add(ctorParams);
-            ns.Types.Add(infoClass);
-            #endregion
+            return infoClass;
+        }
 
-            #region Infos 클래스
+        private CodeTypeDeclaration GenerateInfosClassInternal(TableDataInfo info)
+        {
             var infosClass = new CodeTypeDeclaration(info.TableName + "Infos")
             {
                 IsClass = true,
@@ -438,6 +446,18 @@ namespace DesignGenerator.Table
                 });
             }
 
+            AddInsertMethodInternal(infosClass, info, primaryKeyType, listPk, listKeyType);
+            AddInitializeMethodInternal(infosClass, info, primaryKeyType, listPk, listKeyType);
+            AddLookupMethodsInternal(infosClass, info, listPk, hasListIndex);
+            AddRefMethodsInternal(infosClass, info);
+
+            return infosClass;
+        }
+
+        private void AddInsertMethodInternal(CodeTypeDeclaration infosClass, TableDataInfo info,
+                                             string primaryKeyType, List<TablePKData> listPk, string listKeyType)
+        {
+            bool hasListIndex = listKeyType != null;
             var insertFunc = new CodeMemberMethod
             {
                 Attributes = MemberAttributes.Public | MemberAttributes.Final,
@@ -478,8 +498,12 @@ namespace DesignGenerator.Table
             }
             insertFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return true;"));
             infosClass.Members.Add(insertFunc);
+        }
 
-            //Initialize
+        private void AddInitializeMethodInternal(CodeTypeDeclaration infosClass, TableDataInfo info,
+                                                 string primaryKeyType, List<TablePKData> listPk, string listKeyType)
+        {
+            bool hasListIndex = listKeyType != null;
             var initializeFunc = new CodeMemberMethod
             {
                 Attributes = MemberAttributes.Public | MemberAttributes.Final,
@@ -514,8 +538,11 @@ namespace DesignGenerator.Table
             if (hasListIndex)
                 initializeFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "listData = newListData;"));
             infosClass.Members.Add(initializeFunc);
+        }
 
-            //Get
+        private void AddLookupMethodsInternal(CodeTypeDeclaration infosClass, TableDataInfo info,
+                                              List<TablePKData> listPk, bool hasListIndex)
+        {
             var getFunc = new CodeMemberMethod
             {
                 Attributes = MemberAttributes.Public | MemberAttributes.Final,
@@ -550,11 +577,14 @@ namespace DesignGenerator.Table
                 getListByIdFunc.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "return null;"));
                 infosClass.Members.Add(getListByIdFunc);
             }
+        }
 
-            //SetupRef_{ColumnName} 을 컬럼별로 생성
+        private void AddRefMethodsInternal(CodeTypeDeclaration infosClass, TableDataInfo info)
+        {
             foreach (var data in info.VarData)
             {
-                if (string.IsNullOrEmpty(data.RefTable)) continue;
+                if (string.IsNullOrEmpty(data.RefTable))
+                    continue;
                 int refId = int.Parse(data.RefTable, CultureInfo.InvariantCulture);
                 string refName = tableDataInfos[refId].TableName;
 
@@ -576,11 +606,6 @@ namespace DesignGenerator.Table
                 f.Statements.Add(new CodeSnippetStatement(Tab.TAB3 + "}"));
                 infosClass.Members.Add(f);
             }
-
-            ns.Types.Add(infosClass);
-            #endregion
-
-            GeneratorUtils.ExportGenerator(unit, Path.Combine(outputPath, info.TableName + ".cs"));
         }
 
         private static string BuildKeyType(List<TablePKData> pks)

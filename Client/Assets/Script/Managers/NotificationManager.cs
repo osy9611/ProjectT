@@ -82,6 +82,7 @@ namespace ProjectT
                         var existing = listeners[i];
                         if (existing.Listener != listener)
                             continue;
+
                         if (!existing.IsOwnerCanceled && !existing.OwnerToken.IsCancellationRequested)
                             return;
 
@@ -160,12 +161,7 @@ namespace ProjectT
                     if (listeners.Count == 0)
                         subscriptions.Remove(id);
 
-                    if (subscription.HasCancellationRegistration)
-                    {
-                        registration = subscription.CancellationRegistration;
-                        subscription.HasCancellationRegistration = false;
-                        shouldDisposeRegistration = true;
-                    }
+                    shouldDisposeRegistration = TryTakeCancellationRegistrationInternal(subscription, out registration);
 
                     break;
                 }
@@ -206,19 +202,9 @@ namespace ProjectT
             }
         }
 
-        public async UniTask PublishNextFrameAsync(NotificationId id, CancellationToken cancellationToken = default, params object[] args)
+        public UniTask PublishNextFrameAsync(NotificationId id, CancellationToken cancellationToken = default, params object[] args)
         {
-            ValidateIdInternal(id);
-
-            ThrowIfWorkUnavailableInternal();
-
-            var scheduledArgs = CloneArgsInternal(args);
-            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
-            {
-                await UniTask.NextFrame(cancellationToken: linked.Token);
-                linked.Token.ThrowIfCancellationRequested();
-                Publish(id, scheduledArgs);
-            }
+            return PublishAfterSecondsAsync(id, 0.0f, cancellationToken, args);
         }
 
         public async UniTask PublishAfterSecondsAsync(NotificationId id, float seconds, CancellationToken cancellationToken = default, params object[] args)
@@ -265,16 +251,24 @@ namespace ProjectT
                         subscriptions.Remove(subscription.Id);
                 }
 
-                if (subscription.HasCancellationRegistration)
-                {
-                    registration = subscription.CancellationRegistration;
-                    subscription.HasCancellationRegistration = false;
-                    shouldDisposeRegistration = true;
-                }
+                shouldDisposeRegistration = TryTakeCancellationRegistrationInternal(subscription, out registration);
             }
 
             if (shouldDisposeRegistration)
                 registration.Dispose();
+        }
+
+        private static bool TryTakeCancellationRegistrationInternal(Subscription subscription, out CancellationTokenRegistration registration)
+        {
+            if (!subscription.HasCancellationRegistration)
+            {
+                registration = default;
+                return false;
+            }
+
+            registration = subscription.CancellationRegistration;
+            subscription.HasCancellationRegistration = false;
+            return true;
         }
 
         private void AddCancellationRegistrationInternal(Subscription subscription, ref List<CancellationTokenRegistration> registrations)
