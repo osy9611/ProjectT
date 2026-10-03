@@ -4,7 +4,6 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT.Addressable;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace ProjectT.Scene
 {
@@ -20,12 +19,13 @@ namespace ProjectT.Scene
     public abstract class SceneBase : MonoBehaviour
     {
         private CancellationTokenSource lifetime;
-        private readonly List<(ProjectT.Controller.Controller Controller, InputActionAsset Asset)> controllers = new List<(ProjectT.Controller.Controller, InputActionAsset)>();
         private bool inputAllowed;
         protected internal CancellationToken LifetimeToken { get; private set; }
         protected internal ResourceScope ResourceScope { get; private set; }
         internal event Action Stopped;
+        internal event Action InputAllowedChanged;
         public SceneState State { get; private set; }
+        public bool IsInputAllowed => inputAllowed && State == SceneState.Active;
 
         internal async UniTask EnterAsync(ResourceScope scope, CancellationToken token, params object[] data)
         {
@@ -61,13 +61,21 @@ namespace ProjectT.Scene
 
         internal void SetInputAllowed(bool allowed)
         {
-            inputAllowed = allowed && State == SceneState.Active;
+            bool next = allowed && State == SceneState.Active;
+            if (inputAllowed == next)
+                return;
 
-            foreach (var controller in controllers)
-            {
-                controller.Controller.SetInputAllowed(inputAllowed);
-            }
+            inputAllowed = next;
+            var changed = InputAllowedChanged;
+            if (changed == null)
+                return;
 
+            List<Exception> errors = null;
+            foreach (Action callback in changed.GetInvocationList())
+                ExecuteInternal(callback, ref errors);
+
+            if (errors != null)
+                throw new AggregateException(errors);
         }
 
         internal void Stop()
@@ -98,15 +106,9 @@ namespace ProjectT.Scene
                 }
             }
 
+            InputAllowedChanged = null;
+
             StopAllCoroutines();
-
-            foreach (var controller in controllers)
-            {
-                ExecuteInternal(controller.Controller.Release, ref errors);
-                ExecuteInternal(() => Destroy(controller.Asset), ref errors);
-            }
-
-            controllers.Clear();
 
             lifetime?.Dispose();
             gameObject.SetActive(false);
@@ -129,25 +131,6 @@ namespace ProjectT.Scene
 
                 errors.Add(error);
             }
-        }
-
-        protected T CreateController<T>(InputActionAsset asset, string actionKey = "Player") where T : ProjectT.Controller.Controller, new()
-        {
-            LifetimeToken.ThrowIfCancellationRequested();
-
-            if (asset == null)
-                throw new ArgumentNullException(nameof(asset));
-
-            var ownedAsset = Instantiate(asset);
-            var controller = new T();
-
-            controllers.Add((controller, ownedAsset));
-
-            controller.SetInputAllowed(inputAllowed);
-            controller.Init(ownedAsset, actionKey);
-            controller.Enable();
-
-            return controller;
         }
 
         public virtual UniTask OnEnter(CancellationToken token, params object[] data) => UniTask.CompletedTask;

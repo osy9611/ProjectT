@@ -323,13 +323,20 @@ namespace ProjectT
 
         private void SetInputAllowed(bool allowed)
         {
+            int version = transitionVersion;
             inputAllowed = allowed;
             Global.UI.SetInputAllowed(allowed);
+
+            if (version != transitionVersion || inputAllowed != allowed || State != ManagerState.Ready)
+                return;
 
             foreach (var entry in scenes.Values)
             {
                 if (entry.Scene != null)
                     entry.Scene.SetInputAllowed(allowed);
+
+                if (version != transitionVersion || inputAllowed != allowed || State != ManagerState.Ready)
+                    break;
             }
         }
 

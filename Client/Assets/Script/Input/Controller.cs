@@ -1,9 +1,6 @@
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.InputSystem;
-using ProjectT;
 using System;
-using UnityEngine.InputSystem.Users;
+using System.Collections.Generic;
+using UnityEngine.InputSystem;
 
 namespace ProjectT.Controller
 {
@@ -18,390 +15,368 @@ namespace ProjectT.Controller
 
     public class Controller
     {
-        private struct EventEntry
+        // 같은 컨텍스트를 재등록해도 진행 중인 입력에는 이전 등록만 남는다.
+        private sealed class Registration
         {
-            public Action<InputAction.CallbackContext> legacyCallback;
-            public Func<InputAction.CallbackContext, bool> priorityCallback;
-            public int priority;
-        }
+            public readonly InputContext Context;
 
-        private sealed class EventBinding
-        {
-            private readonly Controller owner;
-            private readonly InputAction action;
-            private readonly eInputEvent eventType;
-            private readonly Action<InputAction.CallbackContext> dispatcher;
-            private EventEntry[] entries = Array.Empty<EventEntry>();
-            private bool disposed;
-
-            public EventBinding(Controller owner, InputAction action, eInputEvent eventType)
+            public Registration(InputContext context)
             {
-                this.owner = owner;
-                this.action = action;
-                this.eventType = eventType;
-                dispatcher = DispatchInternal;
-            }
-
-            public void AddInternal(Action<InputAction.CallbackContext> legacyCallback, Func<InputAction.CallbackContext, bool> priorityCallback, int priority)
-            {
-                for (int i = 0; i < entries.Length; i++)
-                {
-                    if (legacyCallback != null && entries[i].legacyCallback == legacyCallback ||
-                        priorityCallback != null && entries[i].priorityCallback == priorityCallback)
-                        return;
-                }
-
-                int index = 0;
-                while (index < entries.Length && entries[index].priority >= priority)
-                    index++;
-
-                var updated = new EventEntry[entries.Length + 1];
-                Array.Copy(entries, 0, updated, 0, index);
-                updated[index] = new EventEntry
-                {
-                    legacyCallback = legacyCallback,
-                    priorityCallback = priorityCallback,
-                    priority = priority
-                };
-                Array.Copy(entries, index, updated, index + 1, entries.Length - index);
-
-                bool attach = entries.Length == 0;
-                entries = updated;
-                if (attach)
-                    SubscribeInternal();
-            }
-
-            public void RemoveInternal(Action<InputAction.CallbackContext> legacyCallback, Func<InputAction.CallbackContext, bool> priorityCallback)
-            {
-                for (int i = 0; i < entries.Length; i++)
-                {
-                    if (legacyCallback != null && entries[i].legacyCallback == legacyCallback ||
-                        priorityCallback != null && entries[i].priorityCallback == priorityCallback)
-                    {
-                        var updated = new EventEntry[entries.Length - 1];
-                        Array.Copy(entries, 0, updated, 0, i);
-                        Array.Copy(entries, i + 1, updated, i, entries.Length - i - 1);
-                        entries = updated;
-                        if (updated.Length == 0)
-                            UnsubscribeInternal();
-                        return;
-                    }
-                }
-            }
-
-            public void DisposeInternal()
-            {
-                if (disposed)
-                    return;
-
-                disposed = true;
-                if (entries.Length > 0)
-                    UnsubscribeInternal();
-                entries = Array.Empty<EventEntry>();
-            }
-
-            private void SubscribeInternal()
-            {
-                if (eventType == eInputEvent.Start)
-                    action.started += dispatcher;
-                else if (eventType == eInputEvent.Performed)
-                    action.performed += dispatcher;
-                else
-                    action.canceled += dispatcher;
-            }
-
-            private void UnsubscribeInternal()
-            {
-                if (eventType == eInputEvent.Start)
-                    action.started -= dispatcher;
-                else if (eventType == eInputEvent.Performed)
-                    action.performed -= dispatcher;
-                else
-                    action.canceled -= dispatcher;
-            }
-
-            private void DispatchInternal(InputAction.CallbackContext context)
-            {
-                if (disposed || eventType != eInputEvent.Cancel && (!owner.inputAllowed || !owner.enableRequested))
-                    return;
-
-                int version = owner.lifecycleVersion;
-                var snapshot = entries;
-                for (int i = 0; i < snapshot.Length; i++)
-                {
-                    if (snapshot[i].priorityCallback != null)
-                    {
-                        if (snapshot[i].priorityCallback(context))
-                            return;
-                    }
-                    else
-                        snapshot[i].legacyCallback(context);
-
-                    if (disposed || owner.lifecycleVersion != version)
-                        return;
-                }
+                Context = context;
             }
         }
 
         protected InputActionAsset inputActionAsset;
-        protected InputUser inputUser;
-        protected InputActionRebindingExtensions.RebindingOperation rebindingOperation;
 
+        private List<Registration> contexts = new List<Registration>();
         private bool inputAllowed = true;
         private bool enableRequested;
         private bool releasing;
-        private int lifecycleVersion;
-        private int actionMapVersion;
+        private bool applyingActive;
+        private int deliveryVersion;
 
-        protected string actionKey = "Player";
-        public string ActionKey { get => actionKey; }
+        private bool IsActive => inputActionAsset != null && enableRequested && inputAllowed && !releasing;
 
-        private Dictionary<string, InputAction> cachedActions = new Dictionary<string, InputAction>();
-        private Dictionary<InputAction, EventBinding[]> eventBindings = new Dictionary<InputAction, EventBinding[]>();
-
-        virtual public void Init(InputActionAsset inputActionAsset, string actionKey = null, InputUser? inputUser = null)
+        public virtual void Init(InputActionAsset asset)
         {
-            if (releasing)
-                return;
+            if (asset == null)
+                throw new ArgumentNullException(nameof(asset));
 
-            if (inputActionAsset == null)
+            if (inputActionAsset != null || releasing)
+                throw new InvalidOperationException("Controller is already initialized or releasing.");
+
+            inputActionAsset = asset;
+            foreach (var map in asset.actionMaps)
             {
-                Global.Instance.LogWarning("[Controller] This InputActioAsset is null");
-                return;
+                foreach (var action in map.actions)
+                {
+                    action.started += OnStartedInternal;
+                    action.performed += OnPerformedInternal;
+                    action.canceled += OnCanceledInternal;
+                }
             }
 
-            int version = ++actionMapVersion;
-            lifecycleVersion++;
-            DisposeEventBindingsInternal();
-            cachedActions.Clear();
-            this.inputActionAsset?.FindActionMap(this.actionKey)?.Disable();
-            if (actionMapVersion != version)
-                return;
-
-            this.inputActionAsset = inputActionAsset;
-
-            if (!string.IsNullOrEmpty(actionKey))
-                this.actionKey = actionKey;
-
-            if (inputUser.HasValue)
-                this.inputUser = inputUser.Value;
-
-            CacheInputActions();
-            SetInputAllowed(inputAllowed);
+            ApplyActiveInternal();
         }
 
-        private void CacheInputActions()
+        public virtual void Enable()
         {
-            cachedActions.Clear();
-
-            InputActionMap actionMap = inputActionAsset.FindActionMap(actionKey);
-            if (actionMap == null)
-            {
-                Global.Instance.LogError($"[Controller] CacheInpuAction Fail InputActionMap is null actionKey : {actionKey}");
-                return;
-            }
-
-            foreach (var action in actionMap.actions)
-            {
-                cachedActions.Add(action.name, action);
-            }
-        }
-
-        virtual public void Enable()
-        {
-            if (releasing || inputActionAsset == null)
+            if (releasing || enableRequested)
                 return;
 
             enableRequested = true;
-            if (inputAllowed)
-                inputActionAsset.FindActionMap(actionKey)?.Enable();
+            deliveryVersion++;
+            ApplyActiveInternal();
         }
 
-        virtual public void Disable()
+        public virtual void Disable()
         {
-            lifecycleVersion++;
-            if (inputActionAsset == null)
+            if (!enableRequested)
                 return;
 
             enableRequested = false;
-            inputActionAsset.FindActionMap(actionKey)?.Disable();
+            deliveryVersion++;
+            ApplyActiveInternal();
         }
 
         internal void SetInputAllowed(bool allowed)
         {
-            if (releasing)
+            if (releasing || inputAllowed == allowed)
                 return;
 
-            lifecycleVersion++;
             inputAllowed = allowed;
-            var map = inputActionAsset?.FindActionMap(actionKey);
-            if (allowed && enableRequested)
-                map?.Enable();
-            else
-                map?.Disable();
+            deliveryVersion++;
+            ApplyActiveInternal();
         }
 
         public virtual void Release()
         {
-            if (releasing)
+            if (releasing || inputActionAsset == null)
                 return;
 
             releasing = true;
-            lifecycleVersion++;
-            actionMapVersion++;
+            enableRequested = false;
+            deliveryVersion++;
+            var asset = inputActionAsset;
             try
             {
-                Disable();
-            }
-            finally
-            {
-                DisposeEventBindingsInternal();
-                cachedActions.Clear();
-                inputActionAsset = null;
-                enableRequested = false;
-                var operation = rebindingOperation;
-                rebindingOperation = null;
                 try
                 {
-                    operation?.Dispose();
+                    ResetAllInternal();
                 }
                 finally
                 {
-                    releasing = false;
+                    DisableActionsInternal(asset);
                 }
             }
+            finally
+            {
+                foreach (var map in asset.actionMaps)
+                {
+                    foreach (var action in map.actions)
+                    {
+                        action.started -= OnStartedInternal;
+                        action.performed -= OnPerformedInternal;
+                        action.canceled -= OnCanceledInternal;
+                    }
+                }
+
+                var previous = contexts;
+                contexts = new List<Registration>();
+                inputActionAsset = null;
+                releasing = false;
+                List<Exception> errors = null;
+                foreach (var entry in previous)
+                    ErrorCollector.Run(ref errors, entry.Context, item => item.DetachInternal());
+
+                ErrorCollector.ThrowIfAny(errors);
+            }
         }
 
-        public void AddEvent(string actionName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
+        public void AddContext(InputContext context)
         {
-            if (releasing)
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
+
+            if (inputActionAsset == null || releasing)
+                throw new InvalidOperationException("Controller is not initialized.");
+
+            if (context.Owner != null && !ReferenceEquals(context.Owner, this))
+                throw new InvalidOperationException("Input context is already registered to another controller.");
+
+            var resolved = context.BuildResolvedInternal(this);
+            var updated = new List<Registration>(contexts);
+            updated.RemoveAll(entry => ReferenceEquals(entry.Context, context));
+            int index = 0;
+            while (index < updated.Count && updated[index].Context.Priority > context.Priority)
+                index++;
+
+            updated.Insert(index, new Registration(context));
+            context.AttachInternal(this, resolved);
+            contexts = updated;
+            ResetBlockedInternal();
+        }
+
+        public void RemoveContext(InputContext context)
+        {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
+
+            if (!ReferenceEquals(context.Owner, this))
                 return;
 
-            if (callback == null)
-            {
-                Global.Instance.LogWarning($"[Controller] AddEvent Fail Callback is null");
+            var updated = new List<Registration>(contexts);
+            updated.RemoveAll(entry => ReferenceEquals(entry.Context, context));
+            contexts = updated;
+            context.DetachInternal();
+        }
+
+        internal InputAction ResolveActionInternal(string path)
+        {
+            if (inputActionAsset == null)
+                throw new InvalidOperationException("Controller is not initialized.");
+
+            return inputActionAsset.FindAction(path, true);
+        }
+
+        internal void RefreshContextInternal(InputContext context)
+        {
+            if (!ReferenceEquals(context.Owner, this))
                 return;
+
+            context.UpdateResolvedInternal(context.BuildResolvedInternal(this));
+            var updated = new List<Registration>(contexts);
+            int index = updated.FindIndex(entry => ReferenceEquals(entry.Context, context));
+            updated[index] = new Registration(context);
+            contexts = updated;
+            ResetBlockedInternal();
+        }
+
+        private void ApplyActiveInternal()
+        {
+            if (inputActionAsset == null || applyingActive)
+                return;
+
+            applyingActive = true;
+            try
+            {
+                int version;
+                do
+                {
+                    version = deliveryVersion;
+                    var asset = inputActionAsset;
+                    if (IsActive)
+                    {
+                        foreach (var map in asset.actionMaps)
+                        {
+                            foreach (var action in map.actions)
+                            {
+                                action.Enable();
+                                if (version != deliveryVersion)
+                                    break;
+                            }
+
+                            if (version != deliveryVersion)
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            DisableActionsInternal(asset);
+                        }
+                        finally
+                        {
+                            ResetAllInternal();
+                        }
+                    }
+                }
+                while (inputActionAsset != null && version != deliveryVersion);
+            }
+            finally
+            {
+                applyingActive = false;
+            }
+        }
+
+        private static void DisableActionsInternal(InputActionAsset asset)
+        {
+            foreach (var map in asset.actionMaps)
+            {
+                foreach (var action in map.actions)
+                    action.Disable();
+            }
+        }
+
+        private void ResetAllInternal()
+        {
+            var snapshot = contexts;
+            List<Exception> errors = null;
+            for (int i = 0; i < snapshot.Count; i++)
+                ErrorCollector.Run(ref errors, snapshot[i].Context, item => item.ResetAllInternal());
+
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        private void ResetBlockedInternal()
+        {
+            var snapshot = contexts;
+            List<Exception> errors = null;
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                var entry = snapshot[i];
+                foreach (var pair in entry.Context.Resolved)
+                {
+                    if (!contexts.Contains(entry))
+                        break;
+
+                    if (pair.Value.Delivered && IsBlockedInternal(entry, pair.Key, pair.Value.DeliveredPhase))
+                        ErrorCollector.Run(ref errors, pair.Value, binding => binding.ResetInternal());
+                }
             }
 
-            if (cachedActions.TryGetValue(actionName, out var inputAction))
-                AddEventInternal(inputAction, callback, null, eventType, 0);
+            ErrorCollector.ThrowIfAny(errors);
         }
 
-        public void RemoveEvent(string actionName, System.Action<InputAction.CallbackContext> callback, eInputEvent eventType)
+        private bool IsBlockedInternal(Registration registration, InputAction action, eInputEvent phase)
         {
-            if (callback == null)
+            for (int i = 0; i < contexts.Count; i++)
             {
-                Global.Instance.LogWarning($"[Controller] RemoveEvent Fail Callback is null");
-                return;
+                var entry = contexts[i];
+                if (ReferenceEquals(entry, registration))
+                    return false;
+
+                if (entry.Context.TryGetBindingInternal(action, out var binding) && binding.Consume && (binding.Events & phase) != 0)
+                    return true;
             }
 
-            if (cachedActions.TryGetValue(actionName, out var inputAction))
-                RemoveEventInternal(inputAction, callback, null, eventType);
+            return false;
         }
 
-        public void AddPriorityEvent(string actionName, Func<InputAction.CallbackContext, bool> callback, eInputEvent eventType, int priority)
+        private void OnStartedInternal(InputAction.CallbackContext context)
         {
-            if (releasing)
+            DispatchInternal(context, eInputEvent.Start);
+        }
+
+        private void OnPerformedInternal(InputAction.CallbackContext context)
+        {
+            DispatchInternal(context, eInputEvent.Performed);
+        }
+
+        private void OnCanceledInternal(InputAction.CallbackContext context)
+        {
+            DispatchInternal(context, eInputEvent.Cancel);
+        }
+
+        private void DispatchInternal(InputAction.CallbackContext context, eInputEvent phase)
+        {
+            if (!IsActive || !context.action.enabled)
                 return;
 
-            if (callback == null)
+            int version = deliveryVersion;
+            var snapshot = contexts;
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                Global.Instance.LogWarning($"[Controller] AddPriorityEvent Fail Callback is null");
-                return;
+                var registration = snapshot[i];
+                if (!contexts.Contains(registration) || !registration.Context.TryGetBindingInternal(context.action, out var binding))
+                    continue;
+
+                if ((binding.Events & phase) == 0)
+                    continue;
+
+                bool consume = binding.Consume;
+                if (phase != eInputEvent.Cancel)
+                {
+                    binding.Delivered = true;
+                    binding.DeliveredPhase = phase;
+                }
+
+                binding.Callback(context);
+                if (phase == eInputEvent.Cancel)
+                    binding.Delivered = false;
+
+                if (deliveryVersion != version || !IsActive)
+                    break;
+
+                if (consume)
+                {
+                    if (phase != eInputEvent.Cancel)
+                        ResetLowerBindingsInternal(snapshot, i + 1, context.action);
+                    break;
+                }
             }
 
-            if (cachedActions.TryGetValue(actionName, out var inputAction))
-                AddEventInternal(inputAction, null, callback, eventType, priority);
+            if (phase == eInputEvent.Cancel && IsActive)
+                ResetUndeliveredCancellationInternal(context.action);
+
+            if (IsActive && !ReferenceEquals(snapshot, contexts))
+                ResetBlockedInternal();
         }
 
-        public void RemovePriorityEvent(string actionName, Func<InputAction.CallbackContext, bool> callback, eInputEvent eventType)
+        private void ResetLowerBindingsInternal(List<Registration> snapshot, int start, InputAction action)
         {
-            if (callback == null)
+            List<Exception> errors = null;
+            for (int i = start; i < snapshot.Count; i++)
             {
-                Global.Instance.LogWarning($"[Controller] RemovePriorityEvent Fail Callback is null");
-                return;
+                if (contexts.Contains(snapshot[i]) && snapshot[i].Context.TryGetBindingInternal(action, out var binding))
+                    ErrorCollector.Run(ref errors, binding, item => item.ResetInternal());
             }
 
-            if (cachedActions.TryGetValue(actionName, out var inputAction))
-                RemoveEventInternal(inputAction, null, callback, eventType);
+            ErrorCollector.ThrowIfAny(errors);
         }
 
-        private EventBinding GetEventBindingInternal(InputAction inputAction, int phaseIndex, eInputEvent eventType)
+        private void ResetUndeliveredCancellationInternal(InputAction action)
         {
-            if (!eventBindings.TryGetValue(inputAction, out var bindings))
+            var snapshot = contexts;
+            List<Exception> errors = null;
+            foreach (var entry in snapshot)
             {
-                bindings = new EventBinding[3];
-                eventBindings.Add(inputAction, bindings);
+                if (contexts.Contains(entry) && entry.Context.TryGetBindingInternal(action, out var binding))
+                    ErrorCollector.Run(ref errors, binding, item => item.ResetInternal());
             }
 
-            if (bindings[phaseIndex] == null)
-                bindings[phaseIndex] = new EventBinding(this, inputAction, eventType);
-            return bindings[phaseIndex];
-        }
-
-        private void AddEventInternal(InputAction inputAction, Action<InputAction.CallbackContext> legacyCallback, Func<InputAction.CallbackContext, bool> priorityCallback, eInputEvent eventType, int priority)
-        {
-            if ((eventType & eInputEvent.Start) != 0)
-                GetEventBindingInternal(inputAction, 0, eInputEvent.Start).AddInternal(legacyCallback, priorityCallback, priority);
-            if ((eventType & eInputEvent.Performed) != 0)
-                GetEventBindingInternal(inputAction, 1, eInputEvent.Performed).AddInternal(legacyCallback, priorityCallback, priority);
-            if ((eventType & eInputEvent.Cancel) != 0)
-                GetEventBindingInternal(inputAction, 2, eInputEvent.Cancel).AddInternal(legacyCallback, priorityCallback, priority);
-        }
-
-        private void RemoveEventInternal(InputAction inputAction, Action<InputAction.CallbackContext> legacyCallback, Func<InputAction.CallbackContext, bool> priorityCallback, eInputEvent eventType)
-        {
-            if (!eventBindings.TryGetValue(inputAction, out var bindings))
-                return;
-
-            if ((eventType & eInputEvent.Start) != 0)
-                bindings[0]?.RemoveInternal(legacyCallback, priorityCallback);
-            if ((eventType & eInputEvent.Performed) != 0)
-                bindings[1]?.RemoveInternal(legacyCallback, priorityCallback);
-            if ((eventType & eInputEvent.Cancel) != 0)
-                bindings[2]?.RemoveInternal(legacyCallback, priorityCallback);
-        }
-
-        private void DisposeEventBindingsInternal()
-        {
-            foreach (var bindings in eventBindings.Values)
-            {
-                for (int i = 0; i < bindings.Length; i++)
-                    bindings[i]?.DisposeInternal();
-            }
-
-            eventBindings.Clear();
-        }
-
-        virtual public void SwitchActionMap(string actionKey)
-        {
-            if (releasing)
-                return;
-
-            int version = ++actionMapVersion;
-            Disable();
-            if (actionMapVersion != version || inputActionAsset == null)
-                return;
-
-            this.actionKey = actionKey;
-            CacheInputActions();
-            Enable();
-        }
-
-        public bool IsPressed(string actionName)
-        {
-            return inputAllowed && enableRequested && cachedActions.TryGetValue(actionName, out var inputAction) && inputAction.IsPressed();
-        }
-
-        public bool WasPressedThisFrame(string actionName)
-        {
-            return inputAllowed && enableRequested && cachedActions.TryGetValue(actionName, out var inputAction) && inputAction.WasPressedThisFrame();
-        }
-        
-        virtual public void SetRebind(string actionName, Action onComplete = null, string excludeControl = null)
-        {
-            Disable();
+            ErrorCollector.ThrowIfAny(errors);
         }
     }
 }
-
