@@ -37,20 +37,8 @@ namespace ProjectT.Skill
             actions.Clear();
             activeActions.Clear();
             removeActions.Clear();
-            var errors = new List<System.Exception>();
             foreach (var action in pending)
-            {
-                try
-                {
-                    SkillActionContainer.Return(action.SkillType, action);
-                }
-                catch (System.Exception error)
-                {
-                    errors.Add(error);
-                }
-            }
-            if (errors.Count > 0)
-                throw new System.AggregateException(errors);
+                SkillActionContainer.Return(action.SkillType, action);
         }
 
 

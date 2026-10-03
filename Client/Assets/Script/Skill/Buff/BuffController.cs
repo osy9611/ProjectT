@@ -53,42 +53,23 @@ namespace ProjectT.Skill
                 return;
             }
 
-            try { buff.Init(actor, info); }
-            catch
-            {
-                BuffContainer.Return((DesignEnum.BuffType)info.buff_type, buff);
-                throw;
-            }
+            buff.Init(actor, info);
             var tokenSource = new CancellationTokenSource();
             var handler = new BuffTaskHandler(buff, tokenSource, UniTask.CompletedTask);
             buffTaskHandlers.Add(buffId, handler);
-            try
-            {
-                buff.OnApply();
-                if (!buffTaskHandlers.TryGetValue(buffId, out var current) || !ReferenceEquals(current, handler))
-                    return;
-                handler.Task = HandlerBuffHandlerExpiration(buffId, handler);
-                handler.Task.Forget(Global.LogException);
-            }
-            catch
-            {
-                UnRegister(buffId, handler);
-                throw;
-            }
+            buff.OnApply();
+            if (!buffTaskHandlers.TryGetValue(buffId, out var current) || !ReferenceEquals(current, handler))
+                return;
+            handler.Task = HandlerBuffHandlerExpiration(buffId, handler);
+            handler.Task.Forget(Global.LogException);
         }
 
         public void Clear()
         {
             if (buffTaskHandlers == null)
                 return;
-            var errors = new List<Exception>();
             foreach (var pair in new List<KeyValuePair<int, BuffTaskHandler>>(buffTaskHandlers))
-            {
-                try { UnRegister(pair.Key, pair.Value); }
-                catch (Exception error) { errors.Add(error); }
-            }
-            if (errors.Count > 0)
-                throw new AggregateException(errors);
+                UnRegister(pair.Key, pair.Value);
         }
 
 
@@ -139,19 +120,21 @@ namespace ProjectT.Skill
                     int ticks = Mathf.FloorToInt(duration / interval);
                     for (int i = 0; i < ticks; ++i)
                     {
-                        Token.ThrowIfCancellationRequested();
+                        if (Token.IsCancellationRequested)
+                            return;
+
                         BaseBuff.OnExecute();
-                        Token.ThrowIfCancellationRequested();
-                        await UniTask.Delay(TimeSpan.FromSeconds(interval), cancellationToken: Token);
+                        if (Token.IsCancellationRequested)
+                            return;
+
+                        if (await UniTask.Delay(TimeSpan.FromSeconds(interval), cancellationToken: Token).SuppressCancellationThrow())
+                            return;
                     }
                 }
                 else
                 {
-                    await UniTask.Delay(TimeSpan.FromSeconds(duration), cancellationToken: Token);
+                    await UniTask.Delay(TimeSpan.FromSeconds(duration), cancellationToken: Token).SuppressCancellationThrow();
                 }
-            }
-            catch (OperationCanceledException) when (Token.IsCancellationRequested)
-            {
             }
             finally
             {

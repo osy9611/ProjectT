@@ -33,23 +33,13 @@ namespace ProjectT.Pool
             Root.SetParent(parent, false);
             Root.gameObject.SetActive(false);
 
-            try
-            {
-                pools = new Pool<PooledObject>(
-                    objectGenerator: Create,
-                    collectionChecks: true,
-                    initGenerateCount: count,
-                    initialCapacity: count,
-                    destroy: DestroyItem,
-                    isValid: item => item != null);
-            }
-            catch
-            {
-                UnityEngine.Object.Destroy(Root.gameObject);
-                Root = null;
-                Original = null;
-                throw;
-            }
+            pools = new Pool<PooledObject>(
+                objectGenerator: Create,
+                collectionChecks: true,
+                initGenerateCount: count,
+                initialCapacity: count,
+                destroy: DestroyItem,
+                isValid: item => item != null);
         }
 
         private PooledObject Create()
@@ -82,23 +72,15 @@ namespace ProjectT.Pool
 
             var previousParent = spawnParent;
             spawnParent = parent;
-            PooledObject item = null;
 
             try
             {
-                item = pools.Get();
+                var item = pools.Get();
                 item.gameObject.SetActive(true);
                 if (item == null || !pools.IsActive(item))
                     throw new InvalidOperationException("Object was returned or destroyed during activation.");
 
                 return item.gameObject;
-            }
-            catch
-            {
-                if (item != null)
-                    pools.Remove(item);
-
-                throw;
             }
             finally
             {

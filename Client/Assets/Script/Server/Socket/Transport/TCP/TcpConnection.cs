@@ -130,17 +130,8 @@ namespace ProjectT.Server.Sockets
             //원격 호스트가 연결을 닫았는지 확인한다.
             TcpConnection token = (TcpConnection)eventArgs.UserToken;
 
-            try
-            {
-                if (token == null || !token.ConnectedPure)
-                    return;
-            }
-            catch (Exception e)
-            {
-                Global.Instance.LogError($"ProcessReceive token Error : {e.StackTrace}");
-                onDisconnected?.Invoke(this);
+            if (token == null || !token.ConnectedPure)
                 return;
-            }
 
             if(eventArgs.BytesTransferred > 0 && eventArgs.SocketError == SocketError.Success)
             {
@@ -249,17 +240,8 @@ namespace ProjectT.Server.Sockets
         {
             TcpConnection token = (TcpConnection)eventArgs.UserToken;
 
-            try 
-            {
-                if (token == null || !token.ConnectedPure)
-                    return;
-            }
-            catch(Exception ex)
-            {
-                Global.Instance.LogError($"ProcessSend token Error : {ex.StackTrace}");
-                onDisconnected?.Invoke(this);
+            if (token == null || !token.ConnectedPure)
                 return;
-            }
 
             if(eventArgs.SocketError == SocketError.Success)
             {

@@ -66,34 +66,14 @@ namespace ProjectT
             if (inputContexts.Contains(context))
                 return;
 
+            // Controller 검증이 실패해도 Actor에 등록 흔적이 남지 않도록 Controller에 먼저 추가한다.
+            if (enabled)
+                Global.Input.Controller.AddContext(context);
+
             context.Actor = this;
             var updated = new List<InputContext>(inputContexts);
             updated.Add(context);
             inputContexts = updated;
-            if (!enabled)
-                return;
-
-            try
-            {
-                Global.Input.Controller.AddContext(context);
-            }
-            catch (Exception error)
-            {
-                RemoveFromListInternal(context);
-                context.Actor = null;
-                List<Exception> errors = null;
-                var controller = context.Owner;
-                if (controller != null)
-                    ErrorCollector.Run(ref errors, context, controller.RemoveContext);
-
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
-
-                throw;
-            }
         }
 
         protected void UnregisterInputContext(InputContext context)

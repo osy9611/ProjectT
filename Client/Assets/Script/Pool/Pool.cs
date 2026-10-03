@@ -65,23 +65,15 @@ namespace ProjectT.Pool
             inactiveObjects = new Stack<T>(Math.Max(initialCapacity, initGenerateCount));
             activeObjects.EnsureCapacity(Math.Max(initialCapacity, initGenerateCount));
 
-            try
+            var generated = new HashSet<T>(itemComparer);
+            for (int i = 0; i < initGenerateCount; ++i)
             {
-                var generated = new HashSet<T>(itemComparer);
-                for (int i = 0; i < initGenerateCount; ++i)
-                {
-                    var item = Create();
+                var item = Create();
 
-                    if (!generated.Add(item))
-                        throw new InvalidOperationException("Pool generator returned the same object twice.");
+                if (!generated.Add(item))
+                    throw new InvalidOperationException("Pool generator returned the same object twice.");
 
-                    inactiveObjects.Push(item);
-                }
-            }
-            catch
-            {
-                Dispose();
-                throw;
+                inactiveObjects.Push(item);
             }
         }
 
@@ -117,26 +109,7 @@ namespace ProjectT.Pool
                 if (!activeObjects.Add(item))
                     throw new InvalidOperationException("Object is already active in this pool.");
 
-                try
-                {
-                    (item as IPoolable)?.OnGet();
-                }
-                catch (Exception error)
-                {
-                    activeObjects.Remove(item);
-
-                    List<Exception> errors = null;
-                    ErrorCollector.Run(ref errors, item, InvokeOnReturn);
-                    ErrorCollector.Run(ref errors, item, DestroyInternal);
-
-                    if (errors != null)
-                    {
-                        errors.Insert(0, error);
-                        throw new AggregateException(errors);
-                    }
-
-                    throw;
-                }
+                (item as IPoolable)?.OnGet();
 
                 return item;
             }
@@ -197,16 +170,7 @@ namespace ProjectT.Pool
                 return;
             }
 
-            try
-            {
-                (item as IPoolable)?.OnReturn();
-            }
-            catch
-            {
-                destroy?.Invoke(item);
-                throw;
-            }
-
+            (item as IPoolable)?.OnReturn();
             inactiveObjects.Push(item);
         }
 

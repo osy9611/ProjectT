@@ -165,45 +165,18 @@ namespace ProjectT
             return IsCurrentInternal(current) && ReferenceEquals(activeActor, current);
         }
 
-        private void ReleaseFailedActorInternal(BaseActor current)
-        {
-            if (ReferenceEquals(actor, current))
-            {
-                currentActor = null;
-                initializedActor = null;
-                enteredActor = null;
-            }
-
-            current.Release();
-        }
-
         private void InitializeActorInternal()
         {
             var current = actor;
             if (!awoken || !IsCurrentInternal(current) || ReferenceEquals(initializedActor, current))
                 return;
 
-            try
+            OnInit();
+            if (IsCurrentInternal(current))
             {
-                OnInit();
+                current.OnInit();
                 if (IsCurrentInternal(current))
-                {
-                    current.OnInit();
-                    if (IsCurrentInternal(current))
-                        initializedActor = current;
-                }
-            }
-            catch (Exception error)
-            {
-                List<Exception> errors = null;
-                ErrorCollector.Run(ref errors, current, ReleaseFailedActorInternal);
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
-
-                throw;
+                    initializedActor = current;
             }
         }
 
@@ -217,27 +190,12 @@ namespace ProjectT
             if (!IsCurrentInternal(current) || !ReferenceEquals(initializedActor, current) || ReferenceEquals(enteredActor, current))
                 return;
 
-            try
+            OnEnter();
+            if (IsCurrentInternal(current))
             {
-                OnEnter();
+                current.OnEnter();
                 if (IsCurrentInternal(current))
-                {
-                    current.OnEnter();
-                    if (IsCurrentInternal(current))
-                        enteredActor = current;
-                }
-            }
-            catch (Exception error)
-            {
-                List<Exception> errors = null;
-                ErrorCollector.Run(ref errors, current, ReleaseFailedActorInternal);
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
-
-                throw;
+                    enteredActor = current;
             }
 
             if (IsCurrentInternal(current) && isActiveAndEnabled)
@@ -251,33 +209,13 @@ namespace ProjectT
                 return;
 
             activeActor = current;
-            try
-            {
-                current.SetEnabledInternal(true);
+            current.SetEnabledInternal(true);
 
+            if (IsActiveInternal(current))
+            {
+                Enable();
                 if (IsActiveInternal(current))
-                {
-                    Enable();
-                    if (IsActiveInternal(current))
-                        current.Enable();
-                }
-            }
-            catch (Exception error)
-            {
-                List<Exception> errors = null;
-                if (ReferenceEquals(activeActor, current))
-                {
-                    activeActor = null;
-                    ErrorCollector.Run(ref errors, current, item => item.SetEnabledInternal(false));
-                }
-
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
-
-                throw;
+                    current.Enable();
             }
         }
 

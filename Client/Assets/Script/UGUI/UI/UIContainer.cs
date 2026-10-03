@@ -11,7 +11,6 @@ namespace ProjectT.UGUI
     using ProjectT.Util;
     using Cysharp.Threading.Tasks;
     using System.Linq;
-    using System.Runtime.ExceptionServices;
 
     public class UIContainer
     {
@@ -333,15 +332,9 @@ namespace ProjectT.UGUI
                 uiDatas.Add(type, widget);
                 return widget;
             }
-            catch (Exception error)
+            catch
             {
-                List<Exception> errors = null;
-                ErrorCollector.Run(ref errors, widget, DestroyWidgetInternal);
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
+                DestroyWidgetInternal(widget);
                 throw;
             }
         }
@@ -459,16 +452,10 @@ namespace ProjectT.UGUI
             uiStack.Add(widget);
 
             bool shown = false;
-            Exception showError = null;
-            Exception cleanupError = null;
             try
             {
                 widget.ShowInternal();
                 shown = true;
-            }
-            catch (Exception error)
-            {
-                showError = error;
             }
             finally
             {
@@ -476,29 +463,11 @@ namespace ProjectT.UGUI
                     uiStack.Remove(widget);
 
                 // OnShow 중 다른 UI가 열리거나 표시가 실패해도 가장 위 UI만 보이도록 이전 UI를 정리한다.
-                try
-                {
-                    if (previous != null && previous != GetCurrentStackUI())
-                        previous.gameObject.SetActive(false);
+                if (previous != null && previous != GetCurrentStackUI())
+                    previous.gameObject.SetActive(false);
 
-                    RefreshFocusInternal();
-                }
-                catch (Exception error)
-                {
-                    cleanupError = error;
-                }
+                RefreshFocusInternal();
             }
-
-            if (showError != null)
-            {
-                if (cleanupError != null)
-                    throw new AggregateException(showError, cleanupError);
-
-                ExceptionDispatchInfo.Capture(showError).Throw();
-            }
-
-            if (cleanupError != null)
-                ExceptionDispatchInfo.Capture(cleanupError).Throw();
         }
 
         internal void HideWidget(UIBase widget, bool activePrevUI)

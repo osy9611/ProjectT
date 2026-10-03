@@ -51,22 +51,6 @@ public abstract class NotifyHandlerBehaviour : MonoBehaviour
             Global.Instance.State == ManagerState.Stopping || Global.Instance.State == ManagerState.Stopped)
         {
         }
-        catch (Exception error)
-        {
-            if (ReferenceEquals(subscriptionLifetime, lifetime))
-            {
-                try
-                {
-                    ReleaseSubscriptionsInternal();
-                }
-                catch (Exception cleanupError)
-                {
-                    throw new AggregateException(error, cleanupError);
-                }
-            }
-
-            throw;
-        }
         finally
         {
             // A previous activation must not release subscriptions created by a later OnEnable.
