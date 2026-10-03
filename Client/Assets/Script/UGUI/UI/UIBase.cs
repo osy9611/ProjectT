@@ -21,6 +21,9 @@ namespace ProjectT.UGUI
         [SerializeField] private eUIContainerType type;
         public eUIContainerType Type => type;
 
+        [SerializeField] private Selectable firstSelected;
+        private GameObject lastSelected;
+
         protected Dictionary<Type, UnityEngine.Object[]> objects = new Dictionary<Type, UnityEngine.Object[]>();
 
         protected bool isActive = false;
@@ -126,6 +129,30 @@ namespace ProjectT.UGUI
         internal void ChangeFirstDepth()
         {
             this.transform.SetAsLastSibling();
+        }
+
+        internal void RememberSelectionInternal(GameObject selected)
+        {
+            if (selected != null && selected.transform.IsChildOf(transform))
+                lastSelected = selected;
+        }
+
+        // CanvasGroup 차단 중에도 대상을 정할 수 있도록 Selectable 자체의 interactable만 확인한다.
+        internal GameObject GetSelectionTargetInternal()
+        {
+            if (lastSelected != null && lastSelected.TryGetComponent(out Selectable last) && last.isActiveAndEnabled && last.interactable)
+                return lastSelected;
+
+            if (firstSelected != null && firstSelected.isActiveAndEnabled && firstSelected.interactable)
+                return firstSelected.gameObject;
+
+            foreach (var selectable in GetComponentsInChildren<Selectable>())
+            {
+                if (selectable.isActiveAndEnabled && selectable.interactable)
+                    return selectable.gameObject;
+            }
+
+            return null;
         }
 
         protected void Bind<T>(Type type) where T : UnityEngine.Object

@@ -6,6 +6,7 @@ namespace ProjectT.UGUI
     using System.Threading;
     using UnityEngine;
     using ProjectT;
+    using UnityEngine.EventSystems;
     using UnityEngine.UI;
     using ProjectT.Util;
     using Cysharp.Threading.Tasks;
@@ -34,6 +35,7 @@ namespace ProjectT.UGUI
         private bool stopped;
         private bool clearing;
         private bool inputAllowed = true;
+        private UIBase focusedUI;
 
         private sealed class PendingCreation
         {
@@ -418,6 +420,7 @@ namespace ProjectT.UGUI
             {
                 clearing = false;
             }
+            ErrorCollector.Run(ref errors, this, container => container.RefreshFocusInternal());
             ErrorCollector.ThrowIfAny(errors);
         }
 
@@ -477,6 +480,8 @@ namespace ProjectT.UGUI
                 {
                     if (previous != null && previous != GetCurrentStackUI())
                         previous.gameObject.SetActive(false);
+
+                    RefreshFocusInternal();
                 }
                 catch (Exception error)
                 {
@@ -509,6 +514,8 @@ namespace ProjectT.UGUI
             {
                 if (activePrevUI && wasCurrent)
                     RestorePreviousInternal();
+                else
+                    RefreshFocusInternal();
             }
         }
 
@@ -520,6 +527,49 @@ namespace ProjectT.UGUI
             var previous = GetCurrentStackUI();
             if (previous != null)
                 previous.Show();
+
+            RefreshFocusInternal();
+        }
+
+        // 표시된 최상단 UI만 포커스로 본다. Hide(false)로 남은 비활성 UI가 게임 입력을 막거나 선택을 받지 않게 한다.
+        private void RefreshFocusInternal()
+        {
+            if (clearing || stopped || lifetimeToken.IsCancellationRequested)
+                return;
+
+            var top = GetCurrentStackUI();
+            var target = top != null && top.gameObject.activeInHierarchy ? top : null;
+            if (ReferenceEquals(focusedUI, target))
+                return;
+
+            var previous = focusedUI;
+            focusedUI = target;
+
+            // 파괴된 UI도 이전 포커스로 취급해야 하므로 Unity null 비교 대신 참조로 판단한다.
+            bool wasFocused = !ReferenceEquals(previous, null);
+            bool focused = !ReferenceEquals(target, null);
+            if (wasFocused != focused)
+            {
+                Global.Input.SetUIFocused(focused);
+
+                // onReset 콜백이 UI를 바꿨다면 그 안에서 실행된 갱신이 최신 상태다.
+                if (!ReferenceEquals(focusedUI, target))
+                    return;
+            }
+
+            UpdateSelectionInternal(previous, target);
+        }
+
+        private void UpdateSelectionInternal(UIBase previous, UIBase target)
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null)
+                return;
+
+            if (previous != null)
+                previous.RememberSelectionInternal(eventSystem.currentSelectedGameObject);
+
+            eventSystem.SetSelectedGameObject(target == null ? null : target.GetSelectionTargetInternal());
         }
 
         public UIBase GetCurrentStackUI()

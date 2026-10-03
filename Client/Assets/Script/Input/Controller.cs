@@ -29,7 +29,7 @@ namespace ProjectT.Controller
         protected InputActionAsset inputActionAsset;
 
         private List<Registration> contexts = new List<Registration>();
-        private string activeMapName = "Player";
+        private InputActionMap actionMap;
         private InputActionMap enabledMap;
         private bool inputAllowed = true;
         private bool enableRequested;
@@ -39,24 +39,27 @@ namespace ProjectT.Controller
 
         private bool IsActive => inputActionAsset != null && enableRequested && inputAllowed && !releasing;
 
-        internal void Init(InputActionAsset asset)
+        internal void Init(InputActionAsset asset, string mapName)
         {
             if (asset == null)
                 throw new ArgumentNullException(nameof(asset));
 
+            if (string.IsNullOrWhiteSpace(mapName))
+                throw new ArgumentException("Action map name is required.", nameof(mapName));
+
             if (inputActionAsset != null || releasing)
                 throw new InvalidOperationException("Controller is already initialized or releasing.");
 
-            asset.FindActionMap(activeMapName, true);
+            var map = asset.FindActionMap(mapName, true);
+            // 프로젝트 전역 에셋은 시작 시 모든 맵이 켜지므로 한 번만 끈다. 이후 다른 맵의 활성 상태는 각 맵의 소유자가 관리하며, UI 모듈처럼 활성 상태를 소유하려면 이 호출 뒤에 켜야 한다.
+            DisableActionsInternal(asset);
             inputActionAsset = asset;
-            foreach (var map in asset.actionMaps)
+            actionMap = map;
+            foreach (var action in map.actions)
             {
-                foreach (var action in map.actions)
-                {
-                    action.started += OnStartedInternal;
-                    action.performed += OnPerformedInternal;
-                    action.canceled += OnCanceledInternal;
-                }
+                action.started += OnStartedInternal;
+                action.performed += OnPerformedInternal;
+                action.canceled += OnCanceledInternal;
             }
 
             ApplyActiveInternal();
@@ -92,20 +95,6 @@ namespace ProjectT.Controller
             ApplyActiveInternal();
         }
 
-        internal void SetActiveMapInternal(string mapName)
-        {
-            if (string.IsNullOrWhiteSpace(mapName))
-                throw new ArgumentException("Action map name is required.", nameof(mapName));
-
-            if (releasing || string.Equals(activeMapName, mapName, StringComparison.OrdinalIgnoreCase))
-                return;
-
-            inputActionAsset?.FindActionMap(mapName, true);
-            activeMapName = mapName;
-            deliveryVersion++;
-            ApplyActiveInternal();
-        }
-
         internal void Release()
         {
             if (releasing || inputActionAsset == null)
@@ -115,7 +104,7 @@ namespace ProjectT.Controller
             enableRequested = false;
             enabledMap = null;
             deliveryVersion++;
-            var asset = inputActionAsset;
+            var map = actionMap;
             try
             {
                 try
@@ -124,24 +113,22 @@ namespace ProjectT.Controller
                 }
                 finally
                 {
-                    DisableActionsInternal(asset);
+                    DisableActionsInternal(map);
                 }
             }
             finally
             {
-                foreach (var map in asset.actionMaps)
+                foreach (var action in map.actions)
                 {
-                    foreach (var action in map.actions)
-                    {
-                        action.started -= OnStartedInternal;
-                        action.performed -= OnPerformedInternal;
-                        action.canceled -= OnCanceledInternal;
-                    }
+                    action.started -= OnStartedInternal;
+                    action.performed -= OnPerformedInternal;
+                    action.canceled -= OnCanceledInternal;
                 }
 
                 var previous = contexts;
                 contexts = new List<Registration>();
                 inputActionAsset = null;
+                actionMap = null;
                 releasing = false;
                 List<Exception> errors = null;
                 foreach (var entry in previous)
@@ -222,14 +209,13 @@ namespace ProjectT.Controller
                 do
                 {
                     version = deliveryVersion;
-                    var asset = inputActionAsset;
-                    var map = IsActive ? asset.FindActionMap(activeMapName, true) : null;
+                    var map = IsActive ? actionMap : null;
                     if (map == null || !ReferenceEquals(enabledMap, map))
                     {
                         enabledMap = null;
                         try
                         {
-                            DisableActionsInternal(asset);
+                            DisableActionsInternal(actionMap);
                         }
                         finally
                         {
@@ -259,10 +245,13 @@ namespace ProjectT.Controller
         private static void DisableActionsInternal(InputActionAsset asset)
         {
             foreach (var map in asset.actionMaps)
-            {
-                foreach (var action in map.actions)
-                    action.Disable();
-            }
+                DisableActionsInternal(map);
+        }
+
+        private static void DisableActionsInternal(InputActionMap map)
+        {
+            foreach (var action in map.actions)
+                action.Disable();
         }
 
         private void ResetAllInternal()
