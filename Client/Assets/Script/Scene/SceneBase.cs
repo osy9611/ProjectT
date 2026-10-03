@@ -19,13 +19,10 @@ namespace ProjectT.Scene
     public abstract class SceneBase : MonoBehaviour
     {
         private CancellationTokenSource lifetime;
-        private bool inputAllowed;
         protected internal CancellationToken LifetimeToken { get; private set; }
         protected internal ResourceScope ResourceScope { get; private set; }
         internal event Action Stopped;
-        internal event Action InputAllowedChanged;
         public SceneState State { get; private set; }
-        public bool IsInputAllowed => inputAllowed && State == SceneState.Active;
 
         internal async UniTask EnterAsync(ResourceScope scope, CancellationToken token, params object[] data)
         {
@@ -59,25 +56,6 @@ namespace ProjectT.Scene
             State = SceneState.Active;
         }
 
-        internal void SetInputAllowed(bool allowed)
-        {
-            bool next = allowed && State == SceneState.Active;
-            if (inputAllowed == next)
-                return;
-
-            inputAllowed = next;
-            var changed = InputAllowedChanged;
-            if (changed == null)
-                return;
-
-            List<Exception> errors = null;
-            foreach (Action callback in changed.GetInvocationList())
-                ExecuteInternal(callback, ref errors);
-
-            if (errors != null)
-                throw new AggregateException(errors);
-        }
-
         internal void Stop()
         {
             if (State == SceneState.Stopped)
@@ -87,7 +65,6 @@ namespace ProjectT.Scene
             State = SceneState.Stopped;
 
             List<Exception> errors = null;
-            ExecuteInternal(() => SetInputAllowed(false), ref errors);
             ExecuteInternal(() => lifetime?.Cancel(), ref errors);
 
             if (entered)
@@ -105,8 +82,6 @@ namespace ProjectT.Scene
                     ExecuteInternal(callback, ref errors);
                 }
             }
-
-            InputAllowedChanged = null;
 
             StopAllCoroutines();
 

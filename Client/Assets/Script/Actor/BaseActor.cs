@@ -1,16 +1,14 @@
 using System;
 using System.Collections.Generic;
+using ProjectT.Controller;
 using ProjectT.Scene;
-using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace ProjectT
 {
     public abstract class BaseActor
     {
         private SceneBase scene;
-        private ProjectT.Controller.Controller controller;
-        private InputActionAsset ownedAsset;
+        private List<InputContext> inputContexts = new List<InputContext>();
         private bool enabled;
         private bool released;
         private ComBaseActor owner;
@@ -51,60 +49,42 @@ namespace ProjectT
                 throw new InvalidOperationException("Scene is stopping.");
 
             this.scene = scene;
-            scene.InputAllowedChanged += OnInputAllowedChangedInternal;
             scene.Stopped += OnSceneStoppedInternal;
         }
 
-        protected T CreateController<T>(InputActionAsset asset) where T : ProjectT.Controller.Controller, new()
+        protected void RegisterInputContext(InputContext context)
         {
             if (released)
                 throw new ObjectDisposedException(GetType().Name);
 
-            if (scene == null || scene.State == SceneState.Created || scene.State == SceneState.Stopped)
-                throw new InvalidOperationException("Actor must be bound to an entering or active scene.");
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
 
-            scene.LifetimeToken.ThrowIfCancellationRequested();
+            if (context.Actor != null && !ReferenceEquals(context.Actor, this))
+                throw new InvalidOperationException("Input context is already registered to another actor.");
 
-            if (controller != null)
-                throw new InvalidOperationException("Actor already owns a controller.");
+            if (inputContexts.Contains(context))
+                return;
 
-            if (asset == null)
-                throw new ArgumentNullException(nameof(asset));
-
-            var clone = UnityEngine.Object.Instantiate(asset);
-            T created = null;
+            context.Actor = this;
+            var updated = new List<InputContext>(inputContexts);
+            updated.Add(context);
+            inputContexts = updated;
+            if (!enabled)
+                return;
 
             try
             {
-                created = new T();
-                controller = created;
-                ownedAsset = clone;
-                created.SetInputAllowed(false);
-                created.Init(clone);
-
-                if (released || !ReferenceEquals(controller, created))
-                    throw new InvalidOperationException("Actor was released during controller initialization.");
-
-                if (enabled)
-                {
-                    created.SetInputAllowed(scene.IsInputAllowed);
-                    created.Enable();
-                }
-
-                return created;
+                Global.Input.Controller.AddContext(context);
             }
             catch (Exception error)
             {
+                RemoveFromListInternal(context);
+                context.Actor = null;
                 List<Exception> errors = null;
-                if (created == null)
-                    ErrorCollector.Run(ref errors, clone, UnityEngine.Object.Destroy);
-                else if (ReferenceEquals(controller, created))
-                {
-                    controller = null;
-                    ownedAsset = null;
-                    ErrorCollector.Run(ref errors, created, item => item.Release());
-                    ErrorCollector.Run(ref errors, clone, UnityEngine.Object.Destroy);
-                }
+                var controller = context.Owner;
+                if (controller != null)
+                    ErrorCollector.Run(ref errors, context, controller.RemoveContext);
 
                 if (errors != null)
                 {
@@ -116,30 +96,71 @@ namespace ProjectT
             }
         }
 
+        protected void UnregisterInputContext(InputContext context)
+        {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
+
+            if (!inputContexts.Contains(context))
+                return;
+
+            RemoveFromListInternal(context);
+            context.Actor = null;
+            context.Owner?.RemoveContext(context);
+        }
+
+        private void RemoveFromListInternal(InputContext context)
+        {
+            var updated = new List<InputContext>(inputContexts);
+            updated.Remove(context);
+            inputContexts = updated;
+        }
+
         internal void SetEnabledInternal(bool enabled)
         {
             if (released || this.enabled == enabled)
                 return;
 
             this.enabled = enabled;
-            var current = controller;
-            if (current == null)
-                return;
-
-            current.SetInputAllowed(enabled && scene.IsInputAllowed);
-            if (released || this.enabled != enabled || !ReferenceEquals(controller, current))
-                return;
-
             if (enabled)
-                current.Enable();
+                AddInputContextsInternal();
             else
-                current.Disable();
+                RemoveInputContextsInternal(inputContexts);
         }
 
-        private void OnInputAllowedChangedInternal()
+        private void AddInputContextsInternal()
         {
-            if (!released && controller != null)
-                controller.SetInputAllowed(enabled && scene.IsInputAllowed);
+            var snapshot = inputContexts;
+            if (snapshot.Count == 0)
+                return;
+
+            var controller = Global.Input.Controller;
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                if (released || !enabled)
+                    return;
+
+                if (inputContexts.Contains(snapshot[i]))
+                    controller.AddContext(snapshot[i]);
+            }
+        }
+
+        // 종료 중 Controller가 먼저 해제되면 컨텍스트가 분리되어 있으므로 Global.Input을 조회하지 않고 등록된 Controller에서만 제거한다.
+        private void RemoveInputContextsInternal(List<InputContext> snapshot)
+        {
+            List<Exception> errors = null;
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                // onReset에서 Actor가 다시 활성화되면 추가 경로가 등록을 이어받으므로 제거를 중단한다.
+                if (!released && enabled)
+                    break;
+
+                var controller = snapshot[i].Owner;
+                if (controller != null)
+                    ErrorCollector.Run(ref errors, snapshot[i], controller.RemoveContext);
+            }
+
+            ErrorCollector.ThrowIfAny(errors);
         }
 
         private void OnSceneStoppedInternal()
@@ -162,25 +183,14 @@ namespace ProjectT
             var previousScene = scene;
             scene = null;
             if (previousScene != null)
-            {
-                previousScene.InputAllowedChanged -= OnInputAllowedChangedInternal;
                 previousScene.Stopped -= OnSceneStoppedInternal;
-            }
 
-            var previousController = controller;
-            var previousAsset = ownedAsset;
-            controller = null;
-            ownedAsset = null;
+            var previousContexts = inputContexts;
+            inputContexts = new List<InputContext>();
+            foreach (var context in previousContexts)
+                context.Actor = null;
 
-            try
-            {
-                previousController?.Release();
-            }
-            finally
-            {
-                if (previousAsset != null)
-                    UnityEngine.Object.Destroy(previousAsset);
-            }
+            RemoveInputContextsInternal(previousContexts);
         }
 
         public virtual void OnInit() { }

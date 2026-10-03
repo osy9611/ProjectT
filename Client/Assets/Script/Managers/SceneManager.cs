@@ -330,14 +330,7 @@ namespace ProjectT
             if (version != transitionVersion || inputAllowed != allowed || State != ManagerState.Ready)
                 return;
 
-            foreach (var entry in scenes.Values)
-            {
-                if (entry.Scene != null)
-                    entry.Scene.SetInputAllowed(allowed);
-
-                if (version != transitionVersion || inputAllowed != allowed || State != ManagerState.Ready)
-                    break;
-            }
+            Global.Input.SetInputAllowed(allowed);
         }
 
         private void EndTransition()

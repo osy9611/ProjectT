@@ -36,6 +36,8 @@ namespace ProjectT
 
         public static NotificationManager Notify { get => GetManager<NotificationManager>(); }
 
+        public static InputManager Input { get => GetManager<InputManager>(); }
+
         public static ClientLocalStorageManager LocalStorage { get => GetManager<ClientLocalStorageManager>(); }
 
         public static CostumeManager Costume { get => GetManager<CostumeManager>(); }
@@ -81,6 +83,8 @@ namespace ProjectT
             focused = Application.isFocused;
 
             host = new ManagerHost(transform);
+            // 동기 초기화로 Awake 안에서 Ready가 되어 Actor 활성화보다 먼저 준비된다.
+            host.Register(new InputManager());
             host.Register(new PatchManager(UseRemoteResource));
             host.Register(new ResourceManager());
             host.Register(new NotificationManager());

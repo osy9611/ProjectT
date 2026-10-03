@@ -29,6 +29,8 @@ namespace ProjectT.Controller
         protected InputActionAsset inputActionAsset;
 
         private List<Registration> contexts = new List<Registration>();
+        private string activeMapName = "Player";
+        private InputActionMap enabledMap;
         private bool inputAllowed = true;
         private bool enableRequested;
         private bool releasing;
@@ -37,7 +39,7 @@ namespace ProjectT.Controller
 
         private bool IsActive => inputActionAsset != null && enableRequested && inputAllowed && !releasing;
 
-        public virtual void Init(InputActionAsset asset)
+        internal void Init(InputActionAsset asset)
         {
             if (asset == null)
                 throw new ArgumentNullException(nameof(asset));
@@ -45,6 +47,7 @@ namespace ProjectT.Controller
             if (inputActionAsset != null || releasing)
                 throw new InvalidOperationException("Controller is already initialized or releasing.");
 
+            asset.FindActionMap(activeMapName, true);
             inputActionAsset = asset;
             foreach (var map in asset.actionMaps)
             {
@@ -59,7 +62,7 @@ namespace ProjectT.Controller
             ApplyActiveInternal();
         }
 
-        public virtual void Enable()
+        internal void Enable()
         {
             if (releasing || enableRequested)
                 return;
@@ -69,7 +72,7 @@ namespace ProjectT.Controller
             ApplyActiveInternal();
         }
 
-        public virtual void Disable()
+        internal void Disable()
         {
             if (!enableRequested)
                 return;
@@ -89,13 +92,28 @@ namespace ProjectT.Controller
             ApplyActiveInternal();
         }
 
-        public virtual void Release()
+        internal void SetActiveMapInternal(string mapName)
+        {
+            if (string.IsNullOrWhiteSpace(mapName))
+                throw new ArgumentException("Action map name is required.", nameof(mapName));
+
+            if (releasing || string.Equals(activeMapName, mapName, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            inputActionAsset?.FindActionMap(mapName, true);
+            activeMapName = mapName;
+            deliveryVersion++;
+            ApplyActiveInternal();
+        }
+
+        internal void Release()
         {
             if (releasing || inputActionAsset == null)
                 return;
 
             releasing = true;
             enableRequested = false;
+            enabledMap = null;
             deliveryVersion++;
             var asset = inputActionAsset;
             try
@@ -205,23 +223,10 @@ namespace ProjectT.Controller
                 {
                     version = deliveryVersion;
                     var asset = inputActionAsset;
-                    if (IsActive)
+                    var map = IsActive ? asset.FindActionMap(activeMapName, true) : null;
+                    if (map == null || !ReferenceEquals(enabledMap, map))
                     {
-                        foreach (var map in asset.actionMaps)
-                        {
-                            foreach (var action in map.actions)
-                            {
-                                action.Enable();
-                                if (version != deliveryVersion)
-                                    break;
-                            }
-
-                            if (version != deliveryVersion)
-                                break;
-                        }
-                    }
-                    else
-                    {
+                        enabledMap = null;
                         try
                         {
                             DisableActionsInternal(asset);
@@ -229,6 +234,17 @@ namespace ProjectT.Controller
                         finally
                         {
                             ResetAllInternal();
+                        }
+                    }
+
+                    if (map != null && version == deliveryVersion)
+                    {
+                        enabledMap = map;
+                        foreach (var action in map.actions)
+                        {
+                            action.Enable();
+                            if (version != deliveryVersion)
+                                break;
                         }
                     }
                 }
@@ -311,7 +327,7 @@ namespace ProjectT.Controller
 
         private void DispatchInternal(InputAction.CallbackContext context, eInputEvent phase)
         {
-            if (!IsActive || !context.action.enabled)
+            if (!IsActive || !context.action.enabled || !ReferenceEquals(context.action.actionMap, enabledMap))
                 return;
 
             int version = deliveryVersion;
