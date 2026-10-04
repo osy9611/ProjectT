@@ -1,7 +1,7 @@
+using ProjectT.Controller;
 using ProjectT.Pivot;
 using System;
 using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using UnityEngine;
 
 namespace ProjectT
@@ -128,31 +128,27 @@ namespace ProjectT
             changingActor = true;
             try
             {
-                List<Exception> errors = null;
-                ErrorCollector.Run(ref errors, current, item => DeactivateActorInternal());
-                ErrorCollector.Run(ref errors, current, item => item.Release());
-                currentActor = null;
-                initializedActor = null;
-                enteredActor = null;
-                activeActor = null;
-                ThrowIfAnyInternal(errors);
+                // 비활성화 훅은 현재 Actor일 때만 호출되므로 훅 이후에 소유를 해제한다.
+                List<InputContext> contexts;
+                try
+                {
+                    DeactivateActorInternal();
+                }
+                finally
+                {
+                    currentActor = null;
+                    initializedActor = null;
+                    enteredActor = null;
+                    activeActor = null;
+                    contexts = current.ReleaseStateInternal();
+                }
+
+                current.ResetInputContextsInternal(contexts);
             }
             finally
             {
                 changingActor = wasChanging;
             }
-        }
-
-        // 단일 오류는 원래 타입으로 전달한다. 교체·파괴 중 거부 예외를 호출자가 그대로 받아야 한다.
-        private static void ThrowIfAnyInternal(List<Exception> errors)
-        {
-            if (errors == null)
-                return;
-
-            if (errors.Count == 1)
-                ExceptionDispatchInfo.Capture(errors[0]).Throw();
-
-            throw new AggregateException(errors);
         }
 
         private bool IsCurrentInternal(BaseActor current)

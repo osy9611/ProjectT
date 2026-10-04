@@ -105,16 +105,10 @@ namespace ProjectT.Controller
             enabledMap = null;
             deliveryVersion++;
             var map = actionMap;
+            var previous = contexts;
             try
             {
-                try
-                {
-                    ResetAllInternal();
-                }
-                finally
-                {
-                    DisableActionsInternal(map);
-                }
+                DisableActionsInternal(map);
             }
             finally
             {
@@ -125,17 +119,17 @@ namespace ProjectT.Controller
                     action.canceled -= OnCanceledInternal;
                 }
 
-                var previous = contexts;
                 contexts = new List<Registration>();
                 inputActionAsset = null;
                 actionMap = null;
                 releasing = false;
-                List<Exception> errors = null;
                 foreach (var entry in previous)
-                    ErrorCollector.Run(ref errors, entry.Context, item => item.DetachInternal());
-
-                ErrorCollector.ThrowIfAny(errors);
+                    entry.Context.DetachInternal();
             }
+
+            // onReset 예외가 Controller를 해제 중 상태로 두거나 컨텍스트를 남기지 않도록 모든 컨텍스트를 분리한 뒤 리셋한다.
+            foreach (var entry in previous)
+                entry.Context.ResetAllInternal();
         }
 
         public void AddContext(InputContext context)
@@ -170,6 +164,13 @@ namespace ProjectT.Controller
             if (!ReferenceEquals(context.Owner, this))
                 return;
 
+            RemoveContextInternal(context);
+            context.ResetAllInternal();
+        }
+
+        // 여러 컨텍스트를 모두 해제한 뒤 리셋할 수 있도록 등록만 해제한다.
+        internal void RemoveContextInternal(InputContext context)
+        {
             var updated = new List<Registration>(contexts);
             updated.RemoveAll(entry => ReferenceEquals(entry.Context, context));
             contexts = updated;
@@ -194,7 +195,6 @@ namespace ProjectT.Controller
             int index = updated.FindIndex(entry => ReferenceEquals(entry.Context, context));
             updated[index] = new Registration(context);
             contexts = updated;
-            ResetBlockedInternal();
         }
 
         private void ApplyActiveInternal()
@@ -210,7 +210,8 @@ namespace ProjectT.Controller
                 {
                     version = deliveryVersion;
                     var map = IsActive ? actionMap : null;
-                    if (map == null || !ReferenceEquals(enabledMap, map))
+                    // 비활성 상태의 액션은 이미 꺼지고 리셋되었으므로 활성→비활성 전환에서만 끄고 리셋한다.
+                    if (map == null && enabledMap != null)
                     {
                         enabledMap = null;
                         try
@@ -257,17 +258,13 @@ namespace ProjectT.Controller
         private void ResetAllInternal()
         {
             var snapshot = contexts;
-            List<Exception> errors = null;
             for (int i = 0; i < snapshot.Count; i++)
-                ErrorCollector.Run(ref errors, snapshot[i].Context, item => item.ResetAllInternal());
-
-            ErrorCollector.ThrowIfAny(errors);
+                snapshot[i].Context.ResetAllInternal();
         }
 
-        private void ResetBlockedInternal()
+        internal void ResetBlockedInternal()
         {
             var snapshot = contexts;
-            List<Exception> errors = null;
             for (int i = 0; i < snapshot.Count; i++)
             {
                 var entry = snapshot[i];
@@ -277,11 +274,9 @@ namespace ProjectT.Controller
                         break;
 
                     if (pair.Value.Delivered && IsBlockedInternal(entry, pair.Key, pair.Value.DeliveredPhase))
-                        ErrorCollector.Run(ref errors, pair.Value, binding => binding.ResetInternal());
+                        pair.Value.ResetInternal();
                 }
             }
-
-            ErrorCollector.ThrowIfAny(errors);
         }
 
         private bool IsBlockedInternal(Registration registration, InputAction action, eInputEvent phase)
@@ -361,27 +356,21 @@ namespace ProjectT.Controller
 
         private void ResetLowerBindingsInternal(List<Registration> snapshot, int start, InputAction action)
         {
-            List<Exception> errors = null;
             for (int i = start; i < snapshot.Count; i++)
             {
                 if (contexts.Contains(snapshot[i]) && snapshot[i].Context.TryGetBindingInternal(action, out var binding))
-                    ErrorCollector.Run(ref errors, binding, item => item.ResetInternal());
+                    binding.ResetInternal();
             }
-
-            ErrorCollector.ThrowIfAny(errors);
         }
 
         private void ResetUndeliveredCancellationInternal(InputAction action)
         {
             var snapshot = contexts;
-            List<Exception> errors = null;
             foreach (var entry in snapshot)
             {
                 if (contexts.Contains(entry) && entry.Context.TryGetBindingInternal(action, out var binding))
-                    ErrorCollector.Run(ref errors, binding, item => item.ResetInternal());
+                    binding.ResetInternal();
             }
-
-            ErrorCollector.ThrowIfAny(errors);
         }
     }
 }

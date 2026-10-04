@@ -105,7 +105,11 @@ namespace ProjectT
             if (enabled)
                 AddInputContextsInternal();
             else
-                RemoveInputContextsInternal(inputContexts);
+            {
+                var snapshot = inputContexts;
+                DetachInputContextsInternal(snapshot);
+                ResetInputContextsInternal(snapshot);
+            }
         }
 
         private void AddInputContextsInternal()
@@ -126,21 +130,23 @@ namespace ProjectT
         }
 
         // 종료 중 Controller가 먼저 해제되면 컨텍스트가 분리되어 있으므로 Global.Input을 조회하지 않고 등록된 Controller에서만 제거한다.
-        private void RemoveInputContextsInternal(List<InputContext> snapshot)
+        private static void DetachInputContextsInternal(List<InputContext> snapshot)
         {
-            List<Exception> errors = null;
+            for (int i = 0; i < snapshot.Count; i++)
+                snapshot[i].Owner?.RemoveContextInternal(snapshot[i]);
+        }
+
+        // onReset 예외로 남은 컨텍스트가 비활성·해제된 Actor에 입력을 전달하지 않도록 모든 등록을 해제한 뒤 호출한다.
+        internal void ResetInputContextsInternal(List<InputContext> snapshot)
+        {
             for (int i = 0; i < snapshot.Count; i++)
             {
-                // onReset에서 Actor가 다시 활성화되면 추가 경로가 등록을 이어받으므로 제거를 중단한다.
+                // onReset에서 Actor가 다시 활성화되면 추가 경로가 등록을 이어받으므로 리셋을 중단한다.
                 if (!released && enabled)
                     break;
 
-                var controller = snapshot[i].Owner;
-                if (controller != null)
-                    ErrorCollector.Run(ref errors, snapshot[i], controller.RemoveContext);
+                snapshot[i].ResetAllInternal();
             }
-
-            ErrorCollector.ThrowIfAny(errors);
         }
 
         private void OnSceneStoppedInternal()
@@ -156,6 +162,15 @@ namespace ProjectT
             if (released)
                 return;
 
+            ResetInputContextsInternal(ReleaseStateInternal());
+        }
+
+        // 소유 컴포넌트의 비활성화가 실패해도 해제 상태를 확정할 수 있도록 onReset 없이 상태만 해제하고 분리한 컨텍스트를 반환한다.
+        internal List<InputContext> ReleaseStateInternal()
+        {
+            if (released)
+                return new List<InputContext>();
+
             released = true;
             enabled = false;
             owner = null;
@@ -170,7 +185,8 @@ namespace ProjectT
             foreach (var context in previousContexts)
                 context.Actor = null;
 
-            RemoveInputContextsInternal(previousContexts);
+            DetachInputContextsInternal(previousContexts);
+            return previousContexts;
         }
 
         public virtual void OnInit() { }

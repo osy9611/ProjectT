@@ -71,8 +71,10 @@ namespace ProjectT.Controller
             var binding = new Binding(callback, events, consume, onReset);
             updated[actionPath] = binding;
             bindings = updated;
+            // 차단 리셋 예외가 이전 바인딩의 리셋을 건너뛰면 교체된 바인딩은 다시 리셋될 수 없으므로 먼저 리셋한다.
             Owner?.RefreshContextInternal(this);
             previous?.ResetInternal();
+            Owner?.ResetBlockedInternal();
             return this;
         }
 
@@ -87,6 +89,7 @@ namespace ProjectT.Controller
             bindings = updated;
             Owner?.RefreshContextInternal(this);
             binding.ResetInternal();
+            Owner?.ResetBlockedInternal();
             return this;
         }
 
@@ -120,17 +123,14 @@ namespace ProjectT.Controller
         {
             Owner = null;
             resolved = new Dictionary<InputAction, Binding>();
-            ResetAllInternal();
         }
 
+        // 예외로 건너뛴 바인딩은 Delivered가 남아 이 컨텍스트의 다음 전체 리셋에서 onReset을 받는다. Actor 해제·등록 해제로 버려진 컨텍스트는 보장하지 않는다.
         internal void ResetAllInternal()
         {
             var snapshot = bindings;
-            List<Exception> errors = null;
             foreach (var binding in snapshot.Values)
-                ErrorCollector.Run(ref errors, binding, item => item.ResetInternal());
-
-            ErrorCollector.ThrowIfAny(errors);
+                binding.ResetInternal();
         }
 
         internal bool TryGetBindingInternal(InputAction action, out Binding binding)
