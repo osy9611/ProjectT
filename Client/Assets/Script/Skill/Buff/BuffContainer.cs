@@ -58,14 +58,14 @@ namespace ProjectT.Skill
 
                 if(registerMethod == null)
                 {
-                    Global.Instance.LogError($"[BuffContainer] Register<{type.Name}> Not Found Method ");
+                    Global.LogError($"[BuffContainer] Register<{type.Name}> Not Found Method ");
                     continue;
                 }
 
                 var handler = registerMethod.Invoke(null, null) as BuffPoolHandler;
                 if(handler == null)
                 {
-                    Global.Instance.LogError($"[BuffContainer] {type.Name} Register Fail");
+                    Global.LogError($"[BuffContainer] {type.Name} Register Fail");
                     continue;
                 }
 

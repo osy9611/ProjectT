@@ -59,14 +59,14 @@ namespace ProjectT
 
                 if (registerMethod == null)
                 {
-                    Global.Instance.LogError($"[GenericContainer] Register<{type.Name}> Not Found Method ");
+                    Global.LogError($"[GenericContainer] Register<{type.Name}> Not Found Method ");
                     continue;
                 }
 
                 var handler = registerMethod.Invoke(null, null) as ContainerPoolHandler<TBase>;
                 if(handler == null)
                 {
-                    Global.Instance.LogError($"[GenericContainer] {type.Name} Register Fail");
+                    Global.LogError($"[GenericContainer] {type.Name} Register Fail");
                     continue;
                 }
 

@@ -49,7 +49,7 @@ namespace ProjectT.Skill
             BaseBuff buff = BuffContainer.Get(info.buff_type);
             if(buff == null)
             {
-                Global.Instance.LogError($"[BuffController] This buffInfo is not have BaseBuff");
+                Global.LogError($"[BuffController] This buffInfo is not have BaseBuff");
                 return;
             }
 

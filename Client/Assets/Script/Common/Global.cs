@@ -1,5 +1,6 @@
 using Cysharp.Threading.Tasks;
 using System;
+using System.IO;
 using System.Threading;
 using System.Runtime.CompilerServices;
 using UnityEngine;
@@ -77,6 +78,7 @@ namespace ProjectT
             }
 
             s_instance = this;
+            ErrorReporter.SetSinks(new FileErrorSink(Path.Combine(Application.persistentDataPath, "ErrorReports")));
 
             host?.Shutdown();
             DontDestroyOnLoad(gameObject);
@@ -115,8 +117,12 @@ namespace ProjectT
             }
             finally
             {
-                foreach (var error in owner.ShutdownErrors) 
-                    LogException(error);
+                // 초기화 실패로 호스트가 스스로 종료한 경우만 여기서 보고한다. 그 외 종료 오류는 Shutdown에서 보고한다.
+                if (owner.State == ManagerState.Failed)
+                {
+                    foreach (var error in owner.ShutdownErrors) 
+                        LogException(error);
+                }
             }
         }
 
@@ -149,8 +155,17 @@ namespace ProjectT
 
         private void Update()
         {
-            if (ReferenceEquals(s_instance, this))
+            if (!ReferenceEquals(s_instance, this))
+                return;
+
+            try
+            {
                 host?.Update(Time.deltaTime);
+            }
+            finally
+            {
+                ErrorReporter.Flush();
+            }
         }
 
         private void FixedUpdate()
@@ -175,8 +190,13 @@ namespace ProjectT
         private void OnApplicationPause(bool value)
         {
             paused = value;
-            if (ReferenceEquals(s_instance, this))
-                host?.Pause(value);
+            if (!ReferenceEquals(s_instance, this))
+                return;
+
+            host?.Pause(value);
+            // 모바일은 백그라운드에서 종료 콜백 없이 프로세스가 끝날 수 있다.
+            if (value)
+                ErrorReporter.Flush();
         }
 
         private void OnApplicationQuit()
@@ -195,15 +215,19 @@ namespace ProjectT
                 return;
             try
             {
-                host?.Shutdown(reason);
-                if (host != null)
+                // 초기화 실패로 이미 Failed인 호스트의 종료 오류는 InitializeAsync에서 보고했다.
+                if (host != null && host.State != ManagerState.Failed)
                 {
+                    host.Shutdown(reason);
                     foreach (var error in host.ShutdownErrors)
                         LogException(error);
                 }
             }
             finally
             {
+                // 다음 Global이 sink를 새로 지정하므로 종료 오류까지 기록한 뒤 이 인스턴스의 sink를 해제한다.
+                ErrorReporter.Flush();
+                ErrorReporter.SetSinks();
                 s_instance = null;
             }
         }
@@ -221,14 +245,15 @@ namespace ProjectT
                 Debug.LogWarning(MakeTimeStampLog($"[Global] {msg}", "WARNING"));
         }
 
-        public void LogError(string msg)
+        // 소켓 스레드와 인스턴스가 없는 종료 중에도 호출되므로 static이다.
+        public static void LogError(string msg)
         {
             Debug.LogError(MakeTimeStampLog($"[Global] {msg}", "ERROR"));
         }
 
         public static void LogException(Exception error)
         {
-            Debug.LogError(MakeTimeStampLog($"[Global] {error}", "ERROR"));
+            ErrorReporter.Report(error);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

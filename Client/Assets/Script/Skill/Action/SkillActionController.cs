@@ -19,7 +19,7 @@ namespace ProjectT.Skill
         {
             if (owner == null)
             {
-                Global.Instance.LogError($"[SkillActionController] This Actor is null");
+                Global.LogError($"[SkillActionController] This Actor is null");
                 return;
             }
 
@@ -47,7 +47,7 @@ namespace ProjectT.Skill
             skillInfo skillInfo =  Global.Table.SkillInfos.Get(skillID);
             if(skillInfo == null)
             {
-                Global.Instance.LogError($"[SkillActionController] SkillInfo Not Found SkillID {skillID}");
+                Global.LogError($"[SkillActionController] SkillInfo Not Found SkillID {skillID}");
                 return;
             }
 

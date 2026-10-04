@@ -58,14 +58,14 @@ namespace ProjectT.Skill
 
                 if(registerMethod == null)
                 {
-                    Global.Instance.LogError($"[SkillActionContainer] Register<{type.Name}> Not Found Method");
+                    Global.LogError($"[SkillActionContainer] Register<{type.Name}> Not Found Method");
                     continue;
                 }
 
                 var handler = registerMethod.Invoke(null, null) as SkillPoolHandler;
                 if (handler == null)
                 {
-                    Global.Instance.LogError($"[SkillActionContainer] {type.Name} Register Fail");
+                    Global.LogError($"[SkillActionContainer] {type.Name} Register Fail");
                     continue;
                 }
 
@@ -95,7 +95,7 @@ namespace ProjectT.Skill
                 return handler.Create?.Invoke();
             }
 
-            Global.Instance.LogError($"[SkillActionContainer] Get SkillAction Fail typeActions Not Found {type}");
+            Global.LogError($"[SkillActionContainer] Get SkillAction Fail typeActions Not Found {type}");
             return null;
         }
 

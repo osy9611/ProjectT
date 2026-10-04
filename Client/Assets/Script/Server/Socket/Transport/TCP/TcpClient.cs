@@ -172,7 +172,7 @@ namespace ProjectT.Server.Sockets
             }
             else
             {
-                Global.Instance.LogError($"OnConnectCompleted : Failed to connect {e.SocketError}");
+                Global.LogError($"OnConnectCompleted : Failed to connect {e.SocketError}");
             }
         }
         private void OnDisconnectedInternal(TcpConnection conn)

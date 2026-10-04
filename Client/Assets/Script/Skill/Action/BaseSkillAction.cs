@@ -72,13 +72,13 @@ namespace ProjectT.Skill
         {
             if (owner == null)
             {
-                Global.Instance.LogError($"[BaseSkillAction] owner Actor is null");
+                Global.LogError($"[BaseSkillAction] owner Actor is null");
                 return;
             }
 
             if (spec == null)
             {
-                Global.Instance.LogError($"[BaseSkillAction] SkillSpec is null");
+                Global.LogError($"[BaseSkillAction] SkillSpec is null");
                 return;
             }
 

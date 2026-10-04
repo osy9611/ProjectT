@@ -121,7 +121,8 @@ namespace ProjectT.Server.Sockets
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                if (token.ConnectedPure)
+                    Global.LogException(ex);
             }
         }
 
@@ -143,7 +144,7 @@ namespace ProjectT.Server.Sockets
                 }
                 catch(Exception ex)
                 {
-                    Global.Instance.LogError($"ReceiveAsync token Error : {ex.StackTrace}");
+                    Global.LogException(ex);
                     onDisconnected?.Invoke(this);
                     return;
                 }
@@ -156,7 +157,7 @@ namespace ProjectT.Server.Sockets
                 //클라이언트에서 호출 중에 소켓이 BytesTransferred = 0으로 종료되는 경우가 있다.
                 //이 경우 Disconnect 처리는 socket이 연결된 경우에만 종료되어야함
                 if (eventArgs.SocketError != SocketError.Success)
-                    Global.Instance.LogError($"ProcessRecieve Error : {eventArgs.SocketError.ToString()}");
+                    Global.LogError($"ProcessRecieve Error : {eventArgs.SocketError.ToString()}");
 
                 onDisconnected?.Invoke(this);
 
@@ -170,13 +171,13 @@ namespace ProjectT.Server.Sockets
 
             if(stream.Count > option.SendMaxMessageSize)
             {
-                Global.Instance.LogError($"Server.Send: message too big : {stream.Count}. Limit: {option.SendMaxMessageSize}");
+                Global.LogError($"Server.Send: message too big : {stream.Count}. Limit: {option.SendMaxMessageSize}");
                 return false;
             }
 
             if(sendPipe.Count > option.SendQueueLimit)
             {
-                Global.Instance.LogError($"Server.Send : sendPipe for connection {id} reached limit of {option.SendQueueLimit}. " +
+                Global.LogError($"Server.Send : sendPipe for connection {id} reached limit of {option.SendQueueLimit}. " +
                     $"This can happen if we call send faster than the network can process messages. Disconneting this connection for load balancing.");
                 onDisconnected?.Invoke(this);
 
@@ -204,13 +205,13 @@ namespace ProjectT.Server.Sockets
 
             if(message.Count > option.SendMaxMessageSize)
             {
-                Global.Instance.LogError($"Server.Send : message too big : {message.Count}. Limit {option.SendMaxMessageSize}");
+                Global.LogError($"Server.Send : message too big : {message.Count}. Limit {option.SendMaxMessageSize}");
                 return false;
             }
 
             if(sendPipe.Count > option.SendQueueLimit)
             {
-                Global.Instance.LogError($"Server.Send : sendPipe for connection {id} reached limit of {option.SendQueueLimit}. " +
+                Global.LogError($"Server.Send : sendPipe for connection {id} reached limit of {option.SendQueueLimit}. " +
                   $"This can happen if we call send faster than the network can process messages. Disconneting this connection for load balancing.");
                 onDisconnected?.Invoke(this);
             }
@@ -258,7 +259,7 @@ namespace ProjectT.Server.Sockets
                     }
                     catch(Exception ex)
                     {
-                        Global.Instance.LogError($"ProcessSend token Error : {ex.StackTrace}");
+                        Global.LogException(ex);
                         onDisconnected?.Invoke(this);
                         return;
                     }

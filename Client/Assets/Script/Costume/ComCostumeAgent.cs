@@ -18,7 +18,7 @@ namespace ProjectT.Costume
             {
                 if(partIndex >= 0 && partIndex < slots.Count)
                 {
-                    Global.Instance.LogError($"part' index is incorrect");
+                    Global.LogError($"part' index is incorrect");
                 }
                 UnityEngine.Assertions.Assert.IsTrue(partIndex >= 0 && partIndex < slots.Count, "part' index is incorrect");
                 return slots[partIndex];
@@ -29,7 +29,7 @@ namespace ProjectT.Costume
         {
             if(partIndex >= 0 && partIndex < slots.Count)
             {
-                Global.Instance.LogError($"part' index is incorrect");
+                Global.LogError($"part' index is incorrect");
             }
 
             var slotInfo = slots[partIndex];
@@ -62,7 +62,7 @@ namespace ProjectT.Costume
         {
             if (assetData.PartIndex >= 0 && assetData.PartIndex < slots.Count)
             {
-                Global.Instance.LogError($"part' index is incorrect");
+                Global.LogError($"part' index is incorrect");
             }
 
             PartAssetData? oldAssetData = slots[assetData.PartIndex].AssetData;
