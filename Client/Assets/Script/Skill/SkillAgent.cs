@@ -5,13 +5,13 @@ namespace ProjectT.Skill
 {
     public class SkillAgent
     {
-        protected BaseActor actor;
+        protected ComBaseActor actor;
         private BuffController buffController;
         private SkillEffectController effectController;
         private SkillActionController actionController;
         public SkillActionController ActionController { get => actionController; }
 
-        public virtual void Init(BaseActor actor)
+        public virtual void Init(ComBaseActor actor)
         {
             this.actor = actor;
 

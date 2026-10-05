@@ -21,7 +21,6 @@ namespace ProjectT.Scene
         private CancellationTokenSource lifetime;
         protected internal CancellationToken LifetimeToken { get; private set; }
         protected internal ResourceScope ResourceScope { get; private set; }
-        internal event Action Stopped;
         public SceneState State { get; private set; }
 
         internal async UniTask EnterAsync(ResourceScope scope, CancellationToken token, params object[] data)
@@ -71,16 +70,6 @@ namespace ProjectT.Scene
             {
                 ExecuteInternal(OnFinalize, ref errors);
                 ExecuteInternal(OnExit, ref errors);
-            }
-
-            var stopped = Stopped;
-            Stopped = null;
-            if (stopped != null)
-            {
-                foreach (Action callback in stopped.GetInvocationList())
-                {
-                    ExecuteInternal(callback, ref errors);
-                }
             }
 
             StopAllCoroutines();

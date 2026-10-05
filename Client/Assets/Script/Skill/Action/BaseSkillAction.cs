@@ -40,8 +40,8 @@ namespace ProjectT.Skill
 
         public DesignEnum.SkillType SkillType { get => (DesignEnum.SkillType)spec.skillInfo.skill_type; }
 
-        private BaseActor owner;
-        public BaseActor Owner { get => owner; }
+        private ComBaseActor owner;
+        public ComBaseActor Owner { get => owner; }
         public bool IsActive;
 
         public void OnGet()
@@ -68,7 +68,7 @@ namespace ProjectT.Skill
         {
         }
 
-        public virtual void Init(BaseActor owner, SkillSpec spec)
+        public virtual void Init(ComBaseActor owner, SkillSpec spec)
         {
             if (owner == null)
             {

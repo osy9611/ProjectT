@@ -163,14 +163,16 @@ namespace ProjectT.Pool
 
         private void ReturnInternal(T item)
         {
-            if (!activeObjects.Remove(item))
+            if (!activeObjects.Contains(item))
             {
                 if (collectionChecks)
                     throw new InvalidOperationException("Object is not borrowed from this pool.");
                 return;
             }
 
+            // OnReturn이 실패한 객체도 Clear·Dispose가 정리하도록 성공한 뒤에만 비활성 목록으로 옮긴다.
             (item as IPoolable)?.OnReturn();
+            activeObjects.Remove(item);
             inactiveObjects.Push(item);
         }
 

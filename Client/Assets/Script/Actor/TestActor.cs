@@ -3,13 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class TestActor : BaseActor
+public class TestActor : ComBaseActor
 {
-    public override void OnEnter()
-    {
-    }
 
-    public override void OnUpdate(float dt)
-    {
-    }
 }

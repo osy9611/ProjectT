@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT.Addressable;
@@ -242,7 +241,7 @@ namespace ProjectT
                 List<Exception> errors = null;
 
                 if (entry.Scene != null)
-                    ErrorCollector.Run(ref errors, entry.Scene, scene => scene.Stop());
+                    StopEntryInternal(entry, ref errors);
 
                 // 종료 취소 중에는 새 Scope를 만들거나 언로드를 시작하지 않고 매니저 종료 정리에 맡긴다.
                 if (!LifetimeToken.IsCancellationRequested)
@@ -312,13 +311,22 @@ namespace ProjectT
                 if (ReferenceEquals(entry, currentScene) || entry.Scene == null)
                     continue;
 
-                ErrorCollector.Run(ref errors, entry.Scene, scene => scene.Stop());
+                StopEntryInternal(entry, ref errors);
             }
 
             if (currentScene?.Scene != null)
-                ErrorCollector.Run(ref errors, currentScene.Scene, scene => scene.Stop());
+                StopEntryInternal(currentScene, ref errors);
 
             ErrorCollector.ThrowIfAny(errors);
+        }
+
+        // 씬 Scope는 언로드 뒤에 해제되므로 그 사이 씬 Scope 풀에서 빌린 객체가 동작하지 않도록 정지 직후 풀을 정리한다.
+        private void StopEntryInternal(SceneEntry entry, ref List<Exception> errors)
+        {
+            if (entry.Scene != null)
+                ErrorCollector.Run(ref errors, entry.Scene, scene => scene.Stop());
+
+            ErrorCollector.Run(ref errors, entry.Scope, scope => Global.Pool.ClearScope(scope));
         }
 
         private void SetInputAllowed(bool allowed)
@@ -368,16 +376,8 @@ namespace ProjectT
 
         private async UniTask CloseEntryAsync(Type type, SceneEntry entry)
         {
-            Exception stopError = null;
-
-            try
-            {
-                entry.Scene?.Stop();
-            }
-            catch (Exception error)
-            {
-                stopError = error;
-            }
+            List<Exception> stopErrors = null;
+            StopEntryInternal(entry, ref stopErrors);
 
             await UniTask.NextFrame(cancellationToken: LifetimeToken);
 
@@ -387,8 +387,7 @@ namespace ProjectT
             scenes.Remove(type);
             entry.Scope.Dispose();
 
-            if (stopError != null)
-                ExceptionDispatchInfo.Capture(stopError).Throw();
+            ErrorCollector.ThrowIfAny(stopErrors);
         }
     }
 }

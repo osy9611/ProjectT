@@ -40,7 +40,7 @@ namespace ProjectT.Controller
         public string Name { get; }
         public int Priority { get; }
         internal Controller Owner { get; private set; }
-        internal BaseActor Actor { get; set; }
+        internal ComBaseActor Actor { get; set; }
         internal Dictionary<InputAction, Binding> Resolved => resolved;
 
         public InputContext(string name, int priority)

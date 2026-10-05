@@ -6,9 +6,6 @@ namespace ProjectT.Pool
 {
     public sealed class PooledObject : MonoBehaviour, IPoolable
     {
-        private static readonly Action<IPoolable> returnCallback = InvokeOnReturn;
-        private static readonly Action<PooledObject> finishReturn = FinishReturnInternal;
-
         internal GameObjectPool Owner { get; set; }
         private IPoolable[] callbacks = Array.Empty<IPoolable>();
 
@@ -39,28 +36,20 @@ namespace ProjectT.Pool
 
         public void OnReturn()
         {
-            List<Exception> errors = null;
-
-            foreach (var callback in callbacks)
+            try
             {
-                if (callback is UnityEngine.Object component && component == null)
-                    continue;
+                foreach (var callback in callbacks)
+                {
+                    if (callback is UnityEngine.Object component && component == null)
+                        continue;
 
-                ErrorCollector.Run(ref errors, callback, returnCallback);
+                    callback.OnReturn();
+                }
             }
-
-            ErrorCollector.Run(ref errors, this, finishReturn);
-            ErrorCollector.ThrowIfAny(errors);
-        }
-
-        private static void InvokeOnReturn(IPoolable item)
-        {
-            item.OnReturn();
-        }
-
-        private static void FinishReturnInternal(PooledObject item)
-        {
-            item.Owner?.FinishReturn(item);
+            finally
+            {
+                Owner?.FinishReturn(this);
+            }
         }
 
         private void OnDestroy()

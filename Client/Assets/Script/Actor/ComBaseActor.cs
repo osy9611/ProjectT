@@ -1,5 +1,6 @@
 using ProjectT.Controller;
 using ProjectT.Pivot;
+using ProjectT.Pool;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,228 +8,312 @@ using UnityEngine;
 namespace ProjectT
 {
     [RequireComponent(typeof(ComPivotAgent))]
-    public abstract class ComBaseActor : MonoBehaviour
+    public abstract class ComBaseActor : MonoBehaviour, IPoolable
     {
-        private BaseActor currentActor;
-        protected BaseActor actor { get => currentActor; set => Actor = value; }
-        private BaseActor initializedActor;
-        private BaseActor enteredActor;
-        private BaseActor activeActor;
-        private bool awoken;
-        private bool started;
-        private bool changingActor;
-        private bool destroying;
-        public BaseActor Actor
+        private enum SpawnState
         {
-            get => actor;
-            set
-            {
-                if (ReferenceEquals(actor, value))
-                    return;
-
-                if (changingActor || destroying)
-                    throw new InvalidOperationException("Actor cannot be changed during replacement or destruction.");
-
-                value?.ValidateOwnerInternal(this);
-                changingActor = true;
-                try
-                {
-                    var previous = actor;
-                    if (previous != null)
-                        ReleaseOwnedActorInternal(previous);
-
-                    if (destroying)
-                        throw new InvalidOperationException("Actor cannot be attached during destruction.");
-
-                    value?.AttachInternal(this);
-                    currentActor = value;
-                    initializedActor = null;
-                    enteredActor = null;
-
-                    if (awoken)
-                        InitializeActorInternal();
-
-                    if (started)
-                        EnterActorInternal();
-                }
-                finally
-                {
-                    changingActor = false;
-                }
-            }
+            None,
+            Spawned,
+            Entering,
+            Entered,
+            Active
         }
+
+        private enum ComponentState
+        {
+            None,
+            Awoken,
+            Started,
+            Failed,
+            Destroying
+        }
+
+        private SpawnState spawnState;
+        private ComponentState componentState;
+        private bool spawnTransitioning;
+        // Controller/onReset 콜백 중 등록·해제되어도 순회 중인 스냅샷이 유효하도록 리스트를 수정하지 않고 교체한다(copy-on-write).
+        private List<InputContext> inputContexts = new List<InputContext>();
 
         protected ComPivotAgent pivotAgent;
         public ComPivotAgent PivotAgent => pivotAgent;
 
         protected virtual void Awake()
         {
-            pivotAgent = GetComponent<ComPivotAgent>();
-            awoken = true;
-            InitializeActorInternal();
+            InitializeInternal();
         }
 
         private void Start()
         {
-            if (!awoken)
+            // 파생 클래스가 base.Awake()를 호출하지 않았거나 OnInit이 실패했으면 Start에서 기반 초기화를 한 번 더 시도한다.
+            // 재시도도 실패하면 Failed에 남아 이후 Spawn을 거부한다. 성공하면 InitializeInternal이 Awoken으로 바꾼다.
+            if (componentState == ComponentState.None)
             {
-                pivotAgent = GetComponent<ComPivotAgent>();
-                awoken = true;
+                componentState = ComponentState.Failed;
+                InitializeInternal();
             }
 
-            started = true;
-            EnterActorInternal();
+            componentState = ComponentState.Started;
+            EnterInternal();
         }
 
         private void Update()
         {
-            var current = actor;
-            if (!IsActiveInternal(current))
-                return;
-
-            OnUpdate(Time.deltaTime);
-            if (IsActiveInternal(current))
-                current.OnUpdate(Time.deltaTime);
+            if (spawnState == SpawnState.Active)
+                OnUpdate(Time.deltaTime);
         }
 
         private void LateUpdate()
         {
-            var current = actor;
-            if (!IsActiveInternal(current))
-                return;
-
-            OnLateUpdate(Time.deltaTime);
-            if (IsActiveInternal(current))
-                current.OnLateUpdate(Time.deltaTime);
+            if (spawnState == SpawnState.Active)
+                OnLateUpdate(Time.deltaTime);
         }
 
         private void OnEnable()
         {
-            if (started)
-                ActivateActorInternal();
+            if (componentState == ComponentState.Started)
+                ActivateInternal();
         }
 
         private void OnDisable()
         {
-            DeactivateActorInternal();
+            DeactivateInternal();
         }
 
         private void OnDestroy()
         {
-            destroying = true;
-            ReleaseOwnedActorInternal(actor);
-        }
-
-        internal void ReleaseOwnedActorInternal(BaseActor current)
-        {
-            if (current == null || !ReferenceEquals(actor, current))
-                return;
-
-            bool wasChanging = changingActor;
-            changingActor = true;
+            componentState = ComponentState.Destroying;
             try
             {
-                // 비활성화 훅은 현재 Actor일 때만 호출되므로 훅 이후에 소유를 해제한다.
-                List<InputContext> contexts;
-                try
-                {
-                    DeactivateActorInternal();
-                }
-                finally
-                {
-                    currentActor = null;
-                    initializedActor = null;
-                    enteredActor = null;
-                    activeActor = null;
-                    contexts = current.ReleaseStateInternal();
-                }
-
-                current.ResetInputContextsInternal(contexts);
+                EndSpawnInternal();
             }
             finally
             {
-                changingActor = wasChanging;
+                UnregisterAllInputContextsInternal();
             }
         }
 
-        private bool IsCurrentInternal(BaseActor current)
+        void IPoolable.OnGet()
         {
-            return current != null && ReferenceEquals(actor, current) && !current.IsReleased;
         }
 
-        private bool IsActiveInternal(BaseActor current)
+        // 풀 반납은 스폰을 끝낸다. 스폰 전환 중 반납되면 진행 중인 전환이 반납된 객체에 상태를 남기므로 거부한다.
+        void IPoolable.OnReturn()
         {
-            return IsCurrentInternal(current) && ReferenceEquals(activeActor, current);
+            if (spawnTransitioning)
+                throw new InvalidOperationException("Actor cannot be returned during a spawn transition.");
+
+            EndSpawnInternal();
         }
 
-        private void InitializeActorInternal()
+        public void Spawn()
         {
-            var current = actor;
-            if (!awoken || !IsCurrentInternal(current) || ReferenceEquals(initializedActor, current))
+            if (componentState == ComponentState.Destroying)
+                throw new ObjectDisposedException(GetType().Name);
+
+            if (componentState == ComponentState.Failed)
+                throw new InvalidOperationException("Actor initialization failed.");
+
+            if (spawnTransitioning || spawnState != SpawnState.None)
+                throw new InvalidOperationException("Actor is already spawned or in a spawn transition.");
+
+            spawnState = SpawnState.Spawned;
+            EnterInternal();
+        }
+
+        protected void RegisterInputContext(InputContext context)
+        {
+            if (componentState == ComponentState.Destroying)
+                throw new ObjectDisposedException(GetType().Name);
+
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
+
+            if (context.Actor != null && !ReferenceEquals(context.Actor, this))
+                throw new InvalidOperationException("Input context is already registered to another actor.");
+
+            if (inputContexts.Contains(context))
                 return;
 
+            // Controller 검증이 실패해도 Actor에 등록 흔적이 남지 않도록 Controller에 먼저 추가한다.
+            if (spawnState == SpawnState.Active)
+                Global.Input.Controller.AddContext(context);
+
+            context.Actor = this;
+            var updated = new List<InputContext>(inputContexts);
+            updated.Add(context);
+            inputContexts = updated;
+        }
+
+        protected void UnregisterInputContext(InputContext context)
+        {
+            if (context == null)
+                throw new ArgumentNullException(nameof(context));
+
+            if (!inputContexts.Contains(context))
+                return;
+
+            var updated = new List<InputContext>(inputContexts);
+            updated.Remove(context);
+            inputContexts = updated;
+            context.Actor = null;
+            context.Owner?.RemoveContext(context);
+        }
+
+        // 훅이 실패하면 다음 단계로 진행하지 않도록 훅이 모두 끝난 뒤 상태를 진행한다.
+        private void InitializeInternal()
+        {
+            pivotAgent = GetComponent<ComPivotAgent>();
             OnInit();
-            if (IsCurrentInternal(current))
-            {
-                current.OnInit();
-                if (IsCurrentInternal(current))
-                    initializedActor = current;
-            }
+            componentState = ComponentState.Awoken;
         }
 
-        private void EnterActorInternal()
+        private void EnterInternal()
         {
-            if (!started)
+            if (componentState != ComponentState.Started || spawnState != SpawnState.Spawned)
                 return;
 
-            InitializeActorInternal();
-            var current = actor;
-            if (!IsCurrentInternal(current) || !ReferenceEquals(initializedActor, current) || ReferenceEquals(enteredActor, current))
-                return;
-
-            OnEnter();
-            if (IsCurrentInternal(current))
+            // OnEnter가 실패하면 Entering에 남아 이후 활성화와 재시도를 막고, 반납·파괴에서 정리된다.
+            spawnState = SpawnState.Entering;
+            spawnTransitioning = true;
+            try
             {
-                current.OnEnter();
-                if (IsCurrentInternal(current))
-                    enteredActor = current;
+                OnEnter();
+            }
+            finally
+            {
+                spawnTransitioning = false;
             }
 
-            if (IsCurrentInternal(current) && isActiveAndEnabled)
-                ActivateActorInternal();
-        }
-
-        private void ActivateActorInternal()
-        {
-            var current = actor;
-            if (!IsCurrentInternal(current) || !ReferenceEquals(enteredActor, current) || ReferenceEquals(activeActor, current))
+            if (spawnState != SpawnState.Entering)
                 return;
 
-            activeActor = current;
-            current.SetEnabledInternal(true);
+            spawnState = SpawnState.Entered;
+            if (isActiveAndEnabled)
+                ActivateInternal();
+        }
 
-            if (IsActiveInternal(current))
-            {
+        private void ActivateInternal()
+        {
+            if (spawnTransitioning || spawnState != SpawnState.Entered)
+                return;
+
+            spawnState = SpawnState.Active;
+            AddInputContextsInternal();
+
+            if (spawnState == SpawnState.Active)
                 Enable();
-                if (IsActiveInternal(current))
-                    current.Enable();
+        }
+
+        private void DeactivateInternal()
+        {
+            if (spawnState != SpawnState.Active)
+                return;
+
+            spawnState = SpawnState.Entered;
+            var snapshot = inputContexts;
+            DetachInputContextsInternal(snapshot);
+
+            // 리셋이 실패해도 Enable의 구독이 다음 스폰으로 넘어가지 않도록 Disable은 실행한다.
+            try
+            {
+                ResetInputContextsInternal(snapshot);
+            }
+            finally
+            {
+                if (spawnState == SpawnState.Entered)
+                    Disable();
             }
         }
 
-        private void DeactivateActorInternal()
+        private void EndSpawnInternal()
         {
-            var current = activeActor;
-            if (current == null)
+            if (spawnState == SpawnState.None)
                 return;
 
-            activeActor = null;
-            current.SetEnabledInternal(false);
-
-            if (IsCurrentInternal(current) && activeActor == null)
+            // OnRelease는 OnEnter를 시작한 스폰에만 호출한다. OnEnter 전에 끝난 스폰은 초기화가 실패했거나 스폰 상태가 적용되지 않았을 수 있다.
+            if (spawnState == SpawnState.Spawned)
             {
-                Disable();
-                if (IsCurrentInternal(current) && activeActor == null)
-                    current.Disable();
+                spawnState = SpawnState.None;
+                return;
+            }
+
+            // 입력 리셋 콜백이 반납 중인 Actor를 다시 활성화하거나 스폰하지 않도록 리셋 전에 전환 잠금을 건다.
+            bool wasTransitioning = spawnTransitioning;
+            spawnTransitioning = true;
+            try
+            {
+                bool deactivated = false;
+                try
+                {
+                    DeactivateInternal();
+                    deactivated = true;
+                }
+                finally
+                {
+                    spawnState = SpawnState.None;
+
+                    // 스폰 종료는 다시 호출되지 않으므로 앞선 실패와 관계없이 OnRelease를 호출한다. 비활성화 중 입력 리셋이 이미 실패했을 수 있어 그 경우 최종 리셋은 재시도하지 않는다.
+                    try
+                    {
+                        if (deactivated)
+                            ResetInputContextsInternal(inputContexts);
+                    }
+                    finally
+                    {
+                        OnRelease();
+                    }
+                }
+            }
+            finally
+            {
+                spawnTransitioning = wasTransitioning;
+            }
+        }
+
+        private void AddInputContextsInternal()
+        {
+            var snapshot = inputContexts;
+            if (snapshot.Count == 0)
+                return;
+
+            var controller = Global.Input.Controller;
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                if (spawnState != SpawnState.Active)
+                    return;
+
+                if (inputContexts.Contains(snapshot[i]))
+                    controller.AddContext(snapshot[i]);
+            }
+        }
+
+        private void UnregisterAllInputContextsInternal()
+        {
+            var previous = inputContexts;
+            inputContexts = new List<InputContext>();
+            foreach (var context in previous)
+                context.Actor = null;
+
+            DetachInputContextsInternal(previous);
+        }
+
+        // 종료 중 Controller가 먼저 해제되면 컨텍스트가 분리되어 있으므로 Global.Input을 조회하지 않고 등록된 Controller에서만 제거한다.
+        private static void DetachInputContextsInternal(List<InputContext> snapshot)
+        {
+            for (int i = 0; i < snapshot.Count; i++)
+                snapshot[i].Owner?.RemoveContextInternal(snapshot[i]);
+        }
+
+        // onReset 예외로 남은 컨텍스트가 비활성화된 Actor에 입력을 전달하지 않도록 모든 등록을 해제한 뒤 호출한다.
+        private void ResetInputContextsInternal(List<InputContext> snapshot)
+        {
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                // onReset에서 Actor가 다시 활성화되면 추가 경로가 등록을 이어받으므로 리셋을 중단한다.
+                if (spawnState == SpawnState.Active)
+                    break;
+
+                snapshot[i].ResetAllInternal();
             }
         }
 
@@ -254,6 +339,10 @@ namespace ProjectT
         }
 
         protected virtual void Disable()
+        {
+        }
+
+        protected virtual void OnRelease()
         {
         }
         #endregion

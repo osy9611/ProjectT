@@ -24,13 +24,13 @@ namespace ProjectT.Skill
 
     public class BuffController
     {
-        private BaseActor actor;
+        private ComBaseActor actor;
 
         private Dictionary<int, BuffTaskHandler> buffTaskHandlers;
 
         private CancellationToken token;
 
-        public void Init(BaseActor actor)
+        public void Init(ComBaseActor actor)
         {
             this.actor = actor;
 

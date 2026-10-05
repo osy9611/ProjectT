@@ -10,4 +10,12 @@
 		<SceneName>DownloadScene</SceneName>
 		<Path>Assets/Scenes/DownloadScene.unity</Path>
 	</record>
+	<record>
+		<SceneName>SampleSceneA</SceneName>
+		<Path>Assets/Scenes/Sample/SampleSceneA.unity</Path>
+	</record>
+	<record>
+		<SceneName>SampleSceneB</SceneName>
+		<Path>Assets/Scenes/Sample/SampleSceneB.unity</Path>
+	</record>
 </SceneData>

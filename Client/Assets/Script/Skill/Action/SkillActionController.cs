@@ -9,13 +9,13 @@ namespace ProjectT.Skill
 {
     public class SkillActionController
     {
-        private BaseActor owner;
+        private ComBaseActor owner;
         
         private Dictionary<int, BaseSkillAction> actions;
         private List<BaseSkillAction> activeActions;
         private List<BaseSkillAction> removeActions;
 
-        public void Init(BaseActor owner)
+        public void Init(ComBaseActor owner)
         {
             if (owner == null)
             {

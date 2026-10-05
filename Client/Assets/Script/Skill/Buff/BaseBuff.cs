@@ -10,7 +10,7 @@ namespace ProjectT.Skill
 
     public class BaseBuff : ProjectT.Pool.IPoolable
     {
-        protected BaseActor ownerActor;
+        protected ComBaseActor ownerActor;
         protected buffInfo buffInfo;
 
         public DesignEnum.BuffType buffType { get => (DesignEnum.BuffType)buffInfo.buff_type; }
@@ -43,7 +43,7 @@ namespace ProjectT.Skill
         {
             if(args.Length > 0)
             {
-                ownerActor = args[0] as BaseActor;
+                ownerActor = args[0] as ComBaseActor;
                 buffInfo = args[1] as buffInfo;
             }
         }
