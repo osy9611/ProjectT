@@ -13,23 +13,14 @@ namespace ProjectT
         private enum SpawnState
         {
             None,
-            Spawned,
             Entering,
             Entered,
             Active
         }
 
-        private enum ComponentState
-        {
-            None,
-            Awoken,
-            Started,
-            Failed,
-            Destroying
-        }
-
         private SpawnState spawnState;
-        private ComponentState componentState;
+        private bool initialized;
+        private bool destroying;
         private bool spawnTransitioning;
         // Controller/onReset 콜백 중 등록·해제되어도 순회 중인 스냅샷이 유효하도록 리스트를 수정하지 않고 교체한다(copy-on-write).
         private List<InputContext> inputContexts = new List<InputContext>();
@@ -40,20 +31,6 @@ namespace ProjectT
         protected virtual void Awake()
         {
             InitializeInternal();
-        }
-
-        private void Start()
-        {
-            // 파생 클래스가 base.Awake()를 호출하지 않았거나 OnInit이 실패했으면 Start에서 기반 초기화를 한 번 더 시도한다.
-            // 재시도도 실패하면 Failed에 남아 이후 Spawn을 거부한다. 성공하면 InitializeInternal이 Awoken으로 바꾼다.
-            if (componentState == ComponentState.None)
-            {
-                componentState = ComponentState.Failed;
-                InitializeInternal();
-            }
-
-            componentState = ComponentState.Started;
-            EnterInternal();
         }
 
         private void Update()
@@ -70,8 +47,7 @@ namespace ProjectT
 
         private void OnEnable()
         {
-            if (componentState == ComponentState.Started)
-                ActivateInternal();
+            ActivateInternal();
         }
 
         private void OnDisable()
@@ -81,7 +57,7 @@ namespace ProjectT
 
         private void OnDestroy()
         {
-            componentState = ComponentState.Destroying;
+            destroying = true;
             try
             {
                 EndSpawnInternal();
@@ -107,22 +83,44 @@ namespace ProjectT
 
         public void Spawn()
         {
-            if (componentState == ComponentState.Destroying)
+            if (destroying)
                 throw new ObjectDisposedException(GetType().Name);
-
-            if (componentState == ComponentState.Failed)
-                throw new InvalidOperationException("Actor initialization failed.");
 
             if (spawnTransitioning || spawnState != SpawnState.None)
                 throw new InvalidOperationException("Actor is already spawned or in a spawn transition.");
 
-            spawnState = SpawnState.Spawned;
-            EnterInternal();
+            // 파생 클래스가 base.Awake()를 호출하지 않았거나 OnInit이 실패했으면 여기서 다시 초기화한다. 활성 계층에 있으면 Awake는 이미 지났다.
+            if (!initialized)
+            {
+                if (!gameObject.activeInHierarchy)
+                    throw new InvalidOperationException("Actor must be active before it is spawned.");
+
+                InitializeInternal();
+            }
+
+            // OnEnter가 실패하면 Entering에 남아 이후 활성화와 재시도를 막고, 반납·파괴에서 정리된다.
+            spawnState = SpawnState.Entering;
+            spawnTransitioning = true;
+            try
+            {
+                OnEnter();
+            }
+            finally
+            {
+                spawnTransitioning = false;
+            }
+
+            if (spawnState != SpawnState.Entering)
+                return;
+
+            spawnState = SpawnState.Entered;
+            if (isActiveAndEnabled)
+                ActivateInternal();
         }
 
         protected void RegisterInputContext(InputContext context)
         {
-            if (componentState == ComponentState.Destroying)
+            if (destroying)
                 throw new ObjectDisposedException(GetType().Name);
 
             if (context == null)
@@ -164,32 +162,7 @@ namespace ProjectT
         {
             pivotAgent = GetComponent<ComPivotAgent>();
             OnInit();
-            componentState = ComponentState.Awoken;
-        }
-
-        private void EnterInternal()
-        {
-            if (componentState != ComponentState.Started || spawnState != SpawnState.Spawned)
-                return;
-
-            // OnEnter가 실패하면 Entering에 남아 이후 활성화와 재시도를 막고, 반납·파괴에서 정리된다.
-            spawnState = SpawnState.Entering;
-            spawnTransitioning = true;
-            try
-            {
-                OnEnter();
-            }
-            finally
-            {
-                spawnTransitioning = false;
-            }
-
-            if (spawnState != SpawnState.Entering)
-                return;
-
-            spawnState = SpawnState.Entered;
-            if (isActiveAndEnabled)
-                ActivateInternal();
+            initialized = true;
         }
 
         private void ActivateInternal()
@@ -229,13 +202,6 @@ namespace ProjectT
         {
             if (spawnState == SpawnState.None)
                 return;
-
-            // OnRelease는 OnEnter를 시작한 스폰에만 호출한다. OnEnter 전에 끝난 스폰은 초기화가 실패했거나 스폰 상태가 적용되지 않았을 수 있다.
-            if (spawnState == SpawnState.Spawned)
-            {
-                spawnState = SpawnState.None;
-                return;
-            }
 
             // 입력 리셋 콜백이 반납 중인 Actor를 다시 활성화하거나 스폰하지 않도록 리셋 전에 전환 잠금을 건다.
             bool wasTransitioning = spawnTransitioning;
