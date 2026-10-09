@@ -1,6 +1,7 @@
 using ProjectT.Controller;
 using ProjectT.Pivot;
 using ProjectT.Pool;
+using ProjectT.Skill;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -28,13 +29,20 @@ namespace ProjectT
         protected ComPivotAgent pivotAgent;
         public ComPivotAgent PivotAgent => pivotAgent;
 
+        private SkillAgent skillAgent;
+        public SkillAgent SkillAgent => skillAgent;
+
         protected virtual void Awake()
         {
             InitializeInternal();
         }
 
+        // 만료와 쿨다운이 반영된 뒤 OnUpdate가 판단하도록 먼저 틱한다. 틱 중 비활성화·반납되면 OnUpdate를 호출하지 않는다.
         private void Update()
         {
+            if (spawnState == SpawnState.Active)
+                skillAgent?.TickInternal(Time.deltaTime);
+
             if (spawnState == SpawnState.Active)
                 OnUpdate(Time.deltaTime);
         }
@@ -99,7 +107,9 @@ namespace ProjectT
             }
 
             // OnEnter가 실패하면 Entering에 남아 이후 활성화와 재시도를 막고, 반납·파괴에서 정리된다.
+            // 스킬 등록은 스폰 종료가 해제를 보장하는 상태부터 열어 OnEnter에서 등록할 수 있게 한다.
             spawnState = SpawnState.Entering;
+            skillAgent?.OpenInternal();
             spawnTransitioning = true;
             try
             {
@@ -157,10 +167,21 @@ namespace ProjectT
             context.Owner?.RemoveContext(context);
         }
 
+        protected SkillAgent AddSkillAgent()
+        {
+            if (skillAgent != null)
+                throw new InvalidOperationException("SkillAgent is already added.");
+
+            skillAgent = new SkillAgent(this);
+            return skillAgent;
+        }
+
         // 훅이 실패하면 다음 단계로 진행하지 않도록 훅이 모두 끝난 뒤 상태를 진행한다.
         private void InitializeInternal()
         {
             pivotAgent = GetComponent<ComPivotAgent>();
+            // 실패한 OnInit이 추가한 에이전트가 Spawn의 재초기화에서 중복 추가로 막히지 않도록 버린다. Open 전이라 등록된 것이 없다.
+            skillAgent = null;
             OnInit();
             initialized = true;
         }
@@ -193,8 +214,17 @@ namespace ProjectT
             }
             finally
             {
-                if (spawnState == SpawnState.Entered)
-                    Disable();
+                // 파생 클래스가 Disable에서 구독을 해제하기 전에 취소 효과를 받도록 먼저 취소하고, 취소가 실패해도 Disable은 실행한다.
+                try
+                {
+                    if (spawnState == SpawnState.Entered)
+                        skillAgent?.CancelActiveSkillsInternal();
+                }
+                finally
+                {
+                    if (spawnState == SpawnState.Entered)
+                        Disable();
+                }
             }
         }
 
@@ -226,7 +256,15 @@ namespace ProjectT
                     }
                     finally
                     {
-                        OnRelease();
+                        // 입력 컨텍스트와 같이 기반 클래스가 관리하는 등록은 파생 훅보다 먼저 정리한다.
+                        try
+                        {
+                            skillAgent?.ReleaseInternal();
+                        }
+                        finally
+                        {
+                            OnRelease();
+                        }
                     }
                 }
             }

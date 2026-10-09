@@ -1,26 +1,19 @@
-using DesignTable;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using Unity.Mathematics;
-using UnityEngine;
-
 namespace ProjectT.Skill
 {
     public class SkillSpec
     {
-        public skillInfo skillInfo;
+        public SkillDefinition Definition;
         public float CoolDownRemaining;
         public bool IsOnCoolDown => CoolDownRemaining > 0;
         
-        public void Init(skillInfo skillInfo)
+        public void Init(SkillDefinition definition)
         {
-            this.skillInfo = skillInfo;
+            Definition = definition;
         }
 
         public void StartCooldown()
         {
-            CoolDownRemaining = skillInfo.skill_coolTime;
+            CoolDownRemaining = Definition.CoolTime;
         }
         
 
@@ -33,55 +26,17 @@ namespace ProjectT.Skill
         }
     }
 
-    public abstract class BaseSkillAction : ProjectT.Pool.IPoolable
+    public abstract class BaseSkillAction
     {
         private SkillSpec spec;
         public SkillSpec Spec { get => spec; }
-
-        public DesignEnum.SkillType SkillType { get => (DesignEnum.SkillType)spec.skillInfo.skill_type; }
 
         private ComBaseActor owner;
         public ComBaseActor Owner { get => owner; }
         public bool IsActive;
 
-        public void OnGet()
-        {
-        }
-
-        public void OnReturn()
-        {
-            try
-            {
-                if (IsActive)
-                    Cancel();
-                OnReset();
-            }
-            finally
-            {
-                IsActive = false;
-                owner = null;
-                spec = null;
-            }
-        }
-
-        protected virtual void OnReset()
-        {
-        }
-
         public virtual void Init(ComBaseActor owner, SkillSpec spec)
         {
-            if (owner == null)
-            {
-                Global.LogError($"[BaseSkillAction] owner Actor is null");
-                return;
-            }
-
-            if (spec == null)
-            {
-                Global.LogError($"[BaseSkillAction] SkillSpec is null");
-                return;
-            }
-
             this.owner = owner;
             this.spec = spec;
         }

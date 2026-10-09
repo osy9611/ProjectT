@@ -1,60 +1,66 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+using System;
 namespace ProjectT.Skill
 {
     public class SkillAgent
     {
-        protected ComBaseActor actor;
         private BuffController buffController;
-        private SkillEffectController effectController;
         private SkillActionController actionController;
-        public SkillActionController ActionController { get => actionController; }
+        private bool isOpen;
 
-        public virtual void Init(ComBaseActor actor)
+        internal SkillAgent(ComBaseActor owner)
         {
-            this.actor = actor;
-
-            if(buffController == null)
-            {
-                buffController = new BuffController();
-                buffController.Init(actor);
-            }
-
-            if(actionController == null)
-            {
-                actionController = new SkillActionController();
-                actionController.Init(actor);
-            }
+            buffController = new BuffController(owner);
+            actionController = new SkillActionController(owner);
         }
 
-        public virtual void ActivateSkill(int skillID)
+        public void GiveSkill(int skillId)
         {
-            actionController.ActivateSkill(skillID);
+            if (!isOpen)
+                throw new InvalidOperationException($"[SkillAgent] Registration is closed. SkillID {skillId}");
+
+            actionController.RegisterSkill(skillId);
         }
 
-        public virtual void CancelSkill(int skillID)
+        public void ActivateSkill(int skillId)
         {
-            actionController.CancelSkill(skillID);
+            actionController.ActivateSkill(skillId);
         }
 
-        public virtual void Reset()
+        public void CancelSkill(int skillId)
         {
-            try { buffController?.Clear(); }
-            finally { actionController?.UnRegisterAbilities(); }
+            actionController.CancelSkill(skillId);
         }
 
-        public virtual void OnUpdate(float deltaTime)
+        public void ApplyBuff(int buffId, ComBaseActor caster)
         {
+            if (!isOpen)
+                throw new InvalidOperationException($"[SkillAgent] Registration is closed. BuffID {buffId}");
+
+            buffController.Register(buffId, caster);
+        }
+
+        internal void OpenInternal()
+        {
+            isOpen = true;
+        }
+
+        internal void TickInternal(float deltaTime)
+        {
+            buffController.Tick(deltaTime);
             actionController.OnUpdate(deltaTime);
         }
 
-        public virtual void AddBuff(int buffId)
+        internal void CancelActiveSkillsInternal()
         {
-            if(buffController != null)
-            {
-                buffController.Register(buffId);
-            }
+            actionController.CancelActiveSkills();
+        }
+
+        internal void ReleaseInternal()
+        {
+            // 정리 콜백(OnExpire, Cancel)에서 등록하면 다음 스폰으로 넘어가거나 조용히 버려지므로 정리 전에 닫는다.
+            isOpen = false;
+            try { buffController.ReleaseAll(); }
+            finally { actionController.ReleaseAll(); }
         }
     }
 }

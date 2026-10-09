@@ -1,60 +1,53 @@
-using Cysharp.Threading.Tasks;
-using DesignEnum;
-using DesignTable;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace ProjectT.Skill
 {
-    public class SkillActionController
+    internal class SkillActionController
     {
         private ComBaseActor owner;
         
-        private Dictionary<int, BaseSkillAction> actions;
-        private List<BaseSkillAction> activeActions;
-        private List<BaseSkillAction> removeActions;
+        private Dictionary<int, BaseSkillAction> actions = new Dictionary<int, BaseSkillAction>();
+        private List<BaseSkillAction> activeActions = new List<BaseSkillAction>();
 
-        public void Init(ComBaseActor owner)
+        public SkillActionController(ComBaseActor owner)
         {
-            if (owner == null)
-            {
-                Global.LogError($"[SkillActionController] This Actor is null");
-                return;
-            }
-
             this.owner = owner;
-            actions = new Dictionary<int, BaseSkillAction>();
-            activeActions = new List<BaseSkillAction>();
-            removeActions = new List<BaseSkillAction>();
         }
 
-        public void UnRegisterAbilities()
+        public void ReleaseAll()
         {
-            if (actions == null)
-                return;
-            var pending = new List<BaseSkillAction>(actions.Values);
-            actions.Clear();
-            activeActions.Clear();
-            removeActions.Clear();
-            foreach (var action in pending)
-                SkillActionContainer.Return(action.SkillType, action);
+            try
+            {
+                foreach (var action in actions.Values)
+                {
+                    if (action.IsActive)
+                        action.Cancel();
+                }
+            }
+            finally
+            {
+                actions.Clear();
+                activeActions.Clear();
+            }
         }
 
 
         public void RegisterSkill(int skillID)
         {
-            skillInfo skillInfo =  Global.Table.SkillInfos.Get(skillID);
-            if(skillInfo == null)
+            SkillDefinition definition = SkillDefinitions.GetSkill(skillID);
+            if(definition == null)
             {
                 Global.LogError($"[SkillActionController] SkillInfo Not Found SkillID {skillID}");
                 return;
             }
 
-            SkillSpec spec = new SkillSpec();
-            spec.Init(skillInfo);
+            if (actions.ContainsKey(skillID))
+                throw new System.ArgumentException($"[SkillActionController] Already Registered SkillID {skillID}");
 
-            BaseSkillAction skillAction = SkillActionContainer.Get(skillInfo.skill_type);
+            SkillSpec spec = new SkillSpec();
+            spec.Init(definition);
+
+            BaseSkillAction skillAction = SkillActionContainer.Get(definition.Kind);
             skillAction.Init(owner, spec);
 
             actions.Add(skillID, skillAction);
@@ -69,19 +62,20 @@ namespace ProjectT.Skill
 
                 skillAction.TryActivate();
 
-                if (skillAction.IsActive)
+                if (skillAction.IsActive && !activeActions.Contains(skillAction))
                     activeActions.Add(skillAction);
             }
         }
 
         public void OnUpdate(float deletaTime)
         {
-            foreach(var action in activeActions)
+            int count = activeActions.Count;
+            // OnUpdate 중 Actor가 반납되면 순회 도중 목록이 비워진다.
+            for (int i = 0; i < count && i < activeActions.Count; i++)
             {
-                action.OnUpdate(deletaTime);
-
-                if (!action.IsActive)
-                    removeActions.Add(action);
+                var action = activeActions[i];
+                if (action.IsActive)
+                    action.OnUpdate(deletaTime);
             }
 
             //쿨다운 업데이트
@@ -90,7 +84,7 @@ namespace ProjectT.Skill
                 pair.Value.Spec.OnUpdate(deletaTime);
             }
 
-            activeActions.RemoveAll(x => removeActions.Contains(x));
+            activeActions.RemoveAll(x => !x.IsActive);
         }
         
         public void CancelSkill(int skillID)
@@ -104,12 +98,16 @@ namespace ProjectT.Skill
             }
         }
 
-        public void CancelAllSkill()
+        public void CancelActiveSkills()
         {
-            foreach (var action in activeActions)
-                action.Cancel();
-
-            activeActions.Clear();
+            int count = activeActions.Count;
+            // Cancel 콜백에서 Actor가 반납되면 순회 도중 목록이 비워진다.
+            for (int i = 0; i < count && i < activeActions.Count; i++)
+            {
+                var action = activeActions[i];
+                if (action.IsActive)
+                    action.Cancel();
+            }
         }
     }
 }

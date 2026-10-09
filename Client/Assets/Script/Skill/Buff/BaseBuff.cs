@@ -1,51 +1,25 @@
-using Cysharp.Threading.Tasks;
-using DesignTable;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
 namespace ProjectT.Skill
 {
 
-    public class BaseBuff : ProjectT.Pool.IPoolable
+    public class BaseBuff
     {
         protected ComBaseActor ownerActor;
-        protected buffInfo buffInfo;
+        protected BuffDefinition definition;
 
-        public DesignEnum.BuffType buffType { get => (DesignEnum.BuffType)buffInfo.buff_type; }
+        private ComBaseActor caster;
+        public ComBaseActor Caster { get => caster; }
 
-        public int BuffID { get => buffInfo.buff_Id; }
+        public int BuffID { get => definition.Id; }
 
-        public float Interval { get => buffInfo.buff_interval; }
+        public float Interval { get => definition.Interval; }
 
-        public float Duration { get => buffInfo.buff_duration; }
+        public float Duration { get => definition.Duration; }
 
-        public void OnGet()
+        public virtual void Init(ComBaseActor ownerActor, ComBaseActor caster, BuffDefinition definition)
         {
-        }
-
-        public void OnReturn()
-        {
-            try { OnReset(); }
-            finally
-            {
-                ownerActor = null;
-                buffInfo = null;
-            }
-        }
-
-        protected virtual void OnReset()
-        {
-        }
-
-        public virtual void Init(params object[] args)
-        {
-            if(args.Length > 0)
-            {
-                ownerActor = args[0] as ComBaseActor;
-                buffInfo = args[1] as buffInfo;
-            }
+            this.ownerActor = ownerActor;
+            this.caster = caster;
+            this.definition = definition;
         }
 
         //활성화가 될때

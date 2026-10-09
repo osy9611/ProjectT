@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -9,41 +8,26 @@ namespace ProjectT.Skill
     [AttributeUsage(AttributeTargets.Class)]
     public class SkillActionAttribute : Attribute
     {
-        public DesignEnum.SkillType SkillType { get; }
+        public SkillActionKind Kind { get; }
 
-        public SkillActionAttribute(DesignEnum.SkillType skillType)
+        public SkillActionAttribute(SkillActionKind kind)
         {
-            SkillType = skillType;
-        }
-    }
-
-    public class SkillPoolHandler
-    {
-        public Func<BaseSkillAction> Create;
-        public Action<BaseSkillAction> Return;
-
-        public SkillPoolHandler(Func<BaseSkillAction> create, Action<BaseSkillAction> ret)
-        {
-            Create = create;
-            Return = ret;
+            Kind = kind;
         }
     }
 
     public static class SkillActionContainer 
     {
         private static readonly string[] nameSpace = { "ProjectT.Skill" };
-        public static bool AlreadyRegister = false;
 
-        private static Dictionary<DesignEnum.SkillType, SkillPoolHandler> typeActions = new();
+        private static Dictionary<SkillActionKind, Func<BaseSkillAction>> typeActions;
 
-        public static void AutoRegister()
+        private static Dictionary<SkillActionKind, Func<BaseSkillAction>> BuildHandlersInternal()
         {
-            if (AlreadyRegister)
-                return;
-
+            var handlers = new Dictionary<SkillActionKind, Func<BaseSkillAction>>();
             var allTypes = Assembly.GetExecutingAssembly()
                           .GetTypes()
-                          .Where(t=> typeof(BaseSkillAction).IsAssignableFrom(t) && t.IsAbstract)
+                          .Where(t=> typeof(BaseSkillAction).IsAssignableFrom(t) && !t.IsAbstract)
                           .Where(t => nameSpace.Any(ns=>t.Namespace != null && t.Namespace.StartsWith(ns)));
 
             foreach (var type in allTypes)
@@ -62,61 +46,46 @@ namespace ProjectT.Skill
                     continue;
                 }
 
-                var handler = registerMethod.Invoke(null, null) as SkillPoolHandler;
+                var handler = registerMethod.Invoke(null, null) as Func<BaseSkillAction>;
                 if (handler == null)
                 {
                     Global.LogError($"[SkillActionContainer] {type.Name} Register Fail");
                     continue;
                 }
 
-                typeActions.Add(attr.SkillType, handler);
-                Debug.Log($"[SkillActionContainer] Registered {attr.SkillType} => {type.Name}");
+                handlers.Add(attr.Kind, handler);
+                Debug.Log($"[SkillActionContainer] Registered {attr.Kind} => {type.Name}");
             }
 
-            AlreadyRegister = true;
+            return handlers;
         }
 
-        private static SkillPoolHandler Register<T>() where T : BaseSkillAction, new()
+        private static Func<BaseSkillAction> Register<T>() where T : BaseSkillAction, new()
         {
-            return new SkillPoolHandler(
-                () => Global.Pool.Get<T>(),
-                action => Global.Pool.Return((T)action));
+            return () => new T();
         }
 
-        public static BaseSkillAction Get(sbyte type)
+        public static BaseSkillAction Get(SkillActionKind type)
         {
-            return Get((DesignEnum.SkillType)type);
-        }
+            typeActions ??= BuildHandlersInternal();
 
-        public static BaseSkillAction Get(DesignEnum.SkillType type)
-        {
             if(typeActions.TryGetValue(type,out var handler))
             {
-                return handler.Create?.Invoke();
+                return handler();
             }
 
             Global.LogError($"[SkillActionContainer] Get SkillAction Fail typeActions Not Found {type}");
             return null;
         }
 
-        public static void Clear(DesignEnum.SkillType type)
+        public static void Clear(SkillActionKind type)
         {
-            if(typeActions.TryGetValue(type, out var handler))
-            {
-                typeActions.Remove(type);
-            }
-        }
-        public static void ClearAll()
-        {
-            typeActions.Clear();
+            typeActions?.Remove(type);
         }
 
-        public static void Return(DesignEnum.SkillType type, BaseSkillAction skillAction)
+        public static void ClearAll()
         {
-            if (typeActions.TryGetValue(type, out var handler))
-            {
-                handler.Return?.Invoke(skillAction);
-            }
+            typeActions = null;
         }
 
     }

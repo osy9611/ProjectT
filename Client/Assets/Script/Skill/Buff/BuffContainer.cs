@@ -1,49 +1,32 @@
-using ProjectT.Pool;
 using System;
 using System.Reflection;
-using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
-using Unity.VisualScripting;
-using UnityEngine;
+using UnityEngine.Scripting;
 using System.Linq;
+
 namespace ProjectT.Skill
 {
     [AttributeUsage(AttributeTargets.Class)]
     public class BuffAttribute : Attribute
     {
-        public DesignEnum.BuffType BuffType { get; }
-        public BuffAttribute(DesignEnum.BuffType buffType)
+        public BuffKind Kind { get; }
+        public BuffAttribute(BuffKind kind)
         {
-            BuffType = buffType;
-        }
-    }
-
-    public class BuffPoolHandler
-    {
-        public Func<BaseBuff> Create;
-        public Action<BaseBuff> Return;
-        public BuffPoolHandler(Func<BaseBuff> create, Action<BaseBuff> ret)
-        {
-            Create = create;
-            Return = ret;
+            Kind = kind;
         }
     }
 
     public static class BuffContainer 
     {
         private static readonly string[] nameSpace = { "ProjectT.Skill" };
-        public static bool AlreadyRegister = false;
-        private static Dictionary<DesignEnum.BuffType, BuffPoolHandler> typeBuffs = new();
+        private static Dictionary<BuffKind, Func<BaseBuff>> typeBuffs;
 
-        public static void AutoRegister()
+        private static Dictionary<BuffKind, Func<BaseBuff>> BuildHandlersInternal()
         {
-            if (AlreadyRegister)
-                return;
-
+            var handlers = new Dictionary<BuffKind, Func<BaseBuff>>();
             var allTypes = Assembly.GetExecutingAssembly()
                             .GetTypes()
-                            .Where(t => typeof(BaseBuff).IsAssignableFrom(t))
+                            .Where(t => typeof(BaseBuff).IsAssignableFrom(t) && !t.IsAbstract)
                             .Where(t => nameSpace.Any(ns => t.Namespace != null && t.Namespace.StartsWith(ns)));
 
             foreach (var type in allTypes)
@@ -62,52 +45,40 @@ namespace ProjectT.Skill
                     continue;
                 }
 
-                var handler = registerMethod.Invoke(null, null) as BuffPoolHandler;
+                var handler = registerMethod.Invoke(null, null) as Func<BaseBuff>;
                 if(handler == null)
                 {
                     Global.LogError($"[BuffContainer] {type.Name} Register Fail");
                     continue;
                 }
 
-                typeBuffs.Add(attr.BuffType, handler);
-                Global.Instance.Log($"[BuffContainer] Registered {attr.BuffType} => {type.Name}");
+                handlers.Add(attr.Kind, handler);
+                Global.Instance.Log($"[BuffContainer] Registered {attr.Kind} => {type.Name}");
             }
 
-            AlreadyRegister = true;
+            return handlers;
         }
 
-        private static BuffPoolHandler Register<T>() where T : BaseBuff, new()
+        private static Func<BaseBuff> Register<T>() where T : BaseBuff, new()
         {
-            return new BuffPoolHandler(
-                () => Global.Pool.Get<T>(),
-                buff => Global.Pool.Return((T)buff));
+            return () => new T();
         }
 
-        public static BaseBuff Get(sbyte type)
+        public static BaseBuff Get(BuffKind type)
         {
-            return Get((DesignEnum.BuffType)type);
-        }
+            typeBuffs ??= BuildHandlersInternal();
 
-        public static BaseBuff Get(DesignEnum.BuffType type)
-        {
             if (typeBuffs.TryGetValue(type, out var classType))
             {
-                return classType.Create.Invoke();
+                return classType();
             }
 
             return null;
         }
-
-        public static void Return(DesignEnum.BuffType type, BaseBuff baseBuff)
-        {
-            if (typeBuffs.TryGetValue(type, out var classType))
-            {
-                classType.Return(baseBuff);
-            }
-        }
     }
 
-    [Buff(DesignEnum.BuffType.AddATK)]
+    [Preserve]
+    [Buff(BuffKind.AddATK)]
     public class AddATK : BaseBuff
     {
 
