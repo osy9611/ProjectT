@@ -145,18 +145,28 @@ namespace ProjectT.Pool
             if (disposed)
                 return;
 
-            pools?.Dispose();
-            disposed = true;
-
             try
             {
-                if (Root != null)
-                    UnityEngine.Object.Destroy(Root.gameObject);
+                pools?.Dispose();
             }
             finally
             {
-                Root = null;
-                Original = null;
+                // 콜백 재진입으로 거부된 해제는 풀을 바꾸지 않으므로 Root를 남기고, 해제가 시작된 뒤 정리가 실패하면 Root를 파괴한다.
+                if (pools == null || pools.IsDisposed)
+                {
+                    disposed = true;
+
+                    try
+                    {
+                        if (Root != null)
+                            UnityEngine.Object.Destroy(Root.gameObject);
+                    }
+                    finally
+                    {
+                        Root = null;
+                        Original = null;
+                    }
+                }
             }
         }
     }

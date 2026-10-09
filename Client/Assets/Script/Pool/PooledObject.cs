@@ -34,22 +34,18 @@ namespace ProjectT.Pool
             }
         }
 
+        // 콜백이 반납을 거부하거나 실패하면 객체는 대여 중으로 남으므로 모든 콜백이 끝난 뒤에만 비활성화한다.
         public void OnReturn()
         {
-            try
+            foreach (var callback in callbacks)
             {
-                foreach (var callback in callbacks)
-                {
-                    if (callback is UnityEngine.Object component && component == null)
-                        continue;
+                if (callback is UnityEngine.Object component && component == null)
+                    continue;
 
-                    callback.OnReturn();
-                }
+                callback.OnReturn();
             }
-            finally
-            {
-                Owner?.FinishReturn(this);
-            }
+
+            Owner?.FinishReturn(this);
         }
 
         private void OnDestroy()

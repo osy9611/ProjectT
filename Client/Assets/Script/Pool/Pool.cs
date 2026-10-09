@@ -36,6 +36,7 @@ namespace ProjectT.Pool
         public int InactiveCount => inactiveObjects.Count;
         public int ActiveCount => activeObjects.Count;
         public int Count => InactiveCount + ActiveCount;
+        internal bool IsDisposed => disposed;
         public IEnumerable<T> ActiveObjects { get { foreach (var item in activeObjects) yield return item; } }
         public IEnumerable<T> InactiveObjects { get { foreach (var item in inactiveObjects) yield return item; } }
 
