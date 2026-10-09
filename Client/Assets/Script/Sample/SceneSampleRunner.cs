@@ -39,7 +39,7 @@ namespace ProjectT.Sample
                 return;
 
             var scene = Global.Scene;
-            GUILayout.BeginArea(new Rect(Screen.width - Width - 10, Top, Width, Screen.height - Top - 10), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(Screen.width - Width - 10, Top, Width, 230), GUI.skin.box);
             GUILayout.Label("[Scene]");
             GUI.enabled = !scene.IsTransitioning;
 

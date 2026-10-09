@@ -27,6 +27,11 @@ MonoBehaviour:
     m_SerializedLabels:
     - default
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4495b81dc7e51a644b3148200f65d4df
+    m_Address: Assets/BundleRes/Sound
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6ea315d0fd7389c41b19996891e99ae3
     m_Address: Assets/Scenes
     m_ReadOnly: 0
