@@ -2,6 +2,7 @@ using ProjectT.Controller;
 using ProjectT.Pivot;
 using ProjectT.Pool;
 using ProjectT.Skill;
+using ProjectT.Stat;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -22,7 +23,11 @@ namespace ProjectT
         private SpawnState spawnState;
         private bool initialized;
         private bool destroying;
+        // 비활성화·스폰 종료가 중간에 실패한 Actor는 상태가 오염되었을 수 있으므로 다시 활성화·스폰·반납하지 않고 파괴로 정리한다.
+        private bool faulted;
         private bool spawnTransitioning;
+        // 비활성화 콜백에서의 재활성화는 허용하고 반납만 막으므로 spawnTransitioning과 구분한다.
+        private bool deactivating;
         // Controller/onReset 콜백 중 등록·해제되어도 순회 중인 스냅샷이 유효하도록 리스트를 수정하지 않고 교체한다(copy-on-write).
         private List<InputContext> inputContexts = new List<InputContext>();
 
@@ -31,6 +36,9 @@ namespace ProjectT
 
         private SkillAgent skillAgent;
         public SkillAgent SkillAgent => skillAgent;
+
+        private Status status;
+        public Status Status => status;
 
         protected virtual void Awake()
         {
@@ -80,11 +88,17 @@ namespace ProjectT
         {
         }
 
-        // 풀 반납은 스폰을 끝낸다. 스폰 전환 중 반납되면 진행 중인 전환이 반납된 객체에 상태를 남기므로 거부한다.
+        // 풀 반납은 스폰을 끝낸다. 스폰 전환이나 비활성화 중 반납되면 진행 중인 처리가 반납된 객체에 상태를 남기므로 거부한다.
         void IPoolable.OnReturn()
         {
             if (spawnTransitioning)
                 throw new InvalidOperationException("Actor cannot be returned during a spawn transition.");
+
+            if (deactivating)
+                throw new InvalidOperationException("Actor cannot be returned during deactivation.");
+
+            if (faulted)
+                throw new InvalidOperationException("Faulted actor cannot be returned to the pool.");
 
             EndSpawnInternal();
         }
@@ -93,6 +107,9 @@ namespace ProjectT
         {
             if (destroying)
                 throw new ObjectDisposedException(GetType().Name);
+
+            if (faulted)
+                throw new InvalidOperationException("Faulted actor cannot be spawned.");
 
             if (spawnTransitioning || spawnState != SpawnState.None)
                 throw new InvalidOperationException("Actor is already spawned or in a spawn transition.");
@@ -176,19 +193,29 @@ namespace ProjectT
             return skillAgent;
         }
 
+        protected Status AddStatus()
+        {
+            if (status != null)
+                throw new InvalidOperationException("Status is already added.");
+
+            status = new Status();
+            return status;
+        }
+
         // 훅이 실패하면 다음 단계로 진행하지 않도록 훅이 모두 끝난 뒤 상태를 진행한다.
         private void InitializeInternal()
         {
             pivotAgent = GetComponent<ComPivotAgent>();
-            // 실패한 OnInit이 추가한 에이전트가 Spawn의 재초기화에서 중복 추가로 막히지 않도록 버린다. Open 전이라 등록된 것이 없다.
+            // 실패한 OnInit이 추가한 에이전트와 Status가 Spawn의 재초기화에서 중복 추가로 막히지 않도록 버린다. Open 전이라 등록된 것이 없다.
             skillAgent = null;
+            status = null;
             OnInit();
             initialized = true;
         }
 
         private void ActivateInternal()
         {
-            if (spawnTransitioning || spawnState != SpawnState.Entered)
+            if (faulted || spawnTransitioning || spawnState != SpawnState.Entered)
                 return;
 
             spawnState = SpawnState.Active;
@@ -207,24 +234,26 @@ namespace ProjectT
             var snapshot = inputContexts;
             DetachInputContextsInternal(snapshot);
 
-            // 리셋이 실패해도 Enable의 구독이 다음 스폰으로 넘어가지 않도록 Disable은 실행한다.
+            bool wasDeactivating = deactivating;
+            deactivating = true;
+            bool completed = false;
             try
             {
                 ResetInputContextsInternal(snapshot);
+
+                // 파생 클래스가 Disable에서 구독을 해제하기 전에 취소 효과를 받도록 먼저 취소한다.
+                if (spawnState == SpawnState.Entered)
+                    skillAgent?.CancelActiveSkillsInternal();
+
+                if (spawnState == SpawnState.Entered)
+                    Disable();
+
+                completed = true;
             }
             finally
             {
-                // 파생 클래스가 Disable에서 구독을 해제하기 전에 취소 효과를 받도록 먼저 취소하고, 취소가 실패해도 Disable은 실행한다.
-                try
-                {
-                    if (spawnState == SpawnState.Entered)
-                        skillAgent?.CancelActiveSkillsInternal();
-                }
-                finally
-                {
-                    if (spawnState == SpawnState.Entered)
-                        Disable();
-                }
+                faulted |= !completed;
+                deactivating = wasDeactivating;
             }
         }
 
@@ -236,40 +265,22 @@ namespace ProjectT
             // 입력 리셋 콜백이 반납 중인 Actor를 다시 활성화하거나 스폰하지 않도록 리셋 전에 전환 잠금을 건다.
             bool wasTransitioning = spawnTransitioning;
             spawnTransitioning = true;
+            bool completed = false;
             try
             {
-                bool deactivated = false;
-                try
-                {
-                    DeactivateInternal();
-                    deactivated = true;
-                }
-                finally
-                {
-                    spawnState = SpawnState.None;
+                DeactivateInternal();
+                ResetInputContextsInternal(inputContexts);
 
-                    // 스폰 종료는 다시 호출되지 않으므로 앞선 실패와 관계없이 OnRelease를 호출한다. 비활성화 중 입력 리셋이 이미 실패했을 수 있어 그 경우 최종 리셋은 재시도하지 않는다.
-                    try
-                    {
-                        if (deactivated)
-                            ResetInputContextsInternal(inputContexts);
-                    }
-                    finally
-                    {
-                        // 입력 컨텍스트와 같이 기반 클래스가 관리하는 등록은 파생 훅보다 먼저 정리한다.
-                        try
-                        {
-                            skillAgent?.ReleaseInternal();
-                        }
-                        finally
-                        {
-                            OnRelease();
-                        }
-                    }
-                }
+                // 기반 클래스가 관리하는 모듈은 파생 훅보다 먼저 정리한다. 버프가 건 수정자는 Status를 비우기 전에 제거되어야 한다.
+                skillAgent?.ReleaseInternal();
+                status?.ReleaseInternal();
+                OnRelease();
+                completed = true;
             }
             finally
             {
+                spawnState = SpawnState.None;
+                faulted |= !completed;
                 spawnTransitioning = wasTransitioning;
             }
         }

@@ -1,13 +1,11 @@
 using Cysharp.Threading.Tasks;
+using ProjectT.Skill;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Scripting;
 
-namespace ProjectT.Skill
+namespace ProjectT.SkillAdapter
 {
-    [Preserve]
-    [SkillAction(SkillActionKind.Normal)]
     public class Action_Normal : BaseSkillAction
     {
         protected override void Activate()
