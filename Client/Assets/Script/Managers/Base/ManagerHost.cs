@@ -120,11 +120,19 @@ namespace ProjectT
 
                 InitializationError = error;
 
-                Shutdown(ShutdownReason.InitializationFailure);
+                ShutdownInternal(ShutdownReason.InitializationFailure);
             }
         }
 
         public void Shutdown(ShutdownReason reason = ShutdownReason.Normal)
+        {
+            if (reason == ShutdownReason.InitializationFailure)
+                throw new ArgumentException("InitializationFailure is reserved for the host.", nameof(reason));
+
+            ShutdownInternal(reason);
+        }
+
+        private void ShutdownInternal(ShutdownReason reason)
         {
             if (State == ManagerState.Stopping || State == ManagerState.Stopped || State == ManagerState.Failed)
                 return;
@@ -135,12 +143,16 @@ namespace ProjectT
             for (int i = startedCount - 1; i >= 0; --i)
                 ErrorCollector.Run(ref shutdownErrors, managers[i], manager => manager.Shutdown(reason));
 
-            State = reason == ShutdownReason.InitializationFailure ? ManagerState.Failed : ManagerState.Stopped;
-
-            if (State == ManagerState.Failed)
-                ready.TrySetException(InitializationError ?? new InvalidOperationException("Initialization was aborted."));
+            if (reason == ShutdownReason.InitializationFailure)
+            {
+                State = ManagerState.Failed;
+                ready.TrySetException(InitializationError);
+            }
             else
+            {
+                State = ManagerState.Stopped;
                 ready.TrySetCanceled();
+            }
 
             lifetime.Dispose();
         }
