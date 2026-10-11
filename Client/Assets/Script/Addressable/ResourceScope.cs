@@ -29,14 +29,8 @@ namespace ProjectT.Addressable
             }
             finally
             {
-                try
-                {
-                    onRelease(this);
-                }
-                finally
-                {
-                    lifetime.Dispose();
-                }
+                onRelease(this);
+                lifetime.Dispose();
             }
         }
     }

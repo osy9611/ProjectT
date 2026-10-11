@@ -60,10 +60,7 @@ namespace ProjectT
 
         public ResourceScope CreateScope()
         {
-            LifetimeToken.ThrowIfCancellationRequested();
-
-            if (State != ManagerState.Initializing && State != ManagerState.Ready)
-                throw new InvalidOperationException($"ResourceManager is {State}.");
+            ThrowIfStoppedInternal();
 
             var scope = new ResourceScope(ReleaseScope);
             scopes.Add(scope);

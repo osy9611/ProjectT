@@ -80,12 +80,11 @@ namespace ProjectT
             s_instance = this;
             ErrorReporter.SetSinks(new FileErrorSink(Path.Combine(Application.persistentDataPath, "ErrorReports")));
 
-            host?.Shutdown();
             DontDestroyOnLoad(gameObject);
             focused = Application.isFocused;
 
-            host = new ManagerHost(transform);
-            // 동기 초기화로 Awake 안에서 Ready가 되어 Actor 활성화보다 먼저 준비된다.
+            host = new ManagerHost();
+            // 첫 비동기 대기 전까지는 Awake 안에서 Ready가 되므로 InputManager는 Actor 활성화보다 먼저 준비된다.
             host.Register(new InputManager());
             host.Register(new PatchManager(UseRemoteResource));
             host.Register(new ResourceManager());
@@ -98,29 +97,30 @@ namespace ProjectT
             host.Register(new SoundManager());
             host.Register(new CostumeManager());
 
-            InitializeAsync(host).Forget(LogException);
+            InitializeAsync().Forget(LogException);
         }
 
-        private async UniTask InitializeAsync(ManagerHost owner)
+        private async UniTask InitializeAsync()
         {
             try
             {
-                await owner.InitializeAsync();
-                if (!ReferenceEquals(host, owner) || owner.State != ManagerState.Ready)
+                await host.InitializeAsync();
+                if (host.State != ManagerState.Ready)
                     return;
 
-                owner.Focus(focused);
-                owner.Pause(paused);
+                host.Focus(focused);
+                host.Pause(paused);
             }
-            catch (OperationCanceledException) when (owner.State != ManagerState.Ready)
+            // UniTask는 취소 예외로 끝난 초기화 실패(Failed)도 취소로 전달하므로 정상 종료로 인한 취소만 삼킨다.
+            catch (OperationCanceledException) when (host.State == ManagerState.Stopping || host.State == ManagerState.Stopped)
             {
             }
             finally
             {
                 // 초기화 실패로 호스트가 스스로 종료한 경우만 여기서 보고한다. 그 외 종료 오류는 Shutdown에서 보고한다.
-                if (owner.State == ManagerState.Failed)
+                if (host.State == ManagerState.Failed)
                 {
-                    foreach (var error in owner.ShutdownErrors) 
+                    foreach (var error in host.ShutdownErrors)
                         LogException(error);
                 }
             }

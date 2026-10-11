@@ -27,7 +27,7 @@ namespace ProjectT
         public string Name => GetType().Name;
         public ManagerState State { get; private set; } = ManagerState.Created;
         protected CancellationToken LifetimeToken { get; private set; }
-        protected Transform rootObject;
+        private Transform rootObject;
         public Transform RootObject => rootObject;
 
         internal async UniTask InitializeAsync(CancellationToken token)
@@ -41,9 +41,6 @@ namespace ProjectT
             await OnInitializeAsync(token);
 
             token.ThrowIfCancellationRequested();
-
-            if (State != ManagerState.Initializing)
-                throw new OperationCanceledException(token);
 
             State = ManagerState.Ready;
         }
@@ -61,14 +58,8 @@ namespace ProjectT
             }
             finally
             {
-                try
-                {
-                    DestroyRootObject();
-                }
-                finally
-                {
-                    State = ManagerState.Stopped;
-                }
+                DestroyRootObject();
+                State = ManagerState.Stopped;
             }
         }
 
@@ -78,6 +69,20 @@ namespace ProjectT
 
             if (State != ManagerState.Ready)
                 throw new InvalidOperationException($"{Name} cannot accept work from {State}.");
+        }
+
+        // 초기화 중인 의존 매니저도 호출할 수 있는 작업용
+        protected void ThrowIfStoppedInternal()
+        {
+            LifetimeToken.ThrowIfCancellationRequested();
+
+            if (State != ManagerState.Initializing && State != ManagerState.Ready)
+                throw new InvalidOperationException($"{Name} cannot accept work from {State}.");
+        }
+
+        protected bool CanAcceptWorkInternal()
+        {
+            return State == ManagerState.Ready && !LifetimeToken.IsCancellationRequested;
         }
 
         protected virtual UniTask OnInitializeAsync(CancellationToken token) => UniTask.CompletedTask;

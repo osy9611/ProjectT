@@ -219,7 +219,7 @@ namespace ProjectT
 
         private SpatialSoundHandle SpawnSpatialInternal(AudioClip clip, Vector3 position, float minDistance, float maxDistance, float volume, float pitch, bool loop, bool autoRelease)
         {
-            if (!CanStartPlayback() || clip == null || clip.loadState == AudioDataLoadState.Failed)
+            if (!CanAcceptWorkInternal() || clip == null || clip.loadState == AudioDataLoadState.Failed)
                 return default;
 
             int index = -1;
@@ -339,7 +339,7 @@ namespace ProjectT
 
         public bool Pause(SpatialSoundHandle handle)
         {
-            if (!CanStartPlayback() || !TryGetSpatialSlotInternal(handle, out int index))
+            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index))
                 return false;
 
             ref SpatialSound voice = ref spatialSounds[index];
@@ -359,7 +359,7 @@ namespace ProjectT
 
         public bool Resume(SpatialSoundHandle handle)
         {
-            if (!CanStartPlayback() || !TryGetSpatialSlotInternal(handle, out int index) || !spatialSounds[index].Paused)
+            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index) || !spatialSounds[index].Paused)
                 return false;
 
             ref SpatialSound voice = ref spatialSounds[index];
@@ -371,7 +371,7 @@ namespace ProjectT
 
         public bool SetLoop(SpatialSoundHandle handle, bool loop)
         {
-            if (!CanStartPlayback() || !TryGetSpatialSlotInternal(handle, out int index))
+            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index))
                 return false;
 
             spatialSounds[index].Source.loop = loop;
@@ -407,7 +407,7 @@ namespace ProjectT
 
         public bool Restart(SpatialSoundHandle handle)
         {
-            if (!CanStartPlayback() || !TryGetSpatialSlotInternal(handle, out int index))
+            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index))
                 return false;
 
             ref SpatialSound voice = ref spatialSounds[index];
@@ -421,7 +421,7 @@ namespace ProjectT
 
         private bool CanPlaySpatialInternal(Vector3 position, float minDistance, float maxDistance, float volume, float pitch)
         {
-            if (!CanStartPlayback())
+            if (!CanAcceptWorkInternal())
                 return false;
 
             if (!IsFinite(position.x) || !IsFinite(position.y) || !IsFinite(position.z))
@@ -482,11 +482,6 @@ namespace ProjectT
             source.volume = GetCategoryGainInternal(eSound.FX) * spatialSounds[index].Volume;
         }
 
-        private bool CanStartPlayback()
-        {
-            return State == ManagerState.Ready && !LifetimeToken.IsCancellationRequested;
-        }
-
         private bool TryGetSource(eSound type, out AudioSource source)
         {
             int index = (int)type;
@@ -503,7 +498,7 @@ namespace ProjectT
         // BGM은 씬 전환 뒤에도 이어서 재생되므로 사운드 전용 Scope에 두고, 나머지 채널은 현재 씬 Scope에 둔다.
         private AudioClip LoadClipInternal(string path, eSound type, ResourceScope scope = null)
         {
-            if (!CanStartPlayback() || string.IsNullOrWhiteSpace(path))
+            if (!CanAcceptWorkInternal() || string.IsNullOrWhiteSpace(path))
                 return null;
 
             if (type != eSound.Bgm)
@@ -515,7 +510,7 @@ namespace ProjectT
 
         public void Play(string path, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            if (!CanStartPlayback() || !TryGetSource(type, out _))
+            if (!CanAcceptWorkInternal() || !TryGetSource(type, out _))
                 return;
 
             AudioClip clip = LoadClipInternal(path, type);
@@ -532,7 +527,7 @@ namespace ProjectT
 
         public void PlayBgm(string path, float pitch = 1.0f, bool restart = false)
         {
-            if (!CanStartPlayback())
+            if (!CanAcceptWorkInternal())
                 return;
 
             AudioClip clip = LoadClipInternal(path, eSound.Bgm);
@@ -541,7 +536,7 @@ namespace ProjectT
 
         public void PlayBgm(AudioClip clip, float pitch = 1.0f, bool restart = false)
         {
-            if (!CanStartPlayback() || clip == null || !TryGetSource(eSound.Bgm, out var source))
+            if (!CanAcceptWorkInternal() || clip == null || !TryGetSource(eSound.Bgm, out var source))
                 return;
 
             CancelFadeInternal(eSound.Bgm, true);
@@ -560,7 +555,7 @@ namespace ProjectT
 
         public void PlayOneShot(string path, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            if (!CanStartPlayback() || !TryGetOneShotSource(type, out _))
+            if (!CanAcceptWorkInternal() || !TryGetOneShotSource(type, out _))
                 return;
 
             AudioClip clip = LoadClipInternal(path, type);
@@ -569,7 +564,7 @@ namespace ProjectT
 
         public void PlayOneShot(AudioClip clip, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            if (!CanStartPlayback() || clip == null || !TryGetOneShotSource(type, out var source))
+            if (!CanAcceptWorkInternal() || clip == null || !TryGetOneShotSource(type, out var source))
                 return;
 
             CancelFadeInternal(type, true);
@@ -617,12 +612,12 @@ namespace ProjectT
 
         public void PlayFade(string path, eSound type = eSound.FX, float fadeTime = 1.0f, float pitch = 1.0f)
         {
-            if (!CanStartPlayback() || !TryGetSource(type, out _) || !IsFinite(fadeTime))
+            if (!CanAcceptWorkInternal() || !TryGetSource(type, out _) || !IsFinite(fadeTime))
                 return;
 
             ResourceScope sceneScope = type == eSound.Bgm ? null : Global.Resource.SceneScope;
             AudioClip clip = LoadClipInternal(path, type, sceneScope);
-            if (!CanStartPlayback() || clip == null || sceneScope != null && sceneScope.Token.IsCancellationRequested)
+            if (!CanAcceptWorkInternal() || clip == null || sceneScope != null && sceneScope.Token.IsCancellationRequested)
                 return;
 
             if (fadeTime <= 0f)

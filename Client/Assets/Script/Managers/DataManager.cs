@@ -46,10 +46,7 @@ namespace ProjectT
         public async UniTask GetTableDatas(CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
-            LifetimeToken.ThrowIfCancellationRequested();
-
-            if (State != ManagerState.Initializing && State != ManagerState.Ready)
-                throw new InvalidOperationException($"{Name} cannot load data from {State}.");
+            ThrowIfStoppedInternal();
 
             if (isDone)
                 return;

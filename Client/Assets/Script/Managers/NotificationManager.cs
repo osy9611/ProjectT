@@ -180,7 +180,7 @@ namespace ProjectT
             Subscription[] snapshot;
             lock (syncRoot)
             {
-                if (!IsWorkAllowedInternal() || !subscriptions.TryGetValue(id, out var listeners) || listeners.Count == 0)
+                if (!CanAcceptWorkInternal() || !subscriptions.TryGetValue(id, out var listeners) || listeners.Count == 0)
                     return;
 
                 snapshot = listeners.ToArray();
@@ -192,7 +192,7 @@ namespace ProjectT
                 var subscription = snapshot[i];
                 lock (syncRoot)
                 {
-                    if (!IsWorkAllowedInternal())
+                    if (!CanAcceptWorkInternal())
                         return;
                     if (subscription.IsOwnerCanceled || subscription.OwnerToken.IsCancellationRequested)
                         continue;
@@ -290,11 +290,6 @@ namespace ProjectT
 
             for (int i = 0; i < registrations.Count; ++i)
                 registrations[i].Dispose();
-        }
-
-        private bool IsWorkAllowedInternal()
-        {
-            return State == ManagerState.Ready && !LifetimeToken.IsCancellationRequested;
         }
 
         private static object[] CloneArgsInternal(object[] args)

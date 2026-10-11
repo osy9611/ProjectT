@@ -26,14 +26,8 @@ namespace ProjectT
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            try
-            {
-                uiContainer?.OnLeave();
-            }
-            finally
-            {
-                uiContainer = null;
-            }
+            uiContainer?.OnLeave();
+            uiContainer = null;
         }
 
         public override void OnUpdate(float dt)

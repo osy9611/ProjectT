@@ -2,7 +2,6 @@ using Cysharp.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using UnityEngine;
 
 namespace ProjectT
 {
@@ -27,7 +26,7 @@ namespace ProjectT
         
         public UniTask WhenReady => ready.Task;
 
-        public ManagerHost(Transform root)
+        public ManagerHost()
         {
             ShutdownErrors = shutdownErrors.AsReadOnly();
             token = lifetime.Token;
@@ -59,14 +58,6 @@ namespace ProjectT
                 throw new InvalidOperationException($"Dependency {typeof(T).Name} is not initialized.");
 
             return manager;
-        }
-
-        public T GetReady<T>() where T : ManagerBase
-        {
-            if (State != ManagerState.Ready)
-                throw new InvalidOperationException($"Managers are {State}; await WhenReady first.");
-
-            return GetInitialized<T>();
         }
 
         public bool TryGetReady<T>(out T manager) where T : ManagerBase
