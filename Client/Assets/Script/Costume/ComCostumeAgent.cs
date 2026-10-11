@@ -39,13 +39,7 @@ namespace ProjectT.Costume
             {
                 PartAssetData? oldAssetData = slots[partIndex].AssetData;
 
-                Transform child = null;
-
-                if (slotInfo.Slot.childCount > 0)
-                    child = slotInfo.Slot.GetChild(0);
-
-                if (child != null)
-                    child.parent = null;
+                DetachFirstChildInternal(slotInfo.Slot);
 
                 preAssetData = oldAssetData;
 
@@ -80,88 +74,119 @@ namespace ProjectT.Costume
             switch (assetData.AssetType)
             {
                 case PartAssetType.Renderer_MeshOrSkin:
-                    if (slotInfo.IsSkinnedMesh)
-                    {
-                        var srcRenderer = slotInfo.Renderer as SkinnedMeshRenderer;
-                        var newRenderer = assetData.Renderer as SkinnedMeshRenderer;
-
-                        srcRenderer.sharedMesh = newRenderer.sharedMesh;
-                        srcRenderer.sharedMaterial = newRenderer.sharedMaterial;
-
-                        if (!assetData.SameBoneOrder)
-                        {
-                            Transform[] childs = transform.GetComponentsInChildren<Transform>(true);
-
-                            Transform[] bones = new Transform[newRenderer.bones.Length];
-
-                            for (int boneOrder = 0, range = newRenderer.bones.Length; boneOrder < range; ++boneOrder)
-                            {
-                                bones[boneOrder] = System.Array.Find<Transform>(childs, c => c.name == newRenderer.bones[boneOrder].name);
-                            }
-
-                            srcRenderer.bones = bones;
-                        }
-                    }
-                    else
-                    {
-                        var srcRenderer = slotInfo.Renderer as MeshRenderer;
-                        var newRenderer = slotInfo.Renderer as MeshRenderer;
-
-                        srcRenderer.GetComponent<MeshFilter>().sharedMesh = newRenderer.GetComponent<MeshFilter>().sharedMesh;
-                        srcRenderer.sharedMaterial = newRenderer.sharedMaterial;
-                    }
+                    ChangeRendererInternal(slotInfo, assetData);
                     break;
-
                 case PartAssetType.GameObject:
-                    Transform child = null;
-
-                    if (slotInfo.Slot.childCount > 0)
-                        child = slotInfo.Slot.GetChild(0);
-
-                    if (child != null)
-                        child.parent = null;
-
-                    if (assetData.GameObject != null)
-                    {
-                        assetData.GameObject.transform.parent = slotInfo.Slot;
-                        assetData.GameObject.transform.localPosition = Vector3.zero;
-                        assetData.GameObject.transform.localRotation = Quaternion.identity;
-                        assetData.GameObject.transform.localScale = Vector3.one;
-                    }
+                    AttachGameObjectInternal(slotInfo.Slot, assetData.GameObject);
                     break;
                 case PartAssetType.Color:
-                    if (assetData.Args == null)
-                    {
-                        slotInfo.Renderer.material.color = assetData.Color.Value;
-                    }
-                    else
-                    {
-                        Args<int>? val = assetData.Args as Args<int>?;
-                        if (!val.HasValue)
-                            return;
-                        if (slotInfo.Renderer.materials.Length - 1 < val.Value.Arg1 || val.Value.Arg1 < 0)
-                            return;
-                        slotInfo.Renderer.materials[val.Value.Arg1].color = assetData.Color.Value;
-                    }
+                    if (!TryChangeColorInternal(slotInfo.Renderer, assetData))
+                        return;
                     break;
                 case PartAssetType.Material:
-                    if (assetData.Args == null)
-                    {
-                        slotInfo.Renderer.sharedMaterial = assetData.Material;
-                    }
-                    else
-                    {
-                        Args<int>? val = assetData.Args as Args<int>?;
-                        if (!val.HasValue)
-                            return;
-                        if (slotInfo.Renderer.materials.Length - 1 < val.Value.Arg1 || val.Value.Arg1 < 0)
-                            return;
-                        slotInfo.Renderer.sharedMaterials[val.Value.Arg1] = assetData.Material;
-                    }
+                    if (!TryChangeMaterialInternal(slotInfo.Renderer, assetData))
+                        return;
                     break;
             }
 
             slotInfo.SetAssetData(assetData);
+        }
+
+        private void ChangeRendererInternal(PartSlotInfo slotInfo, PartAssetData assetData)
+        {
+            if (slotInfo.IsSkinnedMesh)
+            {
+                var srcRenderer = slotInfo.Renderer as SkinnedMeshRenderer;
+                var newRenderer = assetData.Renderer as SkinnedMeshRenderer;
+
+                srcRenderer.sharedMesh = newRenderer.sharedMesh;
+                srcRenderer.sharedMaterial = newRenderer.sharedMaterial;
+
+                if (!assetData.SameBoneOrder)
+                {
+                    Transform[] childs = transform.GetComponentsInChildren<Transform>(true);
+
+                    Transform[] bones = new Transform[newRenderer.bones.Length];
+
+                    for (int boneOrder = 0, range = newRenderer.bones.Length; boneOrder < range; ++boneOrder)
+                    {
+                        bones[boneOrder] = System.Array.Find<Transform>(childs, c => c.name == newRenderer.bones[boneOrder].name);
+                    }
+
+                    srcRenderer.bones = bones;
+                }
+            }
+            else
+            {
+                var srcRenderer = slotInfo.Renderer as MeshRenderer;
+                var newRenderer = slotInfo.Renderer as MeshRenderer;
+
+                srcRenderer.GetComponent<MeshFilter>().sharedMesh = newRenderer.GetComponent<MeshFilter>().sharedMesh;
+                srcRenderer.sharedMaterial = newRenderer.sharedMaterial;
+            }
+        }
+
+        private static void AttachGameObjectInternal(Transform slot, GameObject gameObject)
+        {
+            DetachFirstChildInternal(slot);
+
+            if (gameObject != null)
+            {
+                gameObject.transform.parent = slot;
+                gameObject.transform.localPosition = Vector3.zero;
+                gameObject.transform.localRotation = Quaternion.identity;
+                gameObject.transform.localScale = Vector3.one;
+            }
+        }
+
+        private static bool TryChangeColorInternal(Renderer renderer, PartAssetData assetData)
+        {
+            if (assetData.Args == null)
+            {
+                renderer.material.color = assetData.Color.Value;
+                return true;
+            }
+
+            if (!TryGetMaterialIndexInternal(renderer, assetData.Args, out int materialIndex))
+                return false;
+
+            renderer.materials[materialIndex].color = assetData.Color.Value;
+            return true;
+        }
+
+        private static bool TryChangeMaterialInternal(Renderer renderer, PartAssetData assetData)
+        {
+            if (assetData.Args == null)
+            {
+                renderer.sharedMaterial = assetData.Material;
+                return true;
+            }
+
+            if (!TryGetMaterialIndexInternal(renderer, assetData.Args, out int materialIndex))
+                return false;
+
+            renderer.sharedMaterials[materialIndex] = assetData.Material;
+            return true;
+        }
+
+        private static bool TryGetMaterialIndexInternal(Renderer renderer, IArgs args, out int materialIndex)
+        {
+            materialIndex = 0;
+
+            Args<int>? val = args as Args<int>?;
+            if (!val.HasValue)
+                return false;
+            if (renderer.materials.Length - 1 < val.Value.Arg1 || val.Value.Arg1 < 0)
+                return false;
+
+            materialIndex = val.Value.Arg1;
+            return true;
+        }
+
+        private static void DetachFirstChildInternal(Transform slot)
+        {
+            if (slot.childCount > 0)
+                slot.GetChild(0).parent = null;
         }
 
 

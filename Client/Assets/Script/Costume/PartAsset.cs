@@ -32,20 +32,16 @@ namespace ProjectT.Costume
         public IArgs Args => args;
 
         internal PartAssetData(int partIndex, MeshRenderer renderer, bool sameBoneOrder, IArgs args = null)
+            : this(partIndex, (Renderer)renderer, sameBoneOrder, args)
         {
-            this.partIndex = partIndex;
-            this.renderer = renderer;
-            this.sameBoneOrder = sameBoneOrder;
-
-            assetType = PartAssetType.Renderer_MeshOrSkin;
-
-            gameObject = null;
-            color = null;
-            material = null;
-            this.args = args;
         }
 
         internal PartAssetData(int partIndex, SkinnedMeshRenderer renderer, bool sameBoneOrder, IArgs args = null)
+            : this(partIndex, (Renderer)renderer, sameBoneOrder, args)
+        {
+        }
+
+        private PartAssetData(int partIndex, Renderer renderer, bool sameBoneOrder, IArgs args)
         {
             this.partIndex = partIndex;
             this.renderer = renderer;
