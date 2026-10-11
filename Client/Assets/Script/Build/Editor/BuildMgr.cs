@@ -85,18 +85,7 @@ namespace ProjectT.Build
             //Addressable FireBase 빌드
             await AddressableBuild.Build();
 
-            //Addressabe FireBase 빌드 파일 업로드
-            FirebaseUploader uploader = new FirebaseUploader(buildTarget, buildVersion);
-            //var task = uploader.UploadFiles();
-            //await task;
-            await uploader.UploadFiles();
-
-            Debug.Log("Start Build");
-            await Build(buildTarget, buildVersion);
-            await PostBuild();
-
-            //빌드된 파일 제거
-            uploader.DeleteFiles();
+            await UploadAndBuildInternalAsync(buildTarget, buildVersion);
         }
 
         private static void StartBuild(BuildPlayerOptions buildOption)
@@ -127,27 +116,8 @@ namespace ProjectT.Build
 
         public static async void PreBuild()
         {
-            //우선 커멘드 라인에 들어온 Args를 읽는다.
-            string[] commandLienArgs = Environment.GetCommandLineArgs();
-            BuildTarget buildTarget = BuildTarget.NoTarget;
-            string buildVersion = string.Empty;
-
-            for (int i = 0; i < commandLienArgs.Length; ++i)
-            {
-                switch (commandLienArgs[i])
-                {
-                    case "-BUILD_TARGET":
-                        if (!System.Enum.TryParse(commandLienArgs[i + 1], out buildTarget))
-                        {
-                            Debug.Log($"Build Target Is Not Found : {commandLienArgs[i + 1]}");
-                            return;
-                        }
-                        break;
-                    case "-BUILD_VERSION":
-                        buildVersion = commandLienArgs[i + 1];
-                        break;
-                }
-            }
+            if (!TryReadCommandLineInternal(out BuildTarget buildTarget, out string buildVersion))
+                return;
 
             Debug.Log("Start Addressable Build");
 
@@ -159,20 +129,48 @@ namespace ProjectT.Build
 
             Debug.Log("Start Upload Addressabe");
 
+            await UploadAndBuildInternalAsync(buildTarget, buildVersion);
+        }
 
+        private static bool TryReadCommandLineInternal(out BuildTarget buildTarget, out string buildVersion)
+        {
+            //우선 커멘드 라인에 들어온 Args를 읽는다.
+            string[] commandLienArgs = Environment.GetCommandLineArgs();
+            buildTarget = BuildTarget.NoTarget;
+            buildVersion = string.Empty;
+
+            for (int i = 0; i < commandLienArgs.Length; ++i)
+            {
+                switch (commandLienArgs[i])
+                {
+                    case "-BUILD_TARGET":
+                        if (!System.Enum.TryParse(commandLienArgs[i + 1], out buildTarget))
+                        {
+                            Debug.Log($"Build Target Is Not Found : {commandLienArgs[i + 1]}");
+                            return false;
+                        }
+                        break;
+                    case "-BUILD_VERSION":
+                        buildVersion = commandLienArgs[i + 1];
+                        break;
+                }
+            }
+
+            return true;
+        }
+
+        private static async Task UploadAndBuildInternalAsync(BuildTarget buildTarget, string buildVersion)
+        {
             //Addressabe FireBase 빌드 파일 업로드
             FirebaseUploader uploader = new FirebaseUploader(buildTarget, buildVersion);
-            var task = uploader.UploadFiles();
-            await task;
+            await uploader.UploadFiles();
 
             Debug.Log("Start Build");
             await Build(buildTarget, buildVersion);
             await PostBuild();
 
-
             //빌드된 파일 제거
             uploader.DeleteFiles();
-
         }
 
         private static async Task Build(BuildTarget buildTarget, string buildVersion)
