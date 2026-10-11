@@ -138,7 +138,7 @@ namespace ProjectT.Stat
             Span<float> currentResources = stackalloc float[resources.Count];
             ClampResourcesInternal(previousResources, currentResources);
             int releases = releaseCount;
-            for (int i = 0; i < count && releases == releaseCount; i++)
+            for (int i = 0; i < count && !IsReleasedSinceInternal(releases); i++)
             {
                 StatEntry entry = stats[i];
                 if (entry.CurrentValue != previous[i])
@@ -161,6 +161,12 @@ namespace ProjectT.Stat
 
             foreach (Resource resource in resources)
                 resource.Value = 0f;
+        }
+
+        // 알림 전에 저장한 releaseCount로 판정한다. 핸들러에서 반납되면(같은 호출에서 재스폰 포함) 저장해 둔 이전 스폰의 값을 새 구독자에게 보내지 않도록 멈춘다.
+        private bool IsReleasedSinceInternal(int releases)
+        {
+            return releases != releaseCount;
         }
 
         private StatEntry GetOrAddEntryInternal(StatId stat)
@@ -215,10 +221,9 @@ namespace ProjectT.Stat
             }
         }
 
-        // 알림 핸들러에서 반납되면(같은 호출에서 재스폰 포함) 저장해 둔 이전 스폰의 값을 새 구독자에게 보내지 않도록 멈춘다.
         private void NotifyResourcesInternal(Span<float> previous, Span<float> current, int releases)
         {
-            for (int i = 0; i < previous.Length && releases == releaseCount; i++)
+            for (int i = 0; i < previous.Length && !IsReleasedSinceInternal(releases); i++)
             {
                 if (current[i] != previous[i])
                     OnResourceChanged?.Invoke(resources[i].Id, previous[i], current[i]);

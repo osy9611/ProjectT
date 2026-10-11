@@ -23,9 +23,9 @@ namespace ProjectT.Skill
         // GiveSkill마다 호출된다. 소유자마다 실행 상태를 따로 가지므로 매번 새 인스턴스를 반환해야 한다.
         public Func<BaseSkillAction> ActionFactory { get; }
         // 소유자가 이 중 하나라도 가지면 발동하지 않는다.
-        public IReadOnlyList<GameplayTag> BlockedTags { get; }
+        public IReadOnlyList<SkillTag> BlockedTags { get; }
         // 활성 중 소유자가 이 중 하나를 새로 얻거나, 발동 직후 가지고 있으면 취소된다.
-        public IReadOnlyList<GameplayTag> CancelledByTags { get; }
+        public IReadOnlyList<SkillTag> CancelledByTags { get; }
         // 쿨다운 감소율로 읽을 스탯이다. default면 감소하지 않는다.
         public StatId CooldownReductionStat { get; }
         // 대상은 실행 클래스가 정해 ApplyEffects로 건다.
@@ -33,7 +33,7 @@ namespace ProjectT.Skill
         // 소유자의 자원이 모두 양 이상이어야 발동하고 Commit에서 차감된다.
         public IReadOnlyList<SkillCost> Costs { get; }
 
-        public SkillDefinition(int id, float coolTime, Func<BaseSkillAction> actionFactory, IReadOnlyList<GameplayTag> blockedTags, IReadOnlyList<GameplayTag> cancelledByTags, StatId cooldownReductionStat, IReadOnlyList<EffectDefinition> effects, IReadOnlyList<SkillCost> costs)
+        public SkillDefinition(int id, float coolTime, Func<BaseSkillAction> actionFactory, IReadOnlyList<SkillTag> blockedTags, IReadOnlyList<SkillTag> cancelledByTags, StatId cooldownReductionStat, IReadOnlyList<EffectDefinition> effects, IReadOnlyList<SkillCost> costs)
         {
             ValidateTagsInternal(blockedTags, nameof(blockedTags), id);
             ValidateTagsInternal(cancelledByTags, nameof(cancelledByTags), id);
@@ -61,9 +61,9 @@ namespace ProjectT.Skill
             Costs = costs;
         }
 
-        private static void ValidateTagsInternal(IReadOnlyList<GameplayTag> tags, string paramName, int id)
+        private static void ValidateTagsInternal(IReadOnlyList<SkillTag> tags, string paramName, int id)
         {
-            foreach (GameplayTag tag in tags)
+            foreach (SkillTag tag in tags)
             {
                 if (tag == default)
                     throw new ArgumentException($"[SkillDefinition] Tags cannot contain an unregistered tag. SkillID {id}", paramName);

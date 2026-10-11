@@ -7,23 +7,24 @@ namespace ProjectT.Skill
         private EffectController effectController;
         private SkillActionController actionController;
         // 겹친 효과 중 하나가 먼저 끝나도 태그가 유지되도록 부여 횟수를 센다. 가진 태그만 남긴다.
-        private readonly Dictionary<GameplayTag, int> tagCounts = new Dictionary<GameplayTag, int>();
+        private readonly Dictionary<SkillTag, int> tagCounts = new Dictionary<SkillTag, int>();
         private bool isOpen;
         private int releaseCount;
+        // 발동 중인 스킬은 비활성화 순회에서 빠지므로 발동 경로가 Activate 중 비활성화되었는지 판단하는 횟수다.
+        private int deactivationCount;
 
-        public event Action<GameplayTag, bool> OnTagChanged;
+        public event Action<SkillTag, bool> OnTagChanged;
         public event Action<EffectHandle, EffectDefinition> OnEffectApplied;
         public event Action<EffectHandle, EffectDefinition, EffectRemoveReason> OnEffectRemoved;
         // 발동 직후 취소 태그나 Activate 중 비활성화로 취소된 발동은 쿨다운·비용이 이미 적용되었어도 알리지 않는다. 종료는 알린 발동마다 한 번, 발동 알림 뒤에 나간다.
         // Activate 중 끝난 스킬은 이 알림 안에서 다시 발동되지 않으므로 OnSkillEnded에서 다시 발동한다.
         public event Action<SkillDefinition> OnSkillActivated;
-        // 두 번째 인자는 Cancel(태그, 정리, 직접 취소)로 끝났는지다.
-        public event Action<SkillDefinition, bool> OnSkillEnded;
+        public event Action<SkillDefinition, SkillEndReason> OnSkillEnded;
 
-        // 콜백을 실행하는 루프가 그 사이 정리(+같은 호출의 재스폰)되었는지 판단하는 정리 횟수다.
         internal int ReleaseCount => releaseCount;
+        internal int DeactivationCount => deactivationCount;
 
-        internal SkillAgent(ComBaseActor owner)
+        internal SkillAgent(IAbilityOwner owner)
         {
             effectController = new EffectController(owner, this);
             actionController = new SkillActionController(owner, this);
@@ -51,7 +52,7 @@ namespace ProjectT.Skill
             actionController.CancelSkill(skillId);
         }
 
-        public EffectHandle ApplyEffect(EffectDefinition definition, ComBaseActor source)
+        public EffectHandle ApplyEffect(EffectDefinition definition, IAbilityOwner source)
         {
             if (!isOpen)
                 throw new InvalidOperationException($"[SkillAgent] Registration is closed. EffectID {definition.Id}");
@@ -64,12 +65,31 @@ namespace ProjectT.Skill
             effectController.Remove(handle);
         }
 
-        public bool HasTag(GameplayTag tag)
+        public bool HasTag(SkillTag tag)
         {
             return tagCounts.ContainsKey(tag);
         }
 
-        internal void AddTagInternal(GameplayTag tag)
+        // 발동마다 호출되므로 IReadOnlyList의 foreach 열거자 할당을 피한다.
+        internal bool HasAnyTagInternal(IReadOnlyList<SkillTag> tags)
+        {
+            for (int i = 0; i < tags.Count; i++)
+            {
+                if (HasTag(tags[i]))
+                    return true;
+            }
+
+            return false;
+        }
+
+        // 콜백 전에 저장한 ReleaseCount로 판정한다. 콜백에서 Actor가 반납되면(같은 호출에서 재스폰 포함) 정리가 상태를 비우고 재스폰이 새 상태를 채우므로,
+        // 이전 스폰의 상태를 다루던 루프는 이 판정으로 멈춘다.
+        internal bool IsReleasedSinceInternal(int releases)
+        {
+            return releases != releaseCount;
+        }
+
+        internal void AddTagInternal(SkillTag tag)
         {
             tagCounts.TryGetValue(tag, out int count);
             tagCounts[tag] = count + 1;
@@ -82,13 +102,13 @@ namespace ProjectT.Skill
 
             // 취소 콜백에서 Actor가 반납되면 정리가 카운트를 비우고 짝이 되는 해제 알림도 없으므로 알리지 않는다.
             // 같은 호출에서 다시 스폰되어 이 태그를 얻었으면 그 획득이 이미 알렸으므로 태그 보유 여부로 판단하지 않는다.
-            if (releases != releaseCount)
+            if (IsReleasedSinceInternal(releases))
                 return;
 
             OnTagChanged?.Invoke(tag, true);
         }
 
-        internal void RemoveTagInternal(GameplayTag tag)
+        internal void RemoveTagInternal(SkillTag tag)
         {
             // 정리 중 제거 콜백에서 다시 정리되면 카운트가 먼저 비워진 뒤 바깥 정리가 남은 효과의 태그를 회수한다.
             if (!tagCounts.TryGetValue(tag, out int count))
@@ -119,9 +139,9 @@ namespace ProjectT.Skill
             OnSkillActivated?.Invoke(definition);
         }
 
-        internal void NotifySkillEndedInternal(SkillDefinition definition, bool cancelled)
+        internal void NotifySkillEndedInternal(SkillDefinition definition, SkillEndReason reason)
         {
-            OnSkillEnded?.Invoke(definition, cancelled);
+            OnSkillEnded?.Invoke(definition, reason);
         }
 
         internal void OpenInternal()
@@ -137,6 +157,7 @@ namespace ProjectT.Skill
 
         internal void CancelActiveSkillsInternal()
         {
+            deactivationCount++;
             actionController.CancelActiveSkills();
         }
 

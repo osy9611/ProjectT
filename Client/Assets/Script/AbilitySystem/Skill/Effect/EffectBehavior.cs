@@ -10,11 +10,11 @@ namespace ProjectT.Skill
     // 정의의 데이터(수정자, 부여 태그, 주기 피해)로 표현할 수 없는 동작만 확장한다. 정의의 팩토리가 적용마다 새로 만든다.
     public abstract class EffectBehavior
     {
-        protected ComBaseActor Owner { get; private set; }
-        public ComBaseActor Source { get; private set; }
+        protected IAbilityOwner Owner { get; private set; }
+        public IAbilityOwner Source { get; private set; }
         public EffectDefinition Definition { get; private set; }
 
-        internal void InitInternal(ComBaseActor owner, ComBaseActor source, EffectDefinition definition)
+        internal void InitInternal(IAbilityOwner owner, IAbilityOwner source, EffectDefinition definition)
         {
             Owner = owner;
             Source = source;

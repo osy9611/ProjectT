@@ -39,7 +39,7 @@ namespace ProjectT.Skill
         public float Duration { get; }
         public float Period { get; }
         public IReadOnlyList<EffectModifier> Modifiers { get; }
-        public IReadOnlyList<GameplayTag> GrantedTags { get; }
+        public IReadOnlyList<SkillTag> GrantedTags { get; }
         public float Power { get; }
         // 피해를 주지 않는 효과는 null이다.
         public DamageExecution DamageExecution { get; }
@@ -50,7 +50,7 @@ namespace ProjectT.Skill
         // 특수 동작이 없으면 null이다. 적용마다 새 인스턴스를 반환해야 한다.
         public Func<EffectBehavior> BehaviorFactory { get; }
 
-        public EffectDefinition(int id, EffectDurationPolicy durationPolicy, float duration, float period, IReadOnlyList<EffectModifier> modifiers, IReadOnlyList<GameplayTag> grantedTags, float power, DamageExecution damageExecution, StatId damageResource, EffectStackPolicy stackPolicy, int maxStack, Func<EffectBehavior> behaviorFactory)
+        public EffectDefinition(int id, EffectDurationPolicy durationPolicy, float duration, float period, IReadOnlyList<EffectModifier> modifiers, IReadOnlyList<SkillTag> grantedTags, float power, DamageExecution damageExecution, StatId damageResource, EffectStackPolicy stackPolicy, int maxStack, Func<EffectBehavior> behaviorFactory)
         {
             // Instant는 등록되지 않아 되돌리거나 반복할 시점이 없다.
             if (durationPolicy == EffectDurationPolicy.Instant && (modifiers.Count > 0 || grantedTags.Count > 0 || period > 0f))
@@ -72,7 +72,7 @@ namespace ProjectT.Skill
                     throw new ArgumentException($"[EffectDefinition] Modifiers cannot target an unregistered stat. EffectID {id}", nameof(modifiers));
             }
 
-            foreach (GameplayTag tag in grantedTags)
+            foreach (SkillTag tag in grantedTags)
             {
                 if (tag == default)
                     throw new ArgumentException($"[EffectDefinition] Granted tags cannot contain an unregistered tag. EffectID {id}", nameof(grantedTags));

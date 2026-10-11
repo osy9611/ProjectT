@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ProjectT.Stat
 {
-    // GameplayTag와 StatId가 같은 등록 규칙을 쓴다. Skill이 Stat을 참조하는 방향이라 Stat에 둔다.
+    // SkillTag와 StatId가 같은 등록 규칙을 쓴다. Skill이 Stat을 참조하는 방향이라 Stat에 둔다.
     internal sealed class NameRegistry
     {
         // 이미 만든 id가 다른 이름을 가리키지 않도록 등록은 지우지 않는다.

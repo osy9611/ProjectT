@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="560" viewBox="0 0 680 560" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+<title>효과 생명주기</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#73726C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="680" height="560" fill="#FFFFFF"/>
+<rect x="230" y="30" width="200" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.8"/>
+<text x="330.0" y="49" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#2C2C2A">ApplyEffect</text>
+<text x="330.0" y="68" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">Status · 피해 자원 확인</text>
+<line x1="430" y1="58" x2="458" y2="58" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="460" y="30" width="180" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.8"/>
+<text x="550.0" y="49" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#712B13">재적용</text>
+<text x="550.0" y="68" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#993C1D">같은 Id · StackPolicy</text>
+<line x1="330" y1="86" x2="330" y2="114" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="210" y="116" width="240" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="330.0" y="135" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">신규 적용</text>
+<text x="330.0" y="154" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">수정자 → 태그 → OnApply</text>
+<path d="M290 172 L290 190 L170 190 L170 208" fill="none" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M370 172 L370 190 L510 190 L510 208" fill="none" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="210" width="220" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.8"/>
+<text x="170.0" y="229" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#712B13">Instant 실행</text>
+<text x="170.0" y="248" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#993C1D">피해 → OnExecute · 미등록</text>
+<rect x="400" y="210" width="220" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="510.0" y="229" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">등록</text>
+<text x="510.0" y="248" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">Duration · Infinite · 핸들</text>
+<line x1="510" y1="266" x2="510" y2="294" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="400" y="296" width="220" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="510.0" y="315" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">Tick</text>
+<text x="510.0" y="334" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">주기 피해 → OnExecute</text>
+<line x1="510" y1="352" x2="510" y2="380" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="400" y="382" width="220" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="510.0" y="401" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">제거</text>
+<text x="510.0" y="420" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">Expired · Removed · Released</text>
+<line x1="510" y1="438" x2="510" y2="466" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="380" y="468" width="260" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="510.0" y="487" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">역순 정리</text>
+<text x="510.0" y="506" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">OnRemove → 태그 → 수정자 → 알림</text>
+</svg>

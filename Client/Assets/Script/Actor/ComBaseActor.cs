@@ -10,7 +10,7 @@ using UnityEngine;
 namespace ProjectT
 {
     [RequireComponent(typeof(ComPivotAgent))]
-    public abstract class ComBaseActor : MonoBehaviour, IPoolable
+    public abstract class ComBaseActor : MonoBehaviour, IPoolable, IAbilityOwner
     {
         private enum SpawnState
         {
@@ -40,6 +40,9 @@ namespace ProjectT
         private Status status;
         public Status Status => status;
 
+        private int spawnSerial;
+        public int SpawnSerial => spawnSerial;
+
         protected virtual void Awake()
         {
             InitializeInternal();
@@ -48,7 +51,7 @@ namespace ProjectT
         // 만료와 쿨다운이 반영된 뒤 OnUpdate가 판단하도록 먼저 틱한다. 틱 중 비활성화·반납되면 OnUpdate를 호출하지 않는다.
         private void Update()
         {
-            if (spawnState == SpawnState.Active)
+            if (spawnState == SpawnState.Active && AutoTickSkills)
                 skillAgent?.TickInternal(Time.deltaTime);
 
             if (spawnState == SpawnState.Active)
@@ -123,6 +126,7 @@ namespace ProjectT
                 InitializeInternal();
             }
 
+            spawnSerial++;
             // OnEnter가 실패하면 Entering에 남아 이후 활성화와 재시도를 막고, 반납·파괴에서 정리된다.
             // 스킬 등록은 스폰 종료가 해제를 보장하는 상태부터 열어 OnEnter에서 등록할 수 있게 한다.
             spawnState = SpawnState.Entering;
@@ -182,6 +186,16 @@ namespace ProjectT
             inputContexts = updated;
             context.Actor = null;
             context.Owner?.RemoveContext(context);
+        }
+
+        // 턴제처럼 프레임 시간과 다른 단위로 효과·쿨다운을 진행하려면 false로 두고 TickSkills로 직접 진행한다.
+        protected virtual bool AutoTickSkills => true;
+
+        // 자동 틱과 같이 Active일 때만 진행해 비활성·반납된 Actor의 효과와 쿨다운이 흐르지 않게 한다.
+        protected void TickSkills(float deltaTime)
+        {
+            if (spawnState == SpawnState.Active)
+                skillAgent?.TickInternal(deltaTime);
         }
 
         protected SkillAgent AddSkillAgent()
@@ -259,6 +273,8 @@ namespace ProjectT
 
         private void EndSpawnInternal()
         {
+            // 스폰하지 않은 동안 출처로 잡힌 효과도 반납·파괴 뒤에는 이 Actor의 Status를 쓰지 않도록 스폰 상태와 관계없이 바꾼다.
+            spawnSerial++;
             if (spawnState == SpawnState.None)
                 return;
 
