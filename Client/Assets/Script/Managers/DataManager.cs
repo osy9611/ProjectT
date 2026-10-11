@@ -46,7 +46,7 @@ namespace ProjectT
         public async UniTask GetTableDatas(CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
-            ThrowIfStoppedInternal();
+            ThrowIfWorkUnavailableDuringInitInternal();
 
             if (isDone)
                 return;

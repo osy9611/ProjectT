@@ -11,9 +11,10 @@ namespace ProjectT
         private readonly List<ManagerBase> managers = new List<ManagerBase>();
 
         private int startedCount;
-        private readonly List<Exception> shutdownErrors = new List<Exception>();
+        private List<Exception> shutdownErrors;
 
-        private readonly CancellationToken token;
+        // Shutdown에서 lifetime을 Dispose한 뒤에도 늦게 끝난 초기화가 취소 여부를 확인할 수 있도록 토큰을 따로 보관한다.
+        private readonly CancellationToken lifetimeToken;
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         private readonly UniTaskCompletionSource ready = new UniTaskCompletionSource();
 
@@ -22,14 +23,13 @@ namespace ProjectT
         public ManagerState State { get; private set; } = ManagerState.Created;
         
         public Exception InitializationError { get; private set; }
-        public IReadOnlyList<Exception> ShutdownErrors { get; }
-        
+        public IReadOnlyList<Exception> ShutdownErrors => (IReadOnlyList<Exception>)shutdownErrors ?? Array.Empty<Exception>();
+
         public UniTask WhenReady => ready.Task;
 
         public ManagerHost()
         {
-            ShutdownErrors = shutdownErrors.AsReadOnly();
-            token = lifetime.Token;
+            lifetimeToken = lifetime.Token;
         }
 
         public T Register<T>(T manager) where T : ManagerBase
@@ -51,11 +51,14 @@ namespace ProjectT
             return manager;
         }
 
-        internal T GetInitialized<T>() where T : ManagerBase
+        internal T GetReadyManager<T>() where T : ManagerBase
         {
             T manager = FindManager<T>();
-            if (manager == null || manager.State != ManagerState.Ready)
-                throw new InvalidOperationException($"Dependency {typeof(T).Name} is not initialized.");
+            if (manager == null)
+                throw new InvalidOperationException($"{typeof(T).Name} is not registered.");
+
+            if (manager.State != ManagerState.Ready)
+                throw new InvalidOperationException($"{typeof(T).Name} is {manager.State}, not Ready.");
 
             return manager;
         }
@@ -98,12 +101,12 @@ namespace ProjectT
             {
                 foreach (var manager in managers)
                 {
-                    token.ThrowIfCancellationRequested();
+                    lifetimeToken.ThrowIfCancellationRequested();
                     ++startedCount;
-                    await manager.InitializeAsync(token);
+                    await manager.InitializeAsync(lifetimeToken);
                 }
 
-                token.ThrowIfCancellationRequested();
+                lifetimeToken.ThrowIfCancellationRequested();
                 State = ManagerState.Ready;
                 ready.TrySetResult();
             }
@@ -127,27 +130,10 @@ namespace ProjectT
                 return;
 
             State = ManagerState.Stopping;
-
-            try
-            {
-                lifetime.Cancel();
-            }
-            catch (Exception error)
-            {
-                shutdownErrors.Add(error);
-            }
+            ErrorCollector.Run(ref shutdownErrors, lifetime, source => source.Cancel());
 
             for (int i = startedCount - 1; i >= 0; --i)
-            {
-                try
-                {
-                    managers[i].Shutdown(reason);
-                }
-                catch (Exception error)
-                {
-                    shutdownErrors.Add(new Exception($"{managers[i].Name} shutdown failed.", error));
-                }
-            }
+                ErrorCollector.Run(ref shutdownErrors, managers[i], manager => manager.Shutdown(reason));
 
             State = reason == ShutdownReason.InitializationFailure ? ManagerState.Failed : ManagerState.Stopped;
 

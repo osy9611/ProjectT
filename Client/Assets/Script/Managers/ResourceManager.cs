@@ -60,7 +60,7 @@ namespace ProjectT
 
         public ResourceScope CreateScope()
         {
-            ThrowIfStoppedInternal();
+            ThrowIfWorkUnavailableDuringInitInternal();
 
             var scope = new ResourceScope(ReleaseScope);
             scopes.Add(scope);

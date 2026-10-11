@@ -47,9 +47,6 @@ namespace ProjectT
 
         internal void Shutdown(ShutdownReason reason)
         {
-            if (State == ManagerState.Created || State == ManagerState.Stopping || State == ManagerState.Stopped)
-                return;
-
             State = ManagerState.Stopping;
 
             try
@@ -71,8 +68,7 @@ namespace ProjectT
                 throw new InvalidOperationException($"{Name} cannot accept work from {State}.");
         }
 
-        // 초기화 중인 의존 매니저도 호출할 수 있는 작업용
-        protected void ThrowIfStoppedInternal()
+        protected void ThrowIfWorkUnavailableDuringInitInternal()
         {
             LifetimeToken.ThrowIfCancellationRequested();
 

@@ -144,7 +144,7 @@ namespace ProjectT
             if (s_instance == null || s_instance.host == null)
                 throw new InvalidOperationException("Global is not available.");
 
-            return s_instance.host.GetInitialized<T>();
+            return s_instance.host.GetReadyManager<T>();
         }
 
         public static bool TryGetReady<T>(out T manager) where T : ManagerBase
