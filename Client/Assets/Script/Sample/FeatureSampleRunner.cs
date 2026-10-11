@@ -1,5 +1,6 @@
 using Cysharp.Threading.Tasks;
 using ProjectT.Controller;
+using ProjectT.SkillAdapter;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +8,7 @@ using UnityEngine;
 
 namespace ProjectT.Sample
 {
-    // 빌드·TCP를 제외한 리팩토링 기능(Global 생명주기, Actor·Pool, Input, ErrorReporter)을 Play Mode에서 직접 확인하는 샘플이다.
+    // 빌드·TCP를 제외한 리팩토링 기능(Global 생명주기, Actor·Pool, Input, Skill, ErrorReporter)을 Play Mode에서 직접 확인하는 샘플이다.
     public class FeatureSampleRunner : MonoBehaviour
     {
         private const int MaxLines = 16;
@@ -80,6 +81,7 @@ namespace ProjectT.Sample
 
             DrawActorPoolInternal();
             DrawInputInternal();
+            DrawSkillInternal();
             DrawErrorInternal();
 
             GUILayout.Space(8);
@@ -142,6 +144,30 @@ namespace ProjectT.Sample
 
                 Write(blocking ? "Blocker removed" : "Blocker added (priority 100, consume)");
             }
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawSkillInternal()
+        {
+            // 버프 1은 공격력 +20%(10초), 버프 5는 스턴(5초)이다. 스턴 중에는 스킬 발동이 막힌다.
+            var last = spawned.Count == 0 ? null : spawned[spawned.Count - 1];
+            if (last == null)
+            {
+                GUILayout.Label("[Skill] no actor");
+                return;
+            }
+
+            var status = last.Status;
+            GUILayout.Label($"[Skill] Actor{last.Id} Hp {status.GetResource(SkillDefinitions.HpStat)}/{status.Get(SkillDefinitions.MaxHpStat)}, Atk {status.Get(SkillDefinitions.AtkStat)}, stun {last.SkillAgent.HasTag(SkillDefinitions.StunTag)}");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button($"Use Skill {SampleActor.SkillId}"))
+                UseSkillLastInternal();
+
+            if (GUILayout.Button("Atk Buff (1)"))
+                ApplyEffectLastInternal(1);
+
+            if (GUILayout.Button("Stun (5)"))
+                ApplyEffectLastInternal(5);
             GUILayout.EndHorizontal();
         }
 
@@ -214,6 +240,22 @@ namespace ProjectT.Sample
 
             ReturnLastInternal();
             SpawnInternal();
+        }
+
+        private void UseSkillLastInternal()
+        {
+            if (spawned.Count == 0)
+                return;
+
+            spawned[spawned.Count - 1].UseSkill();
+        }
+
+        private void ApplyEffectLastInternal(int effectId)
+        {
+            if (spawned.Count == 0)
+                return;
+
+            spawned[spawned.Count - 1].ApplyEffect(effectId);
         }
 
         private static async UniTask ThrowNextFrameInternalAsync()
