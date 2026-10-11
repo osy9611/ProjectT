@@ -120,7 +120,7 @@ public class Test : MonoBehaviour
     private async UniTask OpenUIInternalAsync()
     {
         var token = this.GetCancellationTokenOnDestroy();
-        if (await Global.Instance.WhenReadyAsync(token).SuppressCancellationThrow())
+        if (await Global.WhenReadyAsync(token).SuppressCancellationThrow())
             return;
 
         var (canceled, widget) = await Global.UI.CreateWidgetAsync<TestUI>(
@@ -160,7 +160,7 @@ public class Test : MonoBehaviour
         {
             if(result==eSceneTransitionErrorCode.Success)
             {
-                Global.Instance.Log("[TEST] GoDownload");
+                Global.Log("[TEST] GoDownload");
             }
         });
     }

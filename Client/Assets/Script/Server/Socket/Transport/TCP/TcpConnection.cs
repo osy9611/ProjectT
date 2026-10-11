@@ -290,7 +290,7 @@ namespace ProjectT.Server.Sockets
                 }
                 catch(Exception ex)
                 {
-                    Global.Instance.Log($"A client has been disconnected from the server about msg {ex.Message}");
+                    Global.Log($"A client has been disconnected from the server about msg {ex.Message}");
                 }
                 finally
                 {

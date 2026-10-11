@@ -23,14 +23,14 @@ public class DownloadScene : SceneBase
     {
         long size = await Global.Patch.GetDownloadSizeAsync(patchLabels, token);
 
-        Global.Instance.Log($"[DownloadScene] Patch size : {size}");
+        Global.Log($"[DownloadScene] Patch size : {size}");
 
         if (size <= 0)
             return;
 
         await Global.Patch.DownloadAsync(patchLabels, OnProgress, token);
 
-        Global.Instance.Log($"[DownloadScene] Patch complete");
+        Global.Log($"[DownloadScene] Patch complete");
     }
 
     // 프레임마다 호출되므로 10% 단위로만 남긴다.
@@ -42,6 +42,6 @@ public class DownloadScene : SceneBase
             return;
 
         reportedStep = step;
-        Global.Instance.Log($"[DownloadScene] {info.downloadedByte} / {info.size} ({info.progress:P0})");
+        Global.Log($"[DownloadScene] {info.downloadedByte} / {info.size} ({info.progress:P0})");
     }
 }

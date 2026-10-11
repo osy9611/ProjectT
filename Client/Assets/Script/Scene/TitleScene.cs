@@ -24,7 +24,7 @@ public class TitleScene : SceneBase
         Caching.GetAllCachePaths(cachePaths);
         foreach (var cachePath in cachePaths)
         {
-            Global.Instance.Log($"Cache path : {cachePath}");
+            Global.Log($"Cache path : {cachePath}");
         }
 
         Test(LifetimeToken).Forget(error =>
@@ -42,7 +42,7 @@ public class TitleScene : SceneBase
         string version = await firebaseDB.GetBuildVersion(UnityEditor.BuildTarget.Android.ToString())
             .AsUniTask().AttachExternalCancellation(token);
 
-        Global.Instance.Log($"Build version : {version}");
+        Global.Log($"Build version : {version}");
 #endif
     }
 }

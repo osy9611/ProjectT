@@ -46,7 +46,7 @@ public class TestReflection : MonoBehaviour
 
     //    for(int i=0;i<datas.Length;++i)
     //    {
-    //        Global.Instance.Log($"Data[{i}] = {datas[i]}");
+    //        Global.Log($"Data[{i}] = {datas[i]}");
     //    }
     //    datas.Dispose();
     //}

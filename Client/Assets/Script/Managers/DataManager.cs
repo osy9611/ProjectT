@@ -74,13 +74,13 @@ namespace ProjectT
                 loadedTableData.Init();
 
                 await LoadLocalDataInternalAsync(loadedLocalData, LifetimeToken);
-                Global.Instance.Log("Local Data Load Result :  Success");
+                Global.Log("Local Data Load Result :  Success");
 
                 await LoadTableDataInternalAsync(loadedTableData, LifetimeToken);
                 loadedTableData.SetUpRef();
 
                 LifetimeToken.ThrowIfCancellationRequested();
-                Global.Instance.Log("Table Data Load Result :  Success");
+                Global.Log("Table Data Load Result :  Success");
 
                 localData = loadedLocalData;
                 tableData = loadedTableData;
@@ -149,7 +149,7 @@ namespace ProjectT
                     target.LoadData(tableID, textAsset.bytes);
                 }
 
-                Global.Instance.Log($"[Table] {tableID} Load Complete!!");
+                Global.Log($"[Table] {tableID} Load Complete!!");
             }
         }
 

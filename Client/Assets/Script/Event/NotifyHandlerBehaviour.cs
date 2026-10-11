@@ -34,10 +34,7 @@ public abstract class NotifyHandlerBehaviour : MonoBehaviour
 
         try
         {
-            if (Global.Instance == null)
-                await UniTask.WaitUntil(() => Global.Instance != null, cancellationToken: token);
-
-            await Global.Instance.WhenReadyAsync(token);
+            await Global.WhenReadyAsync(token);
 
             token.ThrowIfCancellationRequested();
 
@@ -47,8 +44,8 @@ public abstract class NotifyHandlerBehaviour : MonoBehaviour
             OnSubscribe(token);
             subscribed = true;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested || Global.Instance == null ||
-            Global.Instance.State == ManagerState.Stopping || Global.Instance.State == ManagerState.Stopped)
+        catch (OperationCanceledException) when (token.IsCancellationRequested || Global.State == ManagerState.Created ||
+            Global.State == ManagerState.Stopping || Global.State == ManagerState.Stopped)
         {
         }
         finally

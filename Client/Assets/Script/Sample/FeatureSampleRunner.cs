@@ -51,7 +51,7 @@ namespace ProjectT.Sample
         private async UniTask InitializeInternalAsync()
         {
             var token = this.GetCancellationTokenOnDestroy();
-            if (await Global.Instance.WhenReadyAsync(token).SuppressCancellationThrow())
+            if (await Global.WhenReadyAsync(token).SuppressCancellationThrow())
                 return;
 
             Global.Notify.Subscribe(NotificationId.InputControlsChanged, _ => Write($"Notify InputControlsChanged: {Global.Input.CurrentDevice?.displayName}"), token);
@@ -70,7 +70,7 @@ namespace ProjectT.Sample
             GUILayout.BeginArea(new Rect(10, 10, 420, Screen.height - 20), GUI.skin.box);
             scroll = GUILayout.BeginScrollView(scroll);
 
-            GUILayout.Label($"Global: {(Global.Instance == null ? "None" : Global.Instance.State.ToString())}");
+            GUILayout.Label($"Global: {Global.State}");
             if (!ready)
             {
                 GUILayout.Label("Waiting for WhenReadyAsync...");

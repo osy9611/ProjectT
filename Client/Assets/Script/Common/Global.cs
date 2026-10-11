@@ -18,8 +18,8 @@ namespace ProjectT
         private ManagerHost host;
         private bool focused = true;
         private bool paused;
-        public ManagerState State => host?.State ?? ManagerState.Created;
-        public bool IsReady => State == ManagerState.Ready;
+        public static ManagerState State => s_instance?.host?.State ?? ManagerState.Created;
+        public static bool IsReady => State == ManagerState.Ready;
 
         public static PatchManager Patch { get => GetManager<PatchManager>(); }
 
@@ -126,12 +126,13 @@ namespace ProjectT
             }
         }
 
-        public async UniTask WhenReadyAsync(CancellationToken cancellationToken = default)
+        public static async UniTask WhenReadyAsync(CancellationToken cancellationToken = default)
         {
-            if (host == null)
-                throw new InvalidOperationException("Global has not awakened.");
+            // Global보다 먼저 활성화된 호출자는 Global이 Awake할 때까지 기다린다.
+            if (s_instance == null)
+                await UniTask.WaitUntil(() => s_instance != null, cancellationToken: cancellationToken);
 
-            await host.WhenReady.AttachExternalCancellation(cancellationToken);
+            await s_instance.host.WhenReady.AttachExternalCancellation(cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -233,19 +234,26 @@ namespace ProjectT
         }
 
         #region Log Methods
-        public void Log(string msg, string colorHex = default)
+        // 소켓 스레드와 인스턴스가 없는 종료 중에도 호출되므로 static이며, 인스턴스가 없으면 UseDebugLog 설정 없이 출력한다.
+        public static void Log(string msg, string colorHex = default)
         {
-            if (UseDebugLog)
+            if (IsDebugLogEnabledInternal())
                 Debug.Log(MakeTimeStampLog(UtilFunc.MakeColorRichText($"[Global] {msg}", colorHex), "INFO"));
         }
 
-        public void LogWarning(string msg)
+        public static void LogWarning(string msg)
         {
-            if (UseDebugLog)
+            if (IsDebugLogEnabledInternal())
                 Debug.LogWarning(MakeTimeStampLog($"[Global] {msg}", "WARNING"));
         }
 
-        // 소켓 스레드와 인스턴스가 없는 종료 중에도 호출되므로 static이다.
+        // Unity의 == 비교는 메인 스레드 밖에서 안전하지 않으므로 참조 비교로 한 번만 읽는다.
+        private static bool IsDebugLogEnabledInternal()
+        {
+            var instance = s_instance;
+            return instance is null || instance.UseDebugLog;
+        }
+
         public static void LogError(string msg)
         {
             Debug.LogError(MakeTimeStampLog($"[Global] {msg}", "ERROR"));

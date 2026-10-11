@@ -177,7 +177,7 @@ namespace ProjectT.Server.Sockets
         }
         private void OnDisconnectedInternal(TcpConnection conn)
         {
-            Global.Instance.Log($"OnDisconnectedInternal ({conn.Id})");
+            Global.Log($"OnDisconnectedInternal ({conn.Id})");
             messageQueue.Enqueue(new Message((int)eMessageType.Data, (int)eBuiltInEventId.Disconnected, conn));
         }
 
@@ -260,7 +260,7 @@ namespace ProjectT.Server.Sockets
                     break;
                 case eMessageBuiltInDataId.Connected:
                     tcpConnection.ConnectState = eConnectState.Connected;
-                    Global.Instance.Log($"Connected ({tcpConnection.Id})");
+                    Global.Log($"Connected ({tcpConnection.Id})");
                     OnConnected?.Invoke();
                     break;
                 case eMessageBuiltInDataId.ExternalData:

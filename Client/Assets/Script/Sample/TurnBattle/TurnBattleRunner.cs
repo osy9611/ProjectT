@@ -37,7 +37,7 @@ namespace ProjectT.Sample.TurnBattle
         private async UniTask InitializeInternalAsync()
         {
             var token = this.GetCancellationTokenOnDestroy();
-            if (await Global.Instance.WhenReadyAsync(token).SuppressCancellationThrow())
+            if (await Global.WhenReadyAsync(token).SuppressCancellationThrow())
                 return;
 
             // 비활성 템플릿에 붙여 두면 풀이 만든 복제본이 대여될 때 처음 Awake된다.

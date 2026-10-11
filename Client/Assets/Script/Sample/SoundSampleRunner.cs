@@ -32,7 +32,7 @@ namespace ProjectT.Sample
         private async UniTask InitializeInternalAsync()
         {
             var token = this.GetCancellationTokenOnDestroy();
-            if (await Global.Instance.WhenReadyAsync(token).SuppressCancellationThrow())
+            if (await Global.WhenReadyAsync(token).SuppressCancellationThrow())
                 return;
 
             ready = true;
