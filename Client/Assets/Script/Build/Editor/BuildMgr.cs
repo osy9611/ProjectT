@@ -9,6 +9,7 @@ using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Build.DataBuilders;
 using UnityEditor.AddressableAssets.Settings;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -36,7 +37,9 @@ namespace ProjectT.Build
             buildPlayerOptions.scenes = FindEnableEditorScenes();
             buildPlayerOptions.target = BuildTarget.iOS;
             buildPlayerOptions.options = BuildOptions.None;
-            buildPlayerOptions.locationPathName = "Builds/IOS/test.apk";
+            buildPlayerOptions.locationPathName = "Builds/IOS";
+
+            StartBuild(buildPlayerOptions);
         }
 
         [MenuItem("Build/EXE")]
@@ -73,31 +76,15 @@ namespace ProjectT.Build
         //    t.Wait();
         //}
 
-        //빌드 테스트용
-        [MenuItem("Build/Test")]
-        public static async void TestBuild()
-        {
-            //우선 커멘드 라인에 들어온 Args를 읽는다.
-
-            BuildTarget buildTarget = BuildTarget.StandaloneWindows;
-            string buildVersion = "0.0.1";
-
-            //Addressable FireBase 빌드
-            await AddressableBuild.Build();
-
-            await UploadAndBuildInternalAsync(buildTarget, buildVersion);
-        }
-
         private static void StartBuild(BuildPlayerOptions buildOption)
         {
             BuildReport report = BuildPipeline.BuildPlayer(buildOption);
             BuildSummary summary = report.summary;
 
-            if (summary.result == BuildResult.Succeeded)
-                Debug.Log($"Build Successed {summary.totalSize} + bytes");
+            if (summary.result != BuildResult.Succeeded)
+                throw new BuildFailedException($"Build {summary.result} : {summary.totalErrors} errors");
 
-            if (summary.result == BuildResult.Failed)
-                Debug.Log("Build Failed");
+            Debug.Log($"Build Successed {summary.totalSize} + bytes");
         }
 
         private static string[] FindEnableEditorScenes()
@@ -114,30 +101,47 @@ namespace ProjectT.Build
             return editorScenes.ToArray();
         }
 
+        //-executeMethod는 async 완료를 기다리지 않으므로 -quit 없이 실행하고 여기서 종료 코드를 남긴다.
         public static async void PreBuild()
         {
-            if (!TryReadCommandLineInternal(out BuildTarget buildTarget, out string buildVersion))
-                return;
+            int exitCode = 1;
+            try
+            {
+                if (TryReadCommandLineInternal(out BuildTarget buildTarget, out string buildVersion, out int buildNumber))
+                {
+                    ApplyVersionInternal(buildVersion, buildNumber);
 
-            Debug.Log("Start Addressable Build");
+                    Debug.Log("Start Addressable Build");
 
-            //Addressable FireBase 빌드
-            await AddressableBuild.Build();
+                    System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
 
-            Debug.Log("End Addressable Build");
+                    //Addressable FireBase 빌드
+                    await AddressableBuild.Build();
+
+                    LogElapsedInternal("Addressable Build", timer);
+                    Debug.Log("End Addressable Build");
 
 
-            Debug.Log("Start Upload Addressabe");
+                    Debug.Log("Start Upload Addressabe");
 
-            await UploadAndBuildInternalAsync(buildTarget, buildVersion);
+                    await UploadAndBuildInternalAsync(buildTarget, buildVersion);
+                    exitCode = 0;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+
+            EditorApplication.Exit(exitCode);
         }
 
-        private static bool TryReadCommandLineInternal(out BuildTarget buildTarget, out string buildVersion)
+        private static bool TryReadCommandLineInternal(out BuildTarget buildTarget, out string buildVersion, out int buildNumber)
         {
-            //우선 커멘드 라인에 들어온 Args를 읽는다.
             string[] commandLienArgs = Environment.GetCommandLineArgs();
             buildTarget = BuildTarget.NoTarget;
             buildVersion = string.Empty;
+            buildNumber = 0;
 
             for (int i = 0; i < commandLienArgs.Length; ++i)
             {
@@ -153,20 +157,57 @@ namespace ProjectT.Build
                     case "-BUILD_VERSION":
                         buildVersion = commandLienArgs[i + 1];
                         break;
+                    case "-BUILD_NUMBER":
+                        if (!int.TryParse(commandLienArgs[i + 1], out buildNumber))
+                        {
+                            Debug.LogError($"Build Number Is Invalid : {commandLienArgs[i + 1]}");
+                            return false;
+                        }
+                        break;
                 }
+            }
+
+            if (buildTarget != BuildTarget.Android && buildTarget != BuildTarget.iOS && buildTarget != BuildTarget.StandaloneWindows)
+            {
+                Debug.LogError($"Build Target Is Not Supported : {buildTarget}");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(buildVersion) || buildNumber <= 0)
+            {
+                Debug.LogError($"Build Version Or Number Is Missing : {buildVersion} / {buildNumber}");
+                return false;
             }
 
             return true;
         }
 
+        private static void ApplyVersionInternal(string buildVersion, int buildNumber)
+        {
+            PlayerSettings.bundleVersion = buildVersion;
+            PlayerSettings.Android.bundleVersionCode = buildNumber;
+            PlayerSettings.iOS.buildNumber = buildNumber.ToString();
+            Debug.Log($"Build Version {buildVersion} ({buildNumber})");
+        }
+
+        private static void LogElapsedInternal(string step, System.Diagnostics.Stopwatch timer)
+        {
+            Debug.Log($"[Build Time] {step} : {timer.Elapsed.TotalSeconds:F1}s");
+            timer.Restart();
+        }
+
         private static async Task UploadAndBuildInternalAsync(BuildTarget buildTarget, string buildVersion)
         {
+            System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
+
             //Addressabe FireBase 빌드 파일 업로드
             FirebaseUploader uploader = new FirebaseUploader(buildTarget, buildVersion);
             await uploader.UploadFiles();
+            LogElapsedInternal("Upload", timer);
 
             Debug.Log("Start Build");
             await Build(buildTarget, buildVersion);
+            LogElapsedInternal("Player Build", timer);
             await PostBuild();
 
             //빌드된 파일 제거

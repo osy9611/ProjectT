@@ -87,29 +87,13 @@ namespace ProjectT.Server
                 StorageReference targetRef = storageRef.Child($"{uploadData.ServerFolderPath}/{fileName}");
                 var newMetaData = new MetadataChange();
 
-                return targetRef.PutFileAsync(filePath, newMetaData, new StorageProgress<UploadState>
+                await targetRef.PutFileAsync(filePath, newMetaData, new StorageProgress<UploadState>
                     (state =>
                     {
                         Debug.Log($"{fileName} - Progress : {state.BytesTransferred} of {state.TotalByteCount} bytes transferred.");
-                    }))
-                    .ContinueWith(task =>
-                    {
-                        if (task.IsFaulted)
-                        {
-                            // 실패 처리 추가
-                            Debug.LogError($"{fileName} upload failed: {task.Exception}");
-                        }
-                        else if (task.IsCanceled)
-                        {
-                            // 취소 처리 추가
-                            Debug.LogWarning($"{fileName} upload canceled.");
-                        }
-                        else
-                        {
-                            // 성공 처리 추가
-                            Debug.Log($"{fileName} upload completed successfully.");
-                        }
-                    });
+                    }));
+
+                Debug.Log($"{fileName} upload completed successfully.");
             });
 
             await Task.WhenAll(uploadTasks);
