@@ -44,7 +44,7 @@ namespace ProjectT
         private readonly HashSet<ResourceScope> scopes = new HashSet<ResourceScope>();
         private readonly HashSet<ResourceRequest> pendingResources = new HashSet<ResourceRequest>();
         private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
-        private readonly Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource<int>> unloadingScenes = new Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource<int>>();
+        private readonly Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource> unloadingScenes = new Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource>();
         private ResourceScope sceneScope;
         private ResourceScope appScope;
         internal ResourceScope SceneScope => sceneScope;
@@ -141,7 +141,7 @@ namespace ProjectT
         }
 
         #region SceneLoad
-        public async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, LoadSceneMode sceneMode, Action<float> OnLoadingProgressAction)
+        internal async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, LoadSceneMode sceneMode)
         {
             LifetimeToken.ThrowIfCancellationRequested();
             var handle = Addressables.LoadSceneAsync(sceneName, sceneMode);
@@ -151,7 +151,6 @@ namespace ProjectT
             {
                 while (!handle.IsDone)
                 {
-                    OnLoadingProgressAction?.Invoke(handle.PercentComplete);
                     await UniTask.Yield(cancellationToken: LifetimeToken);
                 }
 
@@ -160,7 +159,6 @@ namespace ProjectT
 
                 LifetimeToken.ThrowIfCancellationRequested();
                 loadedScenes.RemoveWhere(scene => !scene.IsValid() || !scene.Result.Scene.isLoaded);
-                OnLoadingProgressAction?.Invoke(1f);
                 loadedScenes.Add(handle);
                 retained = true;
 
@@ -173,33 +171,31 @@ namespace ProjectT
             }
         }
 
-        public UniTask<int> UnLoadSceneAsync(SceneInstance scene, Action<float> OnLoadingProgressAction)
+        internal UniTask UnloadSceneAsync(SceneInstance scene)
         {
             if (unloadingScenes.TryGetValue(scene.Scene, out var pending))
                 return pending.Task;
 
             LifetimeToken.ThrowIfCancellationRequested();
 
-            pending = new UniTaskCompletionSource<int>();
+            pending = new UniTaskCompletionSource();
             unloadingScenes.Add(scene.Scene, pending);
 
-            UnloadSceneInternalAsync(scene, OnLoadingProgressAction, pending).Forget(Global.LogException);
+            UnloadSceneInternalAsync(scene, pending).Forget(Global.LogException);
 
             return pending.Task;
         }
 
-        private async UniTask UnloadSceneInternalAsync(SceneInstance scene, Action<float> OnLoadingProgressAction, UniTaskCompletionSource<int> pending)
+        private async UniTask UnloadSceneInternalAsync(SceneInstance scene, UniTaskCompletionSource pending)
         {
             try
             {
-                int sceneIndex = scene.Scene.buildIndex;
                 var handle = Addressables.UnloadSceneAsync(scene, autoReleaseHandle: false);
                 try
                 {
                     // 언로드가 시작되면 완료까지 기다린 뒤 씬 소유를 해제한다.
                     while (!handle.IsDone)
                     {
-                        OnLoadingProgressAction?.Invoke(handle.PercentComplete);
                         await UniTask.Yield();
                     }
 
@@ -214,10 +210,8 @@ namespace ProjectT
                         Addressables.Release(handle);
                 }
 
-                OnLoadingProgressAction?.Invoke(1f);
-
                 unloadingScenes.Remove(scene.Scene);
-                pending.TrySetResult(sceneIndex);
+                pending.TrySetResult();
             }
             catch (Exception error)
             {
@@ -226,14 +220,14 @@ namespace ProjectT
             }
         }
 
-        internal async UniTask UnLoadSceneAsync(UnityEngine.SceneManagement.Scene scene)
+        internal async UniTask UnloadSceneAsync(UnityEngine.SceneManagement.Scene scene)
         {
             foreach (var handle in loadedScenes)
             {
                 if (handle.IsValid() && handle.Result.Scene == scene)
                 {
                     var instance = handle.Result;
-                    await UnLoadSceneAsync(instance, null);
+                    await UnloadSceneAsync(instance);
                     return;
                 }
             }

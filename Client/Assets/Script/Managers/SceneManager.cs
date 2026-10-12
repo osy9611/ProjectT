@@ -213,7 +213,7 @@ namespace ProjectT
 
                 if (path != null)
                 {
-                    var handle = await Global.Resource.LoadSceneAsync(path, mode, null);
+                    var handle = await Global.Resource.LoadSceneAsync(path, mode);
                     entry.Instance = handle.Result;
                     entry.IsAddressable = true;
                 }
@@ -297,7 +297,7 @@ namespace ProjectT
 
             foreach (var scene in previous)
             {
-                await Global.Resource.UnLoadSceneAsync(scene);
+                await Global.Resource.UnloadSceneAsync(scene);
                 LifetimeToken.ThrowIfCancellationRequested();
             }
         }
@@ -382,7 +382,7 @@ namespace ProjectT
             await UniTask.NextFrame(cancellationToken: LifetimeToken);
 
             if (entry.IsAddressable && entry.Instance.Scene.isLoaded)
-                await Global.Resource.UnLoadSceneAsync(entry.Instance, null);
+                await Global.Resource.UnloadSceneAsync(entry.Instance);
 
             scenes.Remove(type);
             entry.Scope.Dispose();
