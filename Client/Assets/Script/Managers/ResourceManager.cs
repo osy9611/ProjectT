@@ -158,7 +158,7 @@ namespace ProjectT
                     throw handle.OperationException ?? new InvalidOperationException($"Scene load failed: {sceneName}");
 
                 LifetimeToken.ThrowIfCancellationRequested();
-                loadedScenes.RemoveWhere(scene => !scene.IsValid() || !scene.Result.Scene.isLoaded);
+                loadedScenes.RemoveWhere(loaded => !loaded.IsValid() || !loaded.Result.Scene.isLoaded);
                 loadedScenes.Add(handle);
                 retained = true;
 
@@ -202,7 +202,7 @@ namespace ProjectT
                     if (handle.Status != AsyncOperationStatus.Succeeded)
                         throw handle.OperationException ?? new InvalidOperationException("Scene unload failed.");
 
-                    loadedScenes.RemoveWhere(h => !h.IsValid() || (h.IsDone && h.Result.Scene == scene.Scene));
+                    loadedScenes.RemoveWhere(loaded => !loaded.IsValid() || loaded.Result.Scene == scene.Scene);
                 }
                 finally
                 {
