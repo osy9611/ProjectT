@@ -72,13 +72,17 @@ namespace ProjectT
         {
             List<Exception> errors = null;
 
-            foreach (var scene in loadedScenes)
+            // 앱 종료 시에는 Unity가 씬을 정리하며, 마지막 씬 언로드는 Unity가 거부하고 경고만 남긴다.
+            if (reason != ShutdownReason.ApplicationExit)
             {
-                ErrorCollector.Run(ref errors, scene, handle =>
+                foreach (var scene in loadedScenes)
                 {
-                    if (handle.IsValid() && !unloadingScenes.ContainsKey(handle.Result.Scene))
-                        ReleaseScene(handle);
-                });
+                    ErrorCollector.Run(ref errors, scene, handle =>
+                    {
+                        if (handle.IsValid() && !unloadingScenes.ContainsKey(handle.Result.Scene))
+                            ReleaseScene(handle);
+                    });
+                }
             }
 
             loadedScenes.Clear();
