@@ -327,7 +327,7 @@ namespace ProjectT.UGUI
                 // System UI는 씬 전환 후에도 남으므로 프리팹이 씬 Scope와 함께 해제되지 않게 앱 Scope 소유를 추가한다.
                 // 실패할 수 있는 단계를 모두 지난 뒤에 추가해야 생성 실패 시 참조가 남지 않는다.
                 if (widget.Type == eUIContainerType.System)
-                    Global.Resource.LoadAndGet<GameObject>(path, dontDestroy: true);
+                    Global.Resource.LoadAndGet<GameObject>(path, Global.Resource.AppScope);
 
                 uiDatas.Add(type, widget);
                 return widget;

@@ -36,7 +36,7 @@ public static class UtilFunc
         if (tbData == null)
             return false;
 
-        var sprite = Global.Resource.GetSprite(tbData.Path, name, dontDestroy: true);
+        var sprite = Global.Resource.GetSprite(tbData.Path, name, Global.Resource.AppScope);
         image.sprite = sprite;
 
         return sprite != null;

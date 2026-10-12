@@ -48,6 +48,7 @@ namespace ProjectT
         private ResourceScope sceneScope;
         private ResourceScope appScope;
         internal ResourceScope SceneScope => sceneScope;
+        public ResourceScope AppScope => appScope;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
@@ -95,17 +96,14 @@ namespace ProjectT
 
         internal void SetSceneScope(ResourceScope scope)
         {
-            sceneScope = ResolveScope(false, scope);
+            sceneScope = ResolveScope(scope);
         }
 
-        internal ResourceScope ResolveScope(bool dontDestroy, ResourceScope scope)
+        internal ResourceScope ResolveScope(ResourceScope scope)
         {
             LifetimeToken.ThrowIfCancellationRequested();
 
-            if (scope != null && dontDestroy)
-                throw new ArgumentException("Choose either an explicit scope or dontDestroy.");
-
-            scope = scope ?? (dontDestroy ? appScope : sceneScope);
+            scope = scope ?? sceneScope;
 
             if (scope == null || !scopes.Contains(scope))
                 throw new InvalidOperationException("Resource scope is not active in this manager.");
@@ -271,20 +269,20 @@ namespace ProjectT
         }
         #endregion
 
-        public T LoadAndGet<T>(string path, bool dontDestroy = false, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public T LoadAndGet<T>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
         {
-            return LoadResource<Resource<T>>(path, dontDestroy, scope, source).Asset;
+            return LoadResource<Resource<T>>(path, scope, source).Asset;
         }
 
-        public async UniTask<T> LoadAndGetAsync<T>(string path, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public async UniTask<T> LoadAndGetAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
         {
-            var resource = await LoadResourceAsync<Resource<T>>(path, dontDestroy, cancelToken, scope, source);
+            var resource = await LoadResourceAsync<Resource<T>>(path, cancelToken, scope, source);
             return resource.Asset;
         }
 
-        public TResource LoadResource<TResource>(string path, bool dontDestroy = false, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
+        public TResource LoadResource<TResource>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
         {
-            scope = ResolveScope(dontDestroy, scope);
+            scope = ResolveScope(scope);
             var resource = GetResource<TResource>(path, scope, source, false);
 
             if (!resource.IsDone)
@@ -306,10 +304,10 @@ namespace ProjectT
             return resource;
         }
 
-        public async UniTask<TResource> LoadResourceAsync<TResource>(string path, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
+        public async UniTask<TResource> LoadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
         {
             cancelToken.ThrowIfCancellationRequested();
-            scope = ResolveScope(dontDestroy, scope);
+            scope = ResolveScope(scope);
             var resource = GetResource<TResource>(path, scope, source, true);
 
             if (!resource.IsDone)
@@ -331,30 +329,30 @@ namespace ProjectT
             return resource;
         }
 
-        public async UniTask PreloadAsync<T>(string path, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public async UniTask PreloadAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
         {
-            await LoadAndGetAsync<T>(path, dontDestroy, cancelToken, scope, source);
+            await LoadAndGetAsync<T>(path, cancelToken, scope, source);
         }
 
-        public async UniTask PreloadResourceAsync<TResource>(string path, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
+        public async UniTask PreloadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
         {
-            await LoadResourceAsync<TResource>(path, dontDestroy, cancelToken, scope, source);
+            await LoadResourceAsync<TResource>(path, cancelToken, scope, source);
         }
 
-        public Sprite GetSprite(string path, string name, bool dontDestroy = false, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public Sprite GetSprite(string path, string name, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Sprite name is empty.", nameof(name));
 
-            return LoadResource<SpriteAtlasResource>(path, dontDestroy, scope, source).GetSprite(name);
+            return LoadResource<SpriteAtlasResource>(path, scope, source).GetSprite(name);
         }
 
-        public async UniTask<Sprite> GetSpriteAsync(string path, string name, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public async UniTask<Sprite> GetSpriteAsync(string path, string name, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Sprite name is empty.", nameof(name));
 
-            var resource = await LoadResourceAsync<SpriteAtlasResource>(path, dontDestroy, cancelToken, scope, source);
+            var resource = await LoadResourceAsync<SpriteAtlasResource>(path, cancelToken, scope, source);
             return resource.GetSprite(name);
         }
 

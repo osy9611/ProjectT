@@ -224,7 +224,7 @@ namespace ProjectT
                 throw new ArgumentNullException(nameof(original));
 
             // 해제되었거나 ResourceManager가 관리하지 않는 Scope로는 대여를 시작하지 않는다.
-            scope = Global.Resource.ResolveScope(false, scope ?? appScope);
+            scope = Global.Resource.ResolveScope(scope ?? appScope);
             ThrowIfScopeClosedInternal(scope);
 
             var key = new PoolKey(scope, original);
