@@ -167,14 +167,19 @@ namespace ProjectT.Addressable
 
         public T GetResult<T>()
         {
+            ThrowIfFailed();
+
+            return (T)resourceData;
+        }
+
+        internal void ThrowIfFailed()
+        {
             // 공유 리소스의 실패는 여러 호출자에게 전달되므로 최초 실패 지점의 스택을 보존한다.
             if (error != null)
                 ExceptionDispatchInfo.Capture(error).Throw();
 
             if (isReleased)
                 throw new ObjectDisposedException(Path);
-
-            return (T)resourceData;
         }
 
         private void ReleaseHandle()

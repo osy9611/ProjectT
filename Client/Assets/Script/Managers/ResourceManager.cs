@@ -234,7 +234,7 @@ namespace ProjectT
 
             scope.Token.ThrowIfCancellationRequested();
 
-            resource.GetResult<object>();
+            resource.ThrowIfFailed();
 
             return resource;
         }
@@ -259,7 +259,7 @@ namespace ProjectT
             cancelToken.ThrowIfCancellationRequested();
             scope.Token.ThrowIfCancellationRequested();
 
-            resource.GetResult<object>();
+            resource.ThrowIfFailed();
 
             return resource;
         }
