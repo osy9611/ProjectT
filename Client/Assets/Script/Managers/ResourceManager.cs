@@ -1,12 +1,13 @@
 using System;
-using Cysharp.Threading.Tasks;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
+using ProjectT.Addressable;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
-using ProjectT.Addressable;
-using System.Threading;
+using UnityEngine.SceneManagement;
 
 namespace ProjectT
 {
@@ -42,30 +43,17 @@ namespace ProjectT
         private readonly Dictionary<ResourceKey, IResource> datas = new Dictionary<ResourceKey, IResource>();
         private readonly HashSet<ResourceScope> scopes = new HashSet<ResourceScope>();
         private readonly HashSet<ResourceRequest> pendingResources = new HashSet<ResourceRequest>();
+        private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
+        private readonly Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource<int>> unloadingScenes = new Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource<int>>();
         private ResourceScope sceneScope;
         private ResourceScope appScope;
         internal ResourceScope SceneScope => sceneScope;
-
-        internal void SetSceneScope(ResourceScope scope)
-        {
-            sceneScope = ResolveScope(false, scope);
-        }
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
             sceneScope = CreateScope();
             appScope = CreateScope();
             return UniTask.CompletedTask;
-        }
-
-        public ResourceScope CreateScope()
-        {
-            ThrowIfWorkUnavailableDuringInitInternal();
-
-            var scope = new ResourceScope(ReleaseScope);
-            scopes.Add(scope);
-
-            return scope;
         }
 
         protected override void OnShutdown(ShutdownReason reason)
@@ -95,29 +83,67 @@ namespace ProjectT
             ErrorCollector.ThrowIfAny(errors);
         }
 
-
-        private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
-        private readonly Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource<int>> unloadingScenes = new Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource<int>>();
-
-        private static void ReleaseScene(AsyncOperationHandle<SceneInstance> handle)
+        public ResourceScope CreateScope()
         {
-            if (!handle.IsValid())
+            ThrowIfWorkUnavailableDuringInitInternal();
+
+            var scope = new ResourceScope(ReleaseScope);
+            scopes.Add(scope);
+
+            return scope;
+        }
+
+        internal void SetSceneScope(ResourceScope scope)
+        {
+            sceneScope = ResolveScope(false, scope);
+        }
+
+        internal ResourceScope ResolveScope(bool dontDestroy, ResourceScope scope)
+        {
+            LifetimeToken.ThrowIfCancellationRequested();
+
+            if (scope != null && dontDestroy)
+                throw new ArgumentException("Choose either an explicit scope or dontDestroy.");
+
+            scope = scope ?? (dontDestroy ? appScope : sceneScope);
+
+            if (scope == null || !scopes.Contains(scope))
+                throw new InvalidOperationException("Resource scope is not active in this manager.");
+
+            scope.Token.ThrowIfCancellationRequested();
+
+            return scope;
+        }
+
+        private void ReleaseScope(ResourceScope scope)
+        {
+            if (!scopes.Remove(scope))
                 return;
 
-            if (!handle.IsDone)
+            List<Exception> errors = null;
+
+            foreach (var pair in new List<KeyValuePair<ResourceKey, IResource>>(datas))
             {
-                handle.Completed += ReleaseScene;
-                return;
+                if (!pair.Value.Owners.Remove(scope) || pair.Value.Owners.Count > 0)
+                    continue;
+
+                datas.Remove(pair.Key);
+                ErrorCollector.Run(ref errors, pair.Value, resource => resource.Dispose());
             }
 
-            if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result.Scene.isLoaded)
-                Addressables.UnloadSceneAsync(handle);
-            else if (handle.IsValid())
-                Addressables.Release(handle);
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        // 씬 Scope 풀 정리를 거치지 않으므로 공개 진입점으로 두지 않는다. 씬 전환은 언로드 순서 때문에 SetSceneScope로 직접 교체한다.
+        internal void ReleaseAll()
+        {
+            var previous = sceneScope;
+            sceneScope = CreateScope();
+            previous.Dispose();
         }
 
         #region SceneLoad
-        public async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, UnityEngine.SceneManagement.LoadSceneMode sceneMode, Action<float> OnLoadingProgressAction)
+        public async UniTask<AsyncOperationHandle<SceneInstance>> LoadSceneAsync(string sceneName, LoadSceneMode sceneMode, Action<float> OnLoadingProgressAction)
         {
             LifetimeToken.ThrowIfCancellationRequested();
             var handle = Addressables.LoadSceneAsync(sceneName, sceneMode);
@@ -172,7 +198,7 @@ namespace ProjectT
                 var handle = Addressables.UnloadSceneAsync(scene, autoReleaseHandle: false);
                 try
                 {
-                    // Once unloading starts, settle it before dropping scene ownership.
+                    // 언로드가 시작되면 완료까지 기다린 뒤 씬 소유를 해제한다.
                     while (!handle.IsDone)
                     {
                         OnLoadingProgressAction?.Invoke(handle.PercentComplete);
@@ -202,6 +228,47 @@ namespace ProjectT
             }
         }
 
+        internal async UniTask UnLoadSceneAsync(UnityEngine.SceneManagement.Scene scene)
+        {
+            foreach (var handle in loadedScenes)
+            {
+                if (handle.IsValid() && handle.Result.Scene == scene)
+                {
+                    var instance = handle.Result;
+                    await UnLoadSceneAsync(instance, null);
+                    return;
+                }
+            }
+
+            var operation = UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene);
+            if (operation == null)
+                throw new InvalidOperationException($"Scene unload could not start: {scene.name}");
+
+            while (!operation.isDone)
+            {
+                await UniTask.Yield();
+            }
+
+            if (scene.isLoaded)
+                throw new InvalidOperationException($"Scene unload failed: {scene.name}");
+        }
+
+        private static void ReleaseScene(AsyncOperationHandle<SceneInstance> handle)
+        {
+            if (!handle.IsValid())
+                return;
+
+            if (!handle.IsDone)
+            {
+                handle.Completed += ReleaseScene;
+                return;
+            }
+
+            if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result.Scene.isLoaded)
+                Addressables.UnloadSceneAsync(handle);
+            else
+                Addressables.Release(handle);
+        }
         #endregion
 
         public T LoadAndGet<T>(string path, bool dontDestroy = false, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
@@ -291,24 +358,6 @@ namespace ProjectT
             return resource.GetSprite(name);
         }
 
-
-        internal ResourceScope ResolveScope(bool dontDestroy, ResourceScope scope)
-        {
-            LifetimeToken.ThrowIfCancellationRequested();
-
-            if (scope != null && dontDestroy)
-                throw new ArgumentException("Choose either an explicit scope or dontDestroy.");
-
-            scope = scope ?? (dontDestroy ? appScope : sceneScope);
-
-            if (scope == null || !scopes.Contains(scope))
-                throw new InvalidOperationException("Resource scope is not active in this manager.");
-
-            scope.Token.ThrowIfCancellationRequested();
-
-            return scope;
-        }
-
         private TResource GetResource<TResource>(string path, ResourceScope scope, ResourceSource source, bool asynchronous) where TResource : IResource, new()
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -364,25 +413,6 @@ namespace ProjectT
                 datas.Remove(key);
         }
 
-        private void ReleaseScope(ResourceScope scope)
-        {
-            if (!scopes.Remove(scope))
-                return;
-
-            List<Exception> errors = null;
-
-            foreach (var pair in new List<KeyValuePair<ResourceKey, IResource>>(datas))
-            {
-                if (!pair.Value.Owners.Remove(scope) || pair.Value.Owners.Count > 0)
-                    continue;
-
-                datas.Remove(pair.Key);
-                ErrorCollector.Run(ref errors, pair.Value, resource => resource.Dispose());
-            }
-
-            ErrorCollector.ThrowIfAny(errors);
-        }
-
         private void OnResourceCompleted(AsyncOperation operation)
         {
             operation.completed -= OnResourceCompleted;
@@ -406,39 +436,6 @@ namespace ProjectT
             }
 
             LifetimeToken.ThrowIfCancellationRequested();
-        }
-
-        internal async UniTask UnLoadSceneAsync(UnityEngine.SceneManagement.Scene scene)
-        {
-            foreach (var handle in loadedScenes)
-            {
-                if (handle.IsValid() && handle.Result.Scene == scene)
-                {
-                    var instance = handle.Result;
-                    await UnLoadSceneAsync(instance, null);
-                    return;
-                }
-            }
-
-            var operation = UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene);
-            if (operation == null)
-                throw new InvalidOperationException($"Scene unload could not start: {scene.name}");
-
-            while (!operation.isDone)
-            {
-                await UniTask.Yield();
-            }
-
-            if (scene.isLoaded)
-                throw new InvalidOperationException($"Scene unload failed: {scene.name}");
-        }
-
-        // 씬 Scope 풀 정리를 거치지 않으므로 공개 진입점으로 두지 않는다. 씬 전환은 언로드 순서 때문에 SetSceneScope로 직접 교체한다.
-        internal void ReleaseAll()
-        {
-            var previous = sceneScope;
-            sceneScope = CreateScope();
-            previous.Dispose();
         }
     }
 }
