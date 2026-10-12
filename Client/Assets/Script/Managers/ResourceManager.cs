@@ -277,7 +277,7 @@ namespace ProjectT
         public TResource LoadResource<TResource>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
         {
             scope = ResolveScope(scope);
-            var resource = GetResource<TResource>(path, scope, source, false);
+            var resource = GetResource<TResource>(path, scope, source, asynchronous: false);
 
             if (!resource.IsDone)
             {
@@ -302,7 +302,7 @@ namespace ProjectT
         {
             cancelToken.ThrowIfCancellationRequested();
             scope = ResolveScope(scope);
-            var resource = GetResource<TResource>(path, scope, source, true);
+            var resource = GetResource<TResource>(path, scope, source, asynchronous: true);
 
             if (!resource.IsDone)
             {
@@ -363,25 +363,23 @@ namespace ProjectT
             {
                 if (!(resource is TResource))
                     throw new InvalidOperationException($"{path} is managed by {resource.GetType().Name}, not {typeof(TResource).Name}.");
-
-                resource.Owners.Add(scope);
-
-                return (TResource)resource;
             }
-
-            resource = new TResource();
-            if (source == ResourceSource.Resources && !typeof(UnityEngine.Object).IsAssignableFrom(resource.AssetType))
-                throw new ArgumentException("Resources requires a UnityEngine.Object type.");
-
-            resource.Initialize(path, source, asynchronous, RemoveFailedResource);
-
-            if (resource.Request != null && !resource.Request.isDone)
-            {
-                pendingResources.Add(resource.Request);
-                resource.Request.completed += OnResourceCompleted;
-            }
+            else
+                resource = CreateResource<TResource>(key, asynchronous);
 
             resource.Owners.Add(scope);
+
+            return (TResource)resource;
+        }
+
+        private IResource CreateResource<TResource>(ResourceKey key, bool asynchronous) where TResource : IResource, new()
+        {
+            var resource = new TResource();
+            if (key.Source == ResourceSource.Resources && !typeof(UnityEngine.Object).IsAssignableFrom(resource.AssetType))
+                throw new ArgumentException("Resources requires a UnityEngine.Object type.");
+
+            resource.Initialize(key.Path, key.Source, asynchronous, RemoveFailedResource);
+            TrackPendingRequest(resource.Request);
 
             datas.Add(key, resource);
 
@@ -394,7 +392,17 @@ namespace ProjectT
                 resource.Fail(error);
             }
 
-            return (TResource)resource;
+            return resource;
+        }
+
+        // 리소스가 먼저 반환되어도 Resources.LoadAsync는 계속 진행되므로 UnloadUnusedAssetsAsync가 기다릴 수 있게 요청 자체를 추적한다.
+        private void TrackPendingRequest(ResourceRequest request)
+        {
+            if (request == null || request.isDone)
+                return;
+
+            pendingResources.Add(request);
+            request.completed += OnResourceCompleted;
         }
 
         private void RemoveFailedResource(IResource resource)
