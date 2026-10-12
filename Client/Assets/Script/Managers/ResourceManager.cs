@@ -264,18 +264,6 @@ namespace ProjectT
             return resource;
         }
 
-        public void LoadAsset<T>(string path, Action<T> callback, bool dontDestroy = false, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
-        {
-            var result = LoadAndGet<T>(path, dontDestroy, scope, source);
-            callback?.Invoke(result);
-        }
-
-        public async UniTask LoadAssetAsync<T>(string path, Action<T> callback, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
-        {
-            var result = await LoadAndGetAsync<T>(path, dontDestroy, cancelToken, scope, source);
-            callback?.Invoke(result);
-        }
-
         public async UniTask PreloadAsync<T>(string path, bool dontDestroy = false, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
         {
             await LoadAndGetAsync<T>(path, dontDestroy, cancelToken, scope, source);
@@ -445,8 +433,8 @@ namespace ProjectT
                 throw new InvalidOperationException($"Scene unload failed: {scene.name}");
         }
 
-        // 씬 전환은 언로드 순서 때문에 SetSceneScope로 직접 교체한다. 그 외 기본 씬 리소스 일괄 반환은 이 진입점을 사용한다.
-        public void ReleaseAll()
+        // 씬 Scope 풀 정리를 거치지 않으므로 공개 진입점으로 두지 않는다. 씬 전환은 언로드 순서 때문에 SetSceneScope로 직접 교체한다.
+        internal void ReleaseAll()
         {
             var previous = sceneScope;
             sceneScope = CreateScope();
