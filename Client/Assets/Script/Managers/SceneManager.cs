@@ -7,6 +7,8 @@ using ProjectT.Scene;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
+using UnityScene = UnityEngine.SceneManagement.Scene;
+using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 
 namespace ProjectT
 {
@@ -35,7 +37,7 @@ namespace ProjectT
         private bool isTransitioning;
         private bool inputAllowed = true;
         private int transitionVersion;
-        private UnityEngine.SceneManagement.Scene transitionScene;
+        private UnityScene transitionScene;
         public bool IsTransitioning => isTransitioning;
         public bool IsInputAllowed => inputAllowed;
         public SceneBase CurrentScene => currentEntry != null && currentEntry.IsActive ? currentEntry.Scene : null;
@@ -96,7 +98,7 @@ namespace ProjectT
             return GetScene<T>() != null;
         }
 
-        public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionResult> completed = null, params object[] data) where T : SceneBase
+        public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionResult> completed, params object[] data) where T : SceneBase
         {
             TransitionWithCallbackAsync<T>(resourceName, loadSceneMode, completed, data).Forget(Global.LogException);
         }
@@ -115,7 +117,7 @@ namespace ProjectT
                 Global.LogException(error);
             }
 
-            completed?.Invoke(result);
+            completed(result);
         }
 
         public async UniTask TransitionAsync<T>(string resourceName, LoadSceneMode mode, params object[] data) where T : SceneBase
@@ -143,7 +145,7 @@ namespace ProjectT
         // 시작 씬처럼 이미 로드된 활성 씬은 다시 로드하지 않고 첫 Single 전환의 씬으로 사용한다.
         private bool CanAdoptActiveScene(string resourceName, LoadSceneMode mode)
         {
-            var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var active = UnitySceneManager.GetActiveScene();
 
             return mode == LoadSceneMode.Single && scenes.Count == 0 && active.IsValid() && active.isLoaded
                 && (string.IsNullOrEmpty(resourceName) || string.Equals(active.name, resourceName, StringComparison.OrdinalIgnoreCase));
@@ -313,14 +315,14 @@ namespace ProjectT
         private async UniTask UnloadPreviousScenesAsync()
         {
             if (!transitionScene.IsValid() || !transitionScene.isLoaded)
-                transitionScene = UnityEngine.SceneManagement.SceneManager.CreateScene("SceneTransition");
+                transitionScene = UnitySceneManager.CreateScene("SceneTransition");
 
-            UnityEngine.SceneManagement.SceneManager.SetActiveScene(transitionScene);
+            UnitySceneManager.SetActiveScene(transitionScene);
 
-            var previous = new List<UnityEngine.SceneManagement.Scene>();
-            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; ++i)
+            var previous = new List<UnityScene>();
+            for (int i = 0; i < UnitySceneManager.sceneCount; ++i)
             {
-                var scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                var scene = UnitySceneManager.GetSceneAt(i);
                 if (scene != transitionScene && scene.isLoaded)
                     previous.Add(scene);
             }

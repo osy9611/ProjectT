@@ -26,12 +26,12 @@ namespace ProjectT.Scene
             ResetView();
         }
 
-        public virtual UniTask ShowAsync(CancellationToken token)
+        public UniTask ShowAsync(CancellationToken token)
         {
             return FadeAsync(1f, token);
         }
 
-        public virtual UniTask HideAsync(CancellationToken token)
+        public UniTask HideAsync(CancellationToken token)
         {
             return FadeAsync(0f, token);
         }
