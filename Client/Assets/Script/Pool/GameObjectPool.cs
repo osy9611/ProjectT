@@ -8,12 +8,12 @@ namespace ProjectT.Pool
         public GameObject Original { get; private set; }
         public Transform Root { get; private set; }
 
-        private Pool<PooledObject> pools;
+        private Pool<PooledObject> pool;
         private bool disposed;
 
         private Transform spawnParent;
-        public int ActiveCount => pools?.ActiveCount ?? 0;
-        public int InactiveCount => pools?.InactiveCount ?? 0;
+        public int ActiveCount => pool?.ActiveCount ?? 0;
+        public int InactiveCount => pool?.InactiveCount ?? 0;
         public bool IsEmpty => InactiveCount == 0;
 
         public void Init(GameObject original, int count = 5, Transform parent = null)
@@ -24,7 +24,7 @@ namespace ProjectT.Pool
             if (disposed)
                 throw new ObjectDisposedException(nameof(GameObjectPool));
 
-            if (pools != null)
+            if (pool != null)
                 throw new InvalidOperationException("Pool already initialized.");
 
             Original = original;
@@ -33,7 +33,7 @@ namespace ProjectT.Pool
             Root.SetParent(parent, false);
             Root.gameObject.SetActive(false);
 
-            pools = new Pool<PooledObject>(
+            pool = new Pool<PooledObject>(
                 objectGenerator: Create,
                 collectionChecks: true,
                 initGenerateCount: count,
@@ -70,14 +70,15 @@ namespace ProjectT.Pool
             if (disposed)
                 throw new ObjectDisposedException(nameof(GameObjectPool));
 
+            // IPoolable.OnGet 콜백이 부모가 지정된 상태에서 실행되도록 Prepare가 이 값을 읽는다. 콜백 안의 재진입 대여는 거부되므로 바깥 대여의 값을 복원한다.
             var previousParent = spawnParent;
             spawnParent = parent;
 
             try
             {
-                var item = pools.Get();
+                var item = pool.Get();
                 item.gameObject.SetActive(true);
-                if (item == null || !pools.IsActive(item))
+                if (item == null || !pool.IsActive(item))
                     throw new InvalidOperationException("Object was returned or destroyed during activation.");
 
                 return item.gameObject;
@@ -102,7 +103,7 @@ namespace ProjectT.Pool
             if (item == null || !ReferenceEquals(item.Owner, this))
                 throw new InvalidOperationException("Object belongs to another pool.");
 
-            pools.Return(item);
+            pool.Return(item);
         }
 
         internal void FinishReturn(PooledObject item)
@@ -119,7 +120,7 @@ namespace ProjectT.Pool
             if (disposed)
                 throw new ObjectDisposedException(nameof(GameObjectPool));
 
-            pools.ReturnAll();
+            pool.ReturnAll();
         }
 
         public bool Remove(GameObject obj)
@@ -129,7 +130,7 @@ namespace ProjectT.Pool
 
             var item = obj == null ? null : obj.GetComponent<PooledObject>();
 
-            return item != null && ReferenceEquals(item.Owner, this) && pools.Remove(item);
+            return item != null && ReferenceEquals(item.Owner, this) && pool.Remove(item);
         }
 
         internal void RemoveDestroyed(PooledObject item)
@@ -137,7 +138,7 @@ namespace ProjectT.Pool
             if (disposed)
                 return;
 
-            pools.Remove(item);
+            pool.Remove(item);
         }
 
         public void Dispose()
@@ -147,12 +148,12 @@ namespace ProjectT.Pool
 
             try
             {
-                pools?.Dispose();
+                pool?.Dispose();
             }
             finally
             {
                 // 콜백 재진입으로 거부된 해제는 풀을 바꾸지 않으므로 Root를 남기고, 해제가 시작된 뒤 정리가 실패하면 Root를 파괴한다.
-                if (pools == null || pools.IsDisposed)
+                if (pool == null || pool.IsDisposed)
                 {
                     disposed = true;
 

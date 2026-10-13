@@ -20,7 +20,6 @@ namespace ProjectT.Pool
                     items.Add(callback);
             }
 
-
             callbacks = items.ToArray();
         }
 

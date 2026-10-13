@@ -105,7 +105,7 @@ namespace ProjectT.Pool
 
             try
             {
-                T item = PopValidOnCreate();
+                T item = PopOrCreate();
 
                 if (!activeObjects.Add(item))
                     throw new InvalidOperationException("Object is already active in this pool.");
@@ -120,9 +120,9 @@ namespace ProjectT.Pool
             }
         }
 
-        private T PopValidOnCreate()
+        private T PopOrCreate()
         {
-            while(inactiveObjects.Count >0)
+            while (inactiveObjects.Count > 0)
             {
                 var item = inactiveObjects.Pop();
                 if (isValid == null || isValid(item))
