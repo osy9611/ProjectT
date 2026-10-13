@@ -25,10 +25,11 @@ namespace ProjectT
             public SceneInstance Instance;
             public bool IsAddressable;
             public bool IsAdditive;
+            public bool IsActive => Scene != null && Scene.State == SceneState.Active;
         }
 
         private readonly Dictionary<Type, SceneEntry> scenes = new Dictionary<Type, SceneEntry>();
-        private SceneEntry currentScene;
+        private SceneEntry currentEntry;
         private SceneTransitionView transitionView;
         private bool isTransitioning;
         private bool inputAllowed = true;
@@ -36,7 +37,7 @@ namespace ProjectT
         private UnityEngine.SceneManagement.Scene transitionScene;
         public bool IsTransitioning => isTransitioning;
         public bool IsInputAllowed => inputAllowed;
-        public SceneBase CurrentScene => currentScene?.Scene != null && currentScene.Scene.State == SceneState.Active ? currentScene.Scene : null;
+        public SceneBase CurrentScene => currentEntry != null && currentEntry.IsActive ? currentEntry.Scene : null;
         public string PrevSceneName { get; private set; } = string.Empty;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
@@ -58,7 +59,7 @@ namespace ProjectT
             finally
             {
                 scenes.Clear();
-                currentScene = null;
+                currentEntry = null;
                 transitionView = null;
             }
         }
@@ -70,9 +71,10 @@ namespace ProjectT
 
             int version = transitionVersion;
 
+            // 씬 OnUpdate에서 전환이 시작되거나 매니저가 종료되면 남은 씬은 갱신하지 않는다.
             foreach (var entry in scenes.Values)
             {
-                if (entry.Scene != null && entry.Scene.State == SceneState.Active)
+                if (entry.IsActive)
                     entry.Scene.OnUpdate(dt);
 
                 if (version != transitionVersion || State != ManagerState.Ready)
@@ -82,7 +84,7 @@ namespace ProjectT
 
         public T GetScene<T>() where T : SceneBase
         {
-            if (scenes.TryGetValue(typeof(T), out var entry) && entry.Scene != null && entry.Scene.State == SceneState.Active)
+            if (scenes.TryGetValue(typeof(T), out var entry) && entry.IsActive)
                 return entry.Scene as T;
 
             return null;
@@ -95,10 +97,10 @@ namespace ProjectT
 
         public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionErrorCode> completed = null, params object[] data) where T : SceneBase
         {
-            NotifyTransitionAsync<T>(resourceName, loadSceneMode, completed, data).Forget(Global.LogException);
+            TransitionWithCallbackAsync<T>(resourceName, loadSceneMode, completed, data).Forget(Global.LogException);
         }
 
-        private async UniTask NotifyTransitionAsync<T>(string resourceName, LoadSceneMode mode, Action<eSceneTransitionErrorCode> completed, object[] data) where T : SceneBase
+        private async UniTask TransitionWithCallbackAsync<T>(string resourceName, LoadSceneMode mode, Action<eSceneTransitionErrorCode> completed, object[] data) where T : SceneBase
         {
             var result = eSceneTransitionErrorCode.Failure;
 
@@ -118,32 +120,24 @@ namespace ProjectT
 
         public async UniTask TransitionAsync<T>(string resourceName, LoadSceneMode mode, params object[] data) where T : SceneBase
         {
-            if (State != ManagerState.Ready || isTransitioning)
-                throw new InvalidOperationException("Scene transition is unavailable.");
+            ThrowIfTransitionUnavailable();
 
             if (mode != LoadSceneMode.Single && mode != LoadSceneMode.Additive)
                 throw new ArgumentOutOfRangeException(nameof(mode));
 
-            if (scenes.TryGetValue(typeof(T), out var existing) && (mode == LoadSceneMode.Additive || existing.Scene != null && existing.Scene.State == SceneState.Active))
+            if (scenes.TryGetValue(typeof(T), out var existing) && (mode == LoadSceneMode.Additive || existing.IsActive))
                 throw new InvalidOperationException($"Scene already registered: {typeof(T).Name}");
 
             if (mode == LoadSceneMode.Additive && CurrentScene == null)
                 throw new InvalidOperationException("An additive scene requires an active primary scene.");
 
             string path = ResolvePath(resourceName, mode);
-            transitionVersion++;
-            isTransitioning = true;
 
-            try
+            await RunTransitionAsync(async () =>
             {
-                SetInputAllowed(false);
                 await transitionView.ShowAsync(LifetimeToken).AttachExternalCancellation(LifetimeToken);
                 await TransitionInternalAsync<T>(path, mode, data);
-            }
-            finally
-            {
-                EndTransition();
-            }
+            });
         }
 
         private string ResolvePath(string resourceName, LoadSceneMode mode)
@@ -178,7 +172,7 @@ namespace ProjectT
             {
                 if (single)
                 {
-                    PrevSceneName = currentScene?.Scene != null ? currentScene.Scene.GetType().ToString() : PrevSceneName;
+                    PrevSceneName = currentEntry?.Scene != null ? currentEntry.Scene.GetType().ToString() : PrevSceneName;
 
                     StopScenes();
 
@@ -194,7 +188,7 @@ namespace ProjectT
 
                         LifetimeToken.ThrowIfCancellationRequested();
                         scenes.Clear();
-                        currentScene = null;
+                        currentEntry = null;
                         Global.Resource.SetSceneScope(entry.Scope);
                         previousReleased = true;
 
@@ -234,7 +228,7 @@ namespace ProjectT
                 entry.Scene.Activate();
 
                 if (single)
-                    currentScene = entry;
+                    currentEntry = entry;
             }
             catch (Exception error)
             {
@@ -308,14 +302,14 @@ namespace ProjectT
 
             foreach (var entry in new List<SceneEntry>(scenes.Values))
             {
-                if (ReferenceEquals(entry, currentScene) || entry.Scene == null)
+                if (ReferenceEquals(entry, currentEntry) || entry.Scene == null)
                     continue;
 
                 StopEntryInternal(entry, ref errors);
             }
 
-            if (currentScene?.Scene != null)
-                StopEntryInternal(currentScene, ref errors);
+            if (currentEntry?.Scene != null)
+                StopEntryInternal(currentEntry, ref errors);
 
             ErrorCollector.ThrowIfAny(errors);
         }
@@ -335,10 +329,33 @@ namespace ProjectT
             inputAllowed = allowed;
             Global.UI.SetInputAllowed(allowed);
 
+            // UI 입력 변경 콜백에서 새 전환이 시작되거나 매니저가 종료되면 그 상태를 덮어쓰지 않도록 Input 갱신을 건너뛴다.
             if (version != transitionVersion || inputAllowed != allowed || State != ManagerState.Ready)
                 return;
 
             Global.Input.SetInputAllowed(allowed);
+        }
+
+        private void ThrowIfTransitionUnavailable()
+        {
+            if (State != ManagerState.Ready || isTransitioning)
+                throw new InvalidOperationException("Scene transition is unavailable.");
+        }
+
+        private async UniTask RunTransitionAsync(Func<UniTask> transition)
+        {
+            transitionVersion++;
+            isTransitioning = true;
+
+            try
+            {
+                SetInputAllowed(false);
+                await transition();
+            }
+            finally
+            {
+                EndTransition();
+            }
         }
 
         private void EndTransition()
@@ -354,24 +371,12 @@ namespace ProjectT
 
         public async UniTask UnloadAdditiveAsync<T>() where T : SceneBase
         {
-            if (State != ManagerState.Ready || isTransitioning)
-                throw new InvalidOperationException("Scene transition is unavailable.");
+            ThrowIfTransitionUnavailable();
 
             if (!scenes.TryGetValue(typeof(T), out var entry) || !entry.IsAdditive)
                 throw new InvalidOperationException("The requested additive scene is not registered.");
 
-            transitionVersion++;
-            isTransitioning = true;
-
-            try
-            {
-                SetInputAllowed(false);
-                await CloseEntryAsync(typeof(T), entry);
-            }
-            finally
-            {
-                EndTransition();
-            }
+            await RunTransitionAsync(() => CloseEntryAsync(typeof(T), entry));
         }
 
         private async UniTask CloseEntryAsync(Type type, SceneEntry entry)

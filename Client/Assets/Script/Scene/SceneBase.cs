@@ -64,12 +64,12 @@ namespace ProjectT.Scene
             State = SceneState.Stopped;
 
             List<Exception> errors = null;
-            ExecuteInternal(() => lifetime?.Cancel(), ref errors);
+            ErrorCollector.Run(ref errors, lifetime, source => source?.Cancel());
 
             if (entered)
             {
-                ExecuteInternal(OnFinalize, ref errors);
-                ExecuteInternal(OnExit, ref errors);
+                ErrorCollector.Run(ref errors, this, scene => scene.OnFinalize());
+                ErrorCollector.Run(ref errors, this, scene => scene.OnExit());
             }
 
             StopAllCoroutines();
@@ -78,23 +78,7 @@ namespace ProjectT.Scene
             gameObject.SetActive(false);
             Destroy(gameObject);
 
-            if (errors != null)
-                throw new AggregateException(errors);
-        }
-
-        private static void ExecuteInternal(Action action, ref List<Exception> errors)
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception error)
-            {
-                if (errors == null)
-                    errors = new List<Exception>();
-
-                errors.Add(error);
-            }
+            ErrorCollector.ThrowIfAny(errors);
         }
 
         public virtual UniTask OnEnter(CancellationToken token, params object[] data) => UniTask.CompletedTask;
