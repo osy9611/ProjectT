@@ -14,10 +14,10 @@ namespace ProjectT.Addressable
         Resources
     }
 
-    public abstract class IResource
+    public abstract class ResourceBase
     {
         private readonly UniTaskCompletionSource<bool> ready = new UniTaskCompletionSource<bool>();
-        private Action<IResource> onFailed;
+        private Action<ResourceBase> onFailed;
         protected object resourceData;
         private Exception error;
         private bool isReleased;
@@ -30,7 +30,7 @@ namespace ProjectT.Addressable
         public bool IsDone { get; private set; }
         internal UniTask<bool> WhenReady => ready.Task;
 
-        internal void Initialize(string path, ResourceSource source, bool asynchronous, Action<IResource> onFailed)
+        internal void Initialize(string path, ResourceSource source, bool asynchronous, Action<ResourceBase> onFailed)
         {
             Path = path;
             Source = source;

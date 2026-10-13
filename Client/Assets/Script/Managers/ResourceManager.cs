@@ -42,7 +42,7 @@ namespace ProjectT
             }
         }
 
-        private readonly Dictionary<ResourceKey, IResource> resources = new Dictionary<ResourceKey, IResource>();
+        private readonly Dictionary<ResourceKey, ResourceBase> resources = new Dictionary<ResourceKey, ResourceBase>();
         private readonly HashSet<ResourceScope> scopes = new HashSet<ResourceScope>();
         private readonly HashSet<ResourceRequest> pendingRequests = new HashSet<ResourceRequest>();
         private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
@@ -122,7 +122,7 @@ namespace ProjectT
 
             List<Exception> errors = null;
 
-            foreach (var pair in new List<KeyValuePair<ResourceKey, IResource>>(resources))
+            foreach (var pair in new List<KeyValuePair<ResourceKey, ResourceBase>>(resources))
             {
                 if (!pair.Value.Owners.Remove(scope) || pair.Value.Owners.Count > 0)
                     continue;
@@ -277,7 +277,7 @@ namespace ProjectT
             return resource.Asset;
         }
 
-        public TResource LoadResource<TResource>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
+        public TResource LoadResource<TResource>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : ResourceBase, new()
         {
             scope = ResolveScope(scope);
             var resource = GetResource<TResource>(path, scope, source, asynchronous: false);
@@ -301,7 +301,7 @@ namespace ProjectT
             return resource;
         }
 
-        public async UniTask<TResource> LoadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
+        public async UniTask<TResource> LoadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : ResourceBase, new()
         {
             cancelToken.ThrowIfCancellationRequested();
             scope = ResolveScope(scope);
@@ -331,7 +331,7 @@ namespace ProjectT
             await LoadAndGetAsync<T>(path, cancelToken, scope, source);
         }
 
-        public async UniTask PreloadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : IResource, new()
+        public async UniTask PreloadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : ResourceBase, new()
         {
             await LoadResourceAsync<TResource>(path, cancelToken, scope, source);
         }
@@ -353,7 +353,7 @@ namespace ProjectT
             return resource.GetSprite(name);
         }
 
-        private TResource GetResource<TResource>(string path, ResourceScope scope, ResourceSource source, bool asynchronous) where TResource : IResource, new()
+        private TResource GetResource<TResource>(string path, ResourceScope scope, ResourceSource source, bool asynchronous) where TResource : ResourceBase, new()
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Asset path is empty.", nameof(path));
@@ -375,7 +375,7 @@ namespace ProjectT
             return (TResource)resource;
         }
 
-        private IResource CreateResource<TResource>(ResourceKey key, bool asynchronous) where TResource : IResource, new()
+        private ResourceBase CreateResource<TResource>(ResourceKey key, bool asynchronous) where TResource : ResourceBase, new()
         {
             var resource = new TResource();
             if (key.Source == ResourceSource.Resources && !typeof(UnityEngine.Object).IsAssignableFrom(resource.AssetType))
@@ -408,7 +408,7 @@ namespace ProjectT
             request.completed += OnResourceCompleted;
         }
 
-        private void RemoveFailedResource(IResource resource)
+        private void RemoveFailedResource(ResourceBase resource)
         {
             var key = new ResourceKey(resource.Source, resource.Path);
 
