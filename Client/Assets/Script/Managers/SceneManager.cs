@@ -131,7 +131,7 @@ namespace ProjectT
             if (mode == LoadSceneMode.Additive && CurrentScene == null)
                 throw new InvalidOperationException("An additive scene requires an active primary scene.");
 
-            string path = ResolvePath(resourceName, mode);
+            string path = CanAdoptActiveScene(resourceName, mode) ? null : ResolvePath(resourceName);
 
             await RunTransitionAsync(async () =>
             {
@@ -140,14 +140,17 @@ namespace ProjectT
             });
         }
 
-        private string ResolvePath(string resourceName, LoadSceneMode mode)
+        // 시작 씬처럼 이미 로드된 활성 씬은 다시 로드하지 않고 첫 Single 전환의 씬으로 사용한다.
+        private bool CanAdoptActiveScene(string resourceName, LoadSceneMode mode)
         {
             var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
 
-            if (mode == LoadSceneMode.Single && scenes.Count == 0 && active.IsValid() && active.isLoaded
-                && (string.IsNullOrEmpty(resourceName) || string.Equals(active.name, resourceName, StringComparison.OrdinalIgnoreCase)))
-                return null;
+            return mode == LoadSceneMode.Single && scenes.Count == 0 && active.IsValid() && active.isLoaded
+                && (string.IsNullOrEmpty(resourceName) || string.Equals(active.name, resourceName, StringComparison.OrdinalIgnoreCase));
+        }
 
+        private string ResolvePath(string resourceName)
+        {
             if (string.IsNullOrWhiteSpace(resourceName))
                 throw new ArgumentException("Scene table key is empty.", nameof(resourceName));
 
@@ -159,62 +162,102 @@ namespace ProjectT
             return info.Path;
         }
 
+        // path가 null이면 활성 씬을 그대로 사용하므로 현재 씬 Scope를 이어받는다.
         private async UniTask TransitionInternalAsync<T>(string path, LoadSceneMode mode, object[] data) where T : SceneBase
         {
+            if (mode == LoadSceneMode.Single)
+                await StopScenesForSingleAsync();
+
+            var entry = path == null
+                ? new SceneEntry { Scope = Global.Resource.SceneScope }
+                : await LoadEntryAsync(path, mode);
+
+            await EnterEntryAsync<T>(entry, data);
+        }
+
+        private async UniTask StopScenesForSingleAsync()
+        {
+            PrevSceneName = currentEntry?.Scene != null ? currentEntry.Scene.GetType().ToString() : PrevSceneName;
+
+            StopScenes();
+
+            // 씬 오브젝트를 참조한 UI와 씬 Scope 클립을 재생하는 공간 음원이 남지 않도록 언로드와 Scope 반환보다 먼저 정리한다.
+            Global.UI.ClearTransientWidgets();
+            Global.Sound.StopAllSpatialSounds();
+
+            await UniTask.NextFrame(cancellationToken: LifetimeToken);
+        }
+
+        private async UniTask<SceneEntry> LoadEntryAsync(string path, LoadSceneMode mode)
+        {
             bool single = mode == LoadSceneMode.Single;
-            var previousScope = Global.Resource.SceneScope;
-            var previousScenes = new List<SceneEntry>(scenes.Values);
-            var entry = new SceneEntry { Scope = path == null ? previousScope : Global.Resource.CreateScope(), IsAdditive = !single };
-            bool loaded = false;
-            bool previousReleased = false;
+
+            if (single)
+            {
+                await UnloadPreviousScenesAsync();
+                LifetimeToken.ThrowIfCancellationRequested();
+            }
+
+            var entry = new SceneEntry { Scope = Global.Resource.CreateScope(), IsAdditive = !single };
 
             try
             {
                 if (single)
+                    await ReleasePreviousScenesAsync(entry.Scope);
+
+                var handle = await Global.Resource.LoadSceneAsync(path, mode);
+                entry.Instance = handle.Result;
+                entry.IsAddressable = true;
+            }
+            // 종료 취소 중에는 새 Scope를 만들지 않고 매니저 종료 정리에 맡긴다.
+            catch (Exception error) when (!LifetimeToken.IsCancellationRequested)
+            {
+                // 이전 씬 Scope는 이미 반환되었으므로 다음 전환이 사용할 빈 Scope로 교체한다.
+                if (single)
+                    Global.Resource.SetSceneScope(Global.Resource.CreateScope());
+
+                List<Exception> errors = null;
+                ErrorCollector.Run(ref errors, entry.Scope, scope => scope.Dispose());
+
+                if (errors != null)
                 {
-                    PrevSceneName = currentEntry?.Scene != null ? currentEntry.Scene.GetType().ToString() : PrevSceneName;
-
-                    StopScenes();
-
-                    // 씬 오브젝트를 참조한 UI와 씬 Scope 클립을 재생하는 공간 음원이 남지 않도록 언로드와 Scope 반환보다 먼저 정리한다.
-                    Global.UI.ClearTransientWidgets();
-                    Global.Sound.StopAllSpatialSounds();
-
-                    await UniTask.NextFrame(cancellationToken: LifetimeToken);
-
-                    if (path != null)
-                    {
-                        await UnloadPreviousScenesAsync();
-
-                        LifetimeToken.ThrowIfCancellationRequested();
-                        scenes.Clear();
-                        currentEntry = null;
-                        Global.Resource.SetSceneScope(entry.Scope);
-                        previousReleased = true;
-
-                        List<Exception> errors = null;
-                        foreach (var previous in previousScenes)
-                        {
-                            ErrorCollector.Run(ref errors, previous.Scope, scope => scope.Dispose());
-                        }
-
-                        ErrorCollector.Run(ref errors, previousScope, scope => scope.Dispose());
-                        ErrorCollector.ThrowIfAny(errors);
-
-                        await Global.Resource.UnloadUnusedAssetsAsync();
-                    }
+                    errors.Insert(0, error);
+                    throw new AggregateException(errors);
                 }
 
-                if (path != null)
-                {
-                    var handle = await Global.Resource.LoadSceneAsync(path, mode);
-                    entry.Instance = handle.Result;
-                    entry.IsAddressable = true;
-                }
+                throw;
+            }
 
-                LifetimeToken.ThrowIfCancellationRequested();
-                loaded = true;
+            return entry;
+        }
 
+        private async UniTask ReleasePreviousScenesAsync(ResourceScope nextScope)
+        {
+            var previousScope = Global.Resource.SceneScope;
+            var previousScenes = new List<SceneEntry>(scenes.Values);
+
+            scenes.Clear();
+            currentEntry = null;
+            Global.Resource.SetSceneScope(nextScope);
+
+            List<Exception> errors = null;
+            foreach (var previous in previousScenes)
+            {
+                ErrorCollector.Run(ref errors, previous.Scope, scope => scope.Dispose());
+            }
+
+            ErrorCollector.Run(ref errors, previousScope, scope => scope.Dispose());
+            ErrorCollector.ThrowIfAny(errors);
+
+            await Global.Resource.UnloadUnusedAssetsAsync();
+        }
+
+        private async UniTask EnterEntryAsync<T>(SceneEntry entry, object[] data) where T : SceneBase
+        {
+            LifetimeToken.ThrowIfCancellationRequested();
+
+            try
+            {
                 var root = new GameObject(typeof(T).Name);
                 root.transform.SetParent(RootObject, false);
 
@@ -227,7 +270,7 @@ namespace ProjectT
 
                 entry.Scene.Activate();
 
-                if (single)
+                if (!entry.IsAdditive)
                     currentEntry = entry;
             }
             catch (Exception error)
@@ -237,18 +280,10 @@ namespace ProjectT
                 if (entry.Scene != null)
                     StopEntryInternal(entry, ref errors);
 
-                // 종료 취소 중에는 새 Scope를 만들거나 언로드를 시작하지 않고 매니저 종료 정리에 맡긴다.
+                // 종료 취소 중에는 언로드를 시작하지 않고 매니저 종료 정리에 맡긴다.
                 if (!LifetimeToken.IsCancellationRequested)
                 {
-                    if (!loaded)
-                    {
-                        if (single)
-                            Global.Resource.SetSceneScope(previousReleased ? Global.Resource.CreateScope() : previousScope);
-
-                        if (!ReferenceEquals(entry.Scope, previousScope))
-                            ErrorCollector.Run(ref errors, entry.Scope, scope => scope.Dispose());
-                    }
-                    else if (!single)
+                    if (entry.IsAdditive)
                     {
                         try
                         {
@@ -260,6 +295,7 @@ namespace ProjectT
                             errors.Add(closeError);
                         }
                     }
+                    // 실패한 기본 씬도 등록해 두어 다음 Single 전환이 언로드와 Scope 반환을 맡게 한다.
                     else if (!scenes.ContainsKey(typeof(T)))
                         scenes.Add(typeof(T), entry);
                 }
