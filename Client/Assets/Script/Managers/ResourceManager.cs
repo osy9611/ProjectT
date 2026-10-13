@@ -8,6 +8,8 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
+using UnityScene = UnityEngine.SceneManagement.Scene;
+using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 
 namespace ProjectT
 {
@@ -40,11 +42,11 @@ namespace ProjectT
             }
         }
 
-        private readonly Dictionary<ResourceKey, IResource> datas = new Dictionary<ResourceKey, IResource>();
+        private readonly Dictionary<ResourceKey, IResource> resources = new Dictionary<ResourceKey, IResource>();
         private readonly HashSet<ResourceScope> scopes = new HashSet<ResourceScope>();
-        private readonly HashSet<ResourceRequest> pendingResources = new HashSet<ResourceRequest>();
+        private readonly HashSet<ResourceRequest> pendingRequests = new HashSet<ResourceRequest>();
         private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
-        private readonly Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource> unloadingScenes = new Dictionary<UnityEngine.SceneManagement.Scene, UniTaskCompletionSource>();
+        private readonly Dictionary<UnityScene, UniTaskCompletionSource> unloadingScenes = new Dictionary<UnityScene, UniTaskCompletionSource>();
         private ResourceScope sceneScope;
         private ResourceScope appScope;
         internal ResourceScope SceneScope => sceneScope;
@@ -120,12 +122,12 @@ namespace ProjectT
 
             List<Exception> errors = null;
 
-            foreach (var pair in new List<KeyValuePair<ResourceKey, IResource>>(datas))
+            foreach (var pair in new List<KeyValuePair<ResourceKey, IResource>>(resources))
             {
                 if (!pair.Value.Owners.Remove(scope) || pair.Value.Owners.Count > 0)
                     continue;
 
-                datas.Remove(pair.Key);
+                resources.Remove(pair.Key);
                 ErrorCollector.Run(ref errors, pair.Value, resource => resource.Dispose());
             }
 
@@ -171,7 +173,7 @@ namespace ProjectT
             }
         }
 
-        internal UniTask UnloadSceneAsync(SceneInstance scene)
+        internal UniTask UnloadAddressableSceneAsync(SceneInstance scene)
         {
             if (unloadingScenes.TryGetValue(scene.Scene, out var pending))
                 return pending.Task;
@@ -220,19 +222,20 @@ namespace ProjectT
             }
         }
 
-        internal async UniTask UnloadSceneAsync(UnityEngine.SceneManagement.Scene scene)
+        // 시작 씬처럼 Addressables로 로드하지 않은 씬은 진행 중인 언로드를 공유하지 않고 Unity API로 직접 언로드한다.
+        internal async UniTask UnloadSceneAsync(UnityScene scene)
         {
             foreach (var handle in loadedScenes)
             {
                 if (handle.IsValid() && handle.Result.Scene == scene)
                 {
                     var instance = handle.Result;
-                    await UnloadSceneAsync(instance);
+                    await UnloadAddressableSceneAsync(instance);
                     return;
                 }
             }
 
-            var operation = UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene);
+            var operation = UnitySceneManager.UnloadSceneAsync(scene);
             if (operation == null)
                 throw new InvalidOperationException($"Scene unload could not start: {scene.name}");
 
@@ -359,7 +362,7 @@ namespace ProjectT
                 throw new ArgumentOutOfRangeException(nameof(source));
 
             var key = new ResourceKey(source, path);
-            if (datas.TryGetValue(key, out var resource))
+            if (resources.TryGetValue(key, out var resource))
             {
                 if (!(resource is TResource))
                     throw new InvalidOperationException($"{path} is managed by {resource.GetType().Name}, not {typeof(TResource).Name}.");
@@ -381,7 +384,7 @@ namespace ProjectT
             resource.Initialize(key.Path, key.Source, asynchronous, RemoveFailedResource);
             TrackPendingRequest(resource.Request);
 
-            datas.Add(key, resource);
+            resources.Add(key, resource);
 
             try
             {
@@ -401,7 +404,7 @@ namespace ProjectT
             if (request == null || request.isDone)
                 return;
 
-            pendingResources.Add(request);
+            pendingRequests.Add(request);
             request.completed += OnResourceCompleted;
         }
 
@@ -409,19 +412,19 @@ namespace ProjectT
         {
             var key = new ResourceKey(resource.Source, resource.Path);
 
-            if (datas.TryGetValue(key, out var current) && ReferenceEquals(current, resource))
-                datas.Remove(key);
+            if (resources.TryGetValue(key, out var current) && ReferenceEquals(current, resource))
+                resources.Remove(key);
         }
 
         private void OnResourceCompleted(AsyncOperation operation)
         {
             operation.completed -= OnResourceCompleted;
-            pendingResources.Remove((ResourceRequest)operation);
+            pendingRequests.Remove((ResourceRequest)operation);
         }
 
         internal async UniTask UnloadUnusedAssetsAsync()
         {
-            while (pendingResources.Count > 0)
+            while (pendingRequests.Count > 0)
             {
                 await UniTask.Yield(cancellationToken: LifetimeToken);
             }

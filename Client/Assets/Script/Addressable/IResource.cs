@@ -106,6 +106,7 @@ namespace ProjectT.Addressable
                 // 완료 콜백이 등록 즉시 실행되면 Request가 비워지므로 지역 변수로 고정한다.
                 var request = Request;
 
+                // 동기 Resources 로드는 요청을 만들지 않으므로 관찰 시점에 바로 로드를 완료한다.
                 if (request == null)
                 {
                     WaitForCompletion();

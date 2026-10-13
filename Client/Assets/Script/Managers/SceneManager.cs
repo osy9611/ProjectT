@@ -425,7 +425,7 @@ namespace ProjectT
             await UniTask.NextFrame(cancellationToken: LifetimeToken);
 
             if (entry.IsAddressable && entry.Instance.Scene.isLoaded)
-                await Global.Resource.UnloadSceneAsync(entry.Instance);
+                await Global.Resource.UnloadAddressableSceneAsync(entry.Instance);
 
             scenes.Remove(type);
             entry.Scope.Dispose();
