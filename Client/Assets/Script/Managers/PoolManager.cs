@@ -38,7 +38,6 @@ namespace ProjectT
         }
 
         private readonly Dictionary<PoolKey, GameObjectPool> gameObjectPools = new Dictionary<PoolKey, GameObjectPool>();
-        private readonly Dictionary<Type, IDisposable> genericPools = new Dictionary<Type, IDisposable>();
         private readonly Dictionary<ResourceScope, CancellationTokenRegistration> scopeReleaseRegistrations = new Dictionary<ResourceScope, CancellationTokenRegistration>();
         // ClearScope 이후 해제 전까지 같은 Scope로 새 풀이 만들어지지 않도록 막고, Scope가 해제되면 표시를 지운다.
         private readonly Dictionary<ResourceScope, CancellationTokenRegistration> closedScopes = new Dictionary<ResourceScope, CancellationTokenRegistration>();
@@ -63,27 +62,6 @@ namespace ProjectT
                 appScope?.Dispose();
                 appScope = null;
             }
-        }
-
-        public void CreatePool<T>() where T : new()
-        {
-            GetOrCreatePoolInternal<T>();
-        }
-
-        public T Get<T>() where T : new()
-        {
-            return GetOrCreatePoolInternal<T>().Get();
-        }
-
-        public void Return<T>(T obj)
-        {
-            if (obj == null)
-                return;
-
-            if (!genericPools.TryGetValue(typeof(T), out var pool))
-                throw new InvalidOperationException($"Pool<{typeof(T).Name}> not found.");
-
-            ((Pool<T>)pool).Return(obj);
         }
 
         public void CreatePool(GameObject original, int count = 5, ResourceScope scope = null)
@@ -122,16 +100,10 @@ namespace ProjectT
             return true;
         }
 
-        public void Release(GameObject obj, bool isDestroy = false)
+        public void Destroy(GameObject obj)
         {
             if (obj == null)
                 return;
-
-            if (!isDestroy)
-            {
-                Return(obj);
-                return;
-            }
 
             var item = obj.GetComponent<PooledObject>();
             if (item == null || item.Owner == null || !item.Owner.Remove(obj))
@@ -159,10 +131,8 @@ namespace ProjectT
         public void Clear()
         {
             var objects = new List<GameObjectPool>(gameObjectPools.Values);
-            var generics = new List<IDisposable>(genericPools.Values);
 
             gameObjectPools.Clear();
-            genericPools.Clear();
 
             foreach (var registration in scopeReleaseRegistrations.Values)
             {
@@ -184,11 +154,6 @@ namespace ProjectT
                 ErrorCollector.Run(ref errors, pool, item => item.Dispose());
             }
 
-            foreach (var pool in generics)
-            {
-                ErrorCollector.Run(ref errors, pool, item => item.Dispose());
-            }
-
             ErrorCollector.ThrowIfAny(errors);
         }
 
@@ -202,19 +167,6 @@ namespace ProjectT
                 closedScopes.Add(scope, scope.Token.Register(() => closedScopes.Remove(scope)));
 
             ReleaseScopeInternal(scope);
-        }
-
-        private Pool<T> GetOrCreatePoolInternal<T>() where T : new()
-        {
-            ThrowIfWorkUnavailableInternal();
-
-            if (!genericPools.TryGetValue(typeof(T), out var pool))
-            {
-                pool = new Pool<T>(() => new T(), true, 0, 20);
-                genericPools.Add(typeof(T), pool);
-            }
-
-            return (Pool<T>)pool;
         }
 
         private GameObjectPool GetOrCreatePoolInternal(GameObject original, int count, ResourceScope scope)
@@ -232,8 +184,7 @@ namespace ProjectT
             if (gameObjectPools.TryGetValue(key, out var pool))
                 return pool;
 
-            pool = new GameObjectPool();
-            pool.Init(original, count, RootObject);
+            pool = new GameObjectPool(original, count, RootObject);
             gameObjectPools.Add(key, pool);
 
             if (!scopeReleaseRegistrations.ContainsKey(scope))

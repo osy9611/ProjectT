@@ -118,7 +118,7 @@ namespace ProjectT
             if (hudAgent == null)
                 return;
 
-            Global.Pool.Release(hudAgent.gameObject);
+            Global.Pool.Return(hudAgent.gameObject);
         }
     }
 }

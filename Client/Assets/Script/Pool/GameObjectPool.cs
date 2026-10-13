@@ -8,24 +8,17 @@ namespace ProjectT.Pool
         public GameObject Original { get; private set; }
         public Transform Root { get; private set; }
 
-        private Pool<PooledObject> pool;
+        private readonly Pool<PooledObject> pool;
         private bool disposed;
 
         private Transform spawnParent;
-        public int ActiveCount => pool?.ActiveCount ?? 0;
-        public int InactiveCount => pool?.InactiveCount ?? 0;
-        public bool IsEmpty => InactiveCount == 0;
+        public int ActiveCount => pool.ActiveCount;
+        public int InactiveCount => pool.InactiveCount;
 
-        public void Init(GameObject original, int count = 5, Transform parent = null)
+        public GameObjectPool(GameObject original, int count = 5, Transform parent = null)
         {
             if (original == null)
                 throw new ArgumentNullException(nameof(original));
-
-            if (disposed)
-                throw new ObjectDisposedException(nameof(GameObjectPool));
-
-            if (pool != null)
-                throw new InvalidOperationException("Pool already initialized.");
 
             Original = original;
 
@@ -148,12 +141,12 @@ namespace ProjectT.Pool
 
             try
             {
-                pool?.Dispose();
+                pool.Dispose();
             }
             finally
             {
                 // 콜백 재진입으로 거부된 해제는 풀을 바꾸지 않으므로 Root를 남기고, 해제가 시작된 뒤 정리가 실패하면 Root를 파괴한다.
-                if (pool == null || pool.IsDisposed)
+                if (pool.IsDisposed)
                 {
                     disposed = true;
 
