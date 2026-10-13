@@ -71,7 +71,7 @@ namespace ProjectT.Sample
             var current = scene.CurrentScene;
             GUILayout.Label($"Transitioning: {scene.IsTransitioning}, Input: {scene.IsInputAllowed}");
             GUILayout.Label($"Current: {(current == null ? "None" : current.GetType().Name)}, Prev: {scene.PrevSceneName}");
-            GUILayout.Label($"Additive B: {scene.IsHaveScene<SampleSceneB>() && !(current is SampleSceneB)}");
+            GUILayout.Label($"Additive B: {scene.HasScene<SampleSceneB>() && !(current is SampleSceneB)}");
             GUILayout.Label($"Unity active: {UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}, loaded {UnityEngine.SceneManagement.SceneManager.sceneCount}");
             GUILayout.EndArea();
         }

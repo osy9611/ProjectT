@@ -10,10 +10,11 @@ using UnityEngine.SceneManagement;
 
 namespace ProjectT
 {
-    public enum eSceneTransitionErrorCode
+    public enum eSceneTransitionResult
     {
         Success = 0,
-        Failure = 1
+        Failure = 1,
+        Canceled = 2
     }
 
     public class SceneManager : ManagerBase
@@ -90,26 +91,25 @@ namespace ProjectT
             return null;
         }
 
-        public bool IsHaveScene<T>() where T : SceneBase
+        public bool HasScene<T>() where T : SceneBase
         {
             return GetScene<T>() != null;
         }
 
-        public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionErrorCode> completed = null, params object[] data) where T : SceneBase
+        public void Transition<T>(string resourceName, LoadSceneMode loadSceneMode, Action<eSceneTransitionResult> completed = null, params object[] data) where T : SceneBase
         {
             TransitionWithCallbackAsync<T>(resourceName, loadSceneMode, completed, data).Forget(Global.LogException);
         }
 
-        private async UniTask TransitionWithCallbackAsync<T>(string resourceName, LoadSceneMode mode, Action<eSceneTransitionErrorCode> completed, object[] data) where T : SceneBase
+        private async UniTask TransitionWithCallbackAsync<T>(string resourceName, LoadSceneMode mode, Action<eSceneTransitionResult> completed, object[] data) where T : SceneBase
         {
-            var result = eSceneTransitionErrorCode.Failure;
+            var result = eSceneTransitionResult.Failure;
 
             try
             {
-                await TransitionAsync<T>(resourceName, mode, data);
-                result = eSceneTransitionErrorCode.Success;
+                bool canceled = await TransitionAsync<T>(resourceName, mode, data).SuppressCancellationThrow();
+                result = canceled ? eSceneTransitionResult.Canceled : eSceneTransitionResult.Success;
             }
-            catch (OperationCanceledException) { }
             catch (Exception error)
             {
                 Global.LogException(error);

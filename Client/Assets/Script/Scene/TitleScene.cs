@@ -8,17 +8,17 @@ using UnityEngine;
 
 public class TitleScene : SceneBase
 {
-    public override void OnFinalize()
+    protected override void OnFinalize()
     {
     }
 
-    public override async UniTask OnEnter(CancellationToken token, params object[] data)
+    protected override async UniTask OnEnter(CancellationToken token, params object[] data)
     {
         await UniTask.WaitForSeconds(2.0f, cancellationToken: token);
         await Global.Data.GetTableDatas(token);
     }
 
-    public override void OnInitialize()
+    protected override void OnInitialize()
     {
         var cachePaths = new List<string>();
         Caching.GetAllCachePaths(cachePaths);

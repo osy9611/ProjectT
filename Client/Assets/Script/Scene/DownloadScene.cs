@@ -11,15 +11,15 @@ public class DownloadScene : SceneBase
 
     private int reportedStep = -1;
 
-    public override void OnFinalize()
+    protected override void OnFinalize()
     {
     }
 
-    public override void OnInitialize()
+    protected override void OnInitialize()
     {
     }
 
-    public override async UniTask OnEnter(CancellationToken token, params object[] data)
+    protected override async UniTask OnEnter(CancellationToken token, params object[] data)
     {
         long size = await Global.Patch.GetDownloadSizeAsync(patchLabels, token);
 

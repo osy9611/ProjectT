@@ -50,7 +50,7 @@ namespace ProjectT.Scene
             if (State != SceneState.Prepared)
                 throw new InvalidOperationException($"Scene is {State}.");
 
-            OnLoadingAnimEnd();
+            OnActivate();
             LifetimeToken.ThrowIfCancellationRequested();
             State = SceneState.Active;
         }
@@ -69,7 +69,6 @@ namespace ProjectT.Scene
             if (entered)
             {
                 ErrorCollector.Run(ref errors, this, scene => scene.OnFinalize());
-                ErrorCollector.Run(ref errors, this, scene => scene.OnExit());
             }
 
             StopAllCoroutines();
@@ -81,16 +80,14 @@ namespace ProjectT.Scene
             ErrorCollector.ThrowIfAny(errors);
         }
 
-        public virtual UniTask OnEnter(CancellationToken token, params object[] data) => UniTask.CompletedTask;
+        protected virtual UniTask OnEnter(CancellationToken token, params object[] data) => UniTask.CompletedTask;
 
-        public virtual void OnExit() { }
+        protected virtual void OnActivate() { }
 
-        public virtual void OnLoadingAnimEnd() { }
+        protected abstract void OnInitialize();
 
-        public abstract void OnInitialize();
+        protected abstract void OnFinalize();
 
-        public abstract void OnFinalize();
-
-        public virtual void OnUpdate(float dt) { }
+        protected internal virtual void OnUpdate(float dt) { }
     }
 }
