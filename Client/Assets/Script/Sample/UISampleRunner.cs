@@ -97,10 +97,10 @@ namespace ProjectT.Sample
         private string BuildStateInternal()
         {
             builder.Clear();
-            var top = Global.UI.GetCurrentStackUI();
+            var top = Global.UI.TopWidget;
             builder.Append("Top: ").Append(top == null ? "None" : top.name).Append('\n');
             builder.Append("Stack: ");
-            foreach (var widget in Global.UI.UIStack)
+            foreach (var widget in Global.UI.WidgetStack)
                 builder.Append(widget == null ? "(destroyed)" : widget.name).Append(widget != null && widget.gameObject.activeSelf ? "" : "(hidden)").Append(" > ");
 
             builder.Append('\n');
@@ -149,7 +149,7 @@ namespace ProjectT.Sample
 
         private void HideTopInternal(bool restorePrevious)
         {
-            var top = Global.UI.GetCurrentStackUI();
+            var top = Global.UI.TopWidget;
             if (top != null)
                 top.Hide(restorePrevious);
         }

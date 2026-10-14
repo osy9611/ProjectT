@@ -26,7 +26,7 @@ namespace ProjectT.UGUI
         private Dictionary<UIDefine.eUIType, UIBase> uiDatas = new Dictionary<UIDefine.eUIType, UIBase>();
 
         private readonly List<UIBase> uiStack = new List<UIBase>();
-        public IReadOnlyList<UIBase> UIStack { get; }
+        public IReadOnlyList<UIBase> WidgetStack { get; }
         private readonly Dictionary<UIDefine.eUIType, PendingCreation> pending = new Dictionary<UIDefine.eUIType, PendingCreation>();
         private readonly CancellationToken lifetimeToken;
         private readonly Transform root;
@@ -66,31 +66,26 @@ namespace ProjectT.UGUI
         {
             this.root = root;
             this.lifetimeToken = lifetimeToken;
-            UIStack = uiStack.AsReadOnly();
+            WidgetStack = uiStack.AsReadOnly();
         }
 
         #region Methods
-        public void OnEnter()
+        public void Initialize()
         {
             CreateCamera();
             CreateCanvas();
 
-            InitialUI();
+            CreateTypeRoots();
         }
 
-        public void OnLeave()
+        public void Shutdown()
         {
             stopped = true;
             ClearWidgetsInternal(true);
         }
-
-        public void OnUpdate(float dt)
-        {
-            SetAutoScale();
-        }
         #endregion
 
-        private void InitialUI()
+        private void CreateTypeRoots()
         {
             typeRoot = new RectTransform[System.Enum.GetValues(typeof(eUIContainerType)).Length];
 
@@ -425,7 +420,7 @@ namespace ProjectT.UGUI
             if (!widget.MarkReleasedInternal())
                 return;
 
-            bool wasCurrent = GetCurrentStackUI() == widget;
+            bool wasCurrent = TopWidget == widget;
             uiStack.Remove(widget);
             if (uiDatas.TryGetValue(widget.UIType, out var registered) && ReferenceEquals(registered, widget))
                 uiDatas.Remove(widget.UIType);
@@ -448,12 +443,12 @@ namespace ProjectT.UGUI
                 throw new InvalidOperationException("UI is not registered.");
 
             // OnShow에서 다른 UI를 열 수 있으므로 표시 순서·이력·포커스를 먼저 반영해야 나중에 연 UI가 앞에 남는다.
-            widget.ChangeFirstDepth();
+            widget.BringToFrontInternal();
             widget.gameObject.SetActive(true);
 
             if (widget.Type == eUIContainerType.Static)
             {
-                var previous = GetCurrentStackUI();
+                var previous = TopWidget;
                 uiStack.Remove(widget);
                 uiStack.Add(widget);
 
@@ -466,13 +461,13 @@ namespace ProjectT.UGUI
             widget.ShowInternal();
         }
 
-        internal void HideWidget(UIBase widget, bool activePrevUI)
+        internal void HideWidget(UIBase widget, bool restorePrevious)
         {
-            bool wasCurrent = GetCurrentStackUI() == widget;
+            bool wasCurrent = TopWidget == widget;
             uiStack.Remove(widget);
             widget.gameObject.SetActive(false);
 
-            if (activePrevUI && wasCurrent)
+            if (restorePrevious && wasCurrent)
                 RestorePreviousInternal();
             else
                 RefreshFocusInternal();
@@ -485,7 +480,7 @@ namespace ProjectT.UGUI
             if (!IsAvailable)
                 return;
 
-            var previous = GetCurrentStackUI();
+            var previous = TopWidget;
             if (previous != null)
                 previous.Show();
 
@@ -498,7 +493,7 @@ namespace ProjectT.UGUI
             if (!IsAvailable)
                 return;
 
-            var top = GetCurrentStackUI();
+            var top = TopWidget;
             var target = top != null && top.gameObject.activeInHierarchy ? top : null;
             if (ReferenceEquals(focusedUI, target))
                 return;
@@ -533,12 +528,9 @@ namespace ProjectT.UGUI
             eventSystem.SetSelectedGameObject(target == null ? null : target.GetSelectionTargetInternal());
         }
 
-        public UIBase GetCurrentStackUI()
-        {
-            return uiStack.Count == 0 ? null : uiStack[uiStack.Count - 1];
-        }
+        public UIBase TopWidget => uiStack.Count == 0 ? null : uiStack[uiStack.Count - 1];
 
-        private void SetAutoScale()
+        public void UpdateAutoScale()
         {
             if (Screen.width != screenSize.x
                || Screen.height != screenSize.y

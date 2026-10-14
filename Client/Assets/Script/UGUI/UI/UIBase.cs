@@ -62,7 +62,7 @@ namespace ProjectT.UGUI
             OnShow();
         }
 
-        public void Hide(bool activePrevUI = true)
+        public void Hide(bool restorePrevious = true)
         {
             if (released)
                 return;
@@ -70,7 +70,7 @@ namespace ProjectT.UGUI
             if (owner == null)
                 throw new InvalidOperationException("UI is not initialized.");
 
-            owner.HideWidget(this, activePrevUI);
+            owner.HideWidget(this, restorePrevious);
         }
 
         internal void HideInternal()
@@ -107,7 +107,7 @@ namespace ProjectT.UGUI
         protected abstract void OnShow();
         protected abstract void OnHide();
 
-        internal void ChangeFirstDepth()
+        internal void BringToFrontInternal()
         {
             this.transform.SetAsLastSibling();
         }

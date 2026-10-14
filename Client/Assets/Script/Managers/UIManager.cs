@@ -11,26 +11,27 @@ namespace ProjectT
     public class UIManager : ManagerBase
     {
         private UIContainer uiContainer;
-        public IReadOnlyList<UIBase> UIStack => uiContainer.UIStack;
+        public IReadOnlyList<UIBase> WidgetStack => uiContainer.WidgetStack;
+        public UIBase TopWidget => uiContainer.TopWidget;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
             CreateRootObject("UIManager");
 
             uiContainer = new UIContainer(RootObject, token);
-            uiContainer.OnEnter();
+            uiContainer.Initialize();
             return UniTask.CompletedTask;
         }
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            uiContainer?.OnLeave();
+            uiContainer?.Shutdown();
             uiContainer = null;
         }
 
         public override void OnUpdate(float dt)
         {
-            uiContainer.OnUpdate(dt);
+            uiContainer.UpdateAutoScale();
         }
 
         public void SetInputAllowed(bool allowed)
@@ -62,11 +63,6 @@ namespace ProjectT
         public void ClearTransientWidgets()
         {
             uiContainer.ClearTransientWidgets();
-        }
-
-        public UIBase GetCurrentStackUI()
-        {
-            return uiContainer.GetCurrentStackUI();
         }
 
         public T GetHud<T>(HudDefine.eHudType type, PivotInfo pivotInfo) where T : ComHudAgent
