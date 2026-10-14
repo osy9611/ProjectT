@@ -305,6 +305,10 @@ namespace ProjectT.UGUI
             if (source.GetComponent<RectTransform>() == null)
                 throw new InvalidOperationException($"UI prefab has no RectTransform: {type}");
 
+            // OnDestroy는 활성화된 적 있는 오브젝트에서만 호출되므로 외부 Destroy에도 해제 경로가 실행되려면 루트가 활성이어야 한다.
+            if (!prefab.activeSelf)
+                throw new InvalidOperationException($"UI prefab root must be active: {type}");
+
             var instance = GameObject.Instantiate(prefab, typeRoot[(int)source.Type], false);
             var widget = instance.GetComponent<T>();
             instance.SetActive(false);
@@ -336,11 +340,8 @@ namespace ProjectT.UGUI
 
         public T FindWidget<T>(UIDefine.eUIType type) where T : UIBase
         {
-            if (!uiDatas.TryGetValue(type, out var widget) || widget == null)
-            {
-                uiDatas.Remove(type);
+            if (!uiDatas.TryGetValue(type, out var widget))
                 return null;
-            }
 
             if (widget is T typed)
                 return typed;
@@ -388,7 +389,7 @@ namespace ProjectT.UGUI
 
                 foreach (var pair in new List<KeyValuePair<UIDefine.eUIType, UIBase>>(uiDatas))
                 {
-                    if (!includeSystem && pair.Value != null && pair.Value.Type == eUIContainerType.System)
+                    if (!includeSystem && pair.Value.Type == eUIContainerType.System)
                         continue;
 
                     uiDatas.Remove(pair.Key);
@@ -405,9 +406,6 @@ namespace ProjectT.UGUI
 
         private void DestroyWidgetInternal(UIBase widget)
         {
-            if (widget == null)
-                return;
-
             try
             {
                 ReleaseWidget(widget);
@@ -534,7 +532,6 @@ namespace ProjectT.UGUI
 
         public UIBase GetCurrentStackUI()
         {
-            uiStack.RemoveAll(item => item == null);
             return uiStack.Count == 0 ? null : uiStack[uiStack.Count - 1];
         }
 
