@@ -171,10 +171,13 @@ namespace ProjectT.UGUI
                 handler.SetInputAllowedInternal(inputAllowed);
         }
 
+        // 정리·종료 중에는 이전 화면 복원이나 포커스 갱신을 하지 않고, 새 작업도 받지 않는다.
+        private bool IsAvailable => !stopped && !clearing && !lifetimeToken.IsCancellationRequested;
+
         private void EnsureAvailable()
         {
             lifetimeToken.ThrowIfCancellationRequested();
-            if (stopped || clearing)
+            if (!IsAvailable)
                 throw new InvalidOperationException("UI container is unavailable.");
         }
 
@@ -479,7 +482,7 @@ namespace ProjectT.UGUI
 
         private void RestorePreviousInternal()
         {
-            if (clearing || stopped || lifetimeToken.IsCancellationRequested)
+            if (!IsAvailable)
                 return;
 
             var previous = GetCurrentStackUI();
@@ -492,7 +495,7 @@ namespace ProjectT.UGUI
         // 표시된 최상단 UI만 포커스로 본다. Hide(false)로 남은 비활성 UI가 게임 입력을 막거나 선택을 받지 않게 한다.
         private void RefreshFocusInternal()
         {
-            if (clearing || stopped || lifetimeToken.IsCancellationRequested)
+            if (!IsAvailable)
                 return;
 
             var top = GetCurrentStackUI();
