@@ -12,8 +12,6 @@ namespace ProjectT
     {
         private UIContainer uiContainer;
         public IReadOnlyList<UIBase> UIStack => uiContainer.UIStack;
-        public Camera Canvas2DCam => uiContainer.Canvas2DCam;
-        public Transform Canvas2D => uiContainer.UICanvas2D;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {

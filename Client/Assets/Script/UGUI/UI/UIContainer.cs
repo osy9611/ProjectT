@@ -12,7 +12,7 @@ namespace ProjectT.UGUI
     using Cysharp.Threading.Tasks;
     using System.Linq;
 
-    public class UIContainer
+    internal class UIContainer
     {
         //뒤에서 앞 순서. System UI가 항상 최상위에 그려진다
         private static readonly eUIContainerType[] displayOrder =
@@ -24,7 +24,6 @@ namespace ProjectT.UGUI
         };
 
         private Dictionary<UIDefine.eUIType, UIBase> uiDatas = new Dictionary<UIDefine.eUIType, UIBase>();
-        public IReadOnlyDictionary<UIDefine.eUIType, UIBase> UIDatas { get; }
 
         private readonly List<UIBase> uiStack = new List<UIBase>();
         public IReadOnlyList<UIBase> UIStack { get; }
@@ -51,10 +50,8 @@ namespace ProjectT.UGUI
         private RectTransform[] typeRoot;
 
         private Transform uiCanvas2D;
-        public Transform UICanvas2D { get => uiCanvas2D; }
 
         private Camera canvas2DCam;
-        public Camera Canvas2DCam { get => canvas2DCam; }
 
         private CanvasScaler canvas2DScaler;
         private CanvasGroup canvas2DGroup;
@@ -69,7 +66,6 @@ namespace ProjectT.UGUI
         {
             this.root = root;
             this.lifetimeToken = lifetimeToken;
-            UIDatas = new System.Collections.ObjectModel.ReadOnlyDictionary<UIDefine.eUIType, UIBase>(uiDatas);
             UIStack = uiStack.AsReadOnly();
         }
 
