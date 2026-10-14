@@ -302,18 +302,17 @@ namespace ProjectT.UGUI
             if (source == null)
                 throw new InvalidOperationException($"UI prefab has no {typeof(T).Name}: {type}");
 
+            if (source.GetComponent<RectTransform>() == null)
+                throw new InvalidOperationException($"UI prefab has no RectTransform: {type}");
+
             var instance = GameObject.Instantiate(prefab, typeRoot[(int)source.Type], false);
             var widget = instance.GetComponent<T>();
+            instance.SetActive(false);
+            widget.GetComponent<RectTransform>().InitRectTransform(typeRoot[(int)widget.Type], AnchorPresets.StretchAll, PivotPresets.MiddleCenter);
+
+            // 등록 전 인스턴스는 정리해 줄 상위 생명주기가 없으므로 OnEnter 실패나 도중 취소 시 여기서 파괴한다.
             try
             {
-                instance.SetActive(false);
-
-                var rect = widget.GetComponent<RectTransform>();
-                if (rect == null)
-                    throw new InvalidOperationException($"UI prefab has no RectTransform: {type}");
-
-                rect.InitRectTransform(typeRoot[(int)widget.Type], AnchorPresets.StretchAll, PivotPresets.MiddleCenter);
-
                 widget.InitializeInternal(this, type);
                 ApplyInputAllowedInternal(instance);
                 token.ThrowIfCancellationRequested();
@@ -430,12 +429,14 @@ namespace ProjectT.UGUI
             if (uiDatas.TryGetValue(widget.UIType, out var registered) && ReferenceEquals(registered, widget))
                 uiDatas.Remove(widget.UIType);
 
-            List<Exception> errors = null;
-            ErrorCollector.Run(ref errors, widget, item => item.HideInternal());
-            ErrorCollector.Run(ref errors, widget, item => item.LeaveInternal());
+            widget.gameObject.SetActive(false);
+
+            // 상태를 모두 정리한 뒤 콜백을 실행해 콜백이 실패해도 스택·포커스가 일관되게 남는다.
             if (wasCurrent)
-                ErrorCollector.Run(ref errors, this, container => container.RestorePreviousInternal());
-            ErrorCollector.ThrowIfAny(errors);
+                RestorePreviousInternal();
+
+            widget.HideInternal();
+            widget.LeaveInternal();
         }
 
         internal void ShowWidget(UIBase widget)
@@ -445,53 +446,37 @@ namespace ProjectT.UGUI
             if (!uiDatas.TryGetValue(widget.UIType, out var registered) || !ReferenceEquals(registered, widget))
                 throw new InvalidOperationException("UI is not registered.");
 
-            // OnShow에서 다른 UI를 열 수 있으므로 표시 순서와 이력을 먼저 반영해야 나중에 연 UI가 앞에 남는다.
+            // OnShow에서 다른 UI를 열 수 있으므로 표시 순서·이력·포커스를 먼저 반영해야 나중에 연 UI가 앞에 남는다.
             widget.ChangeFirstDepth();
-            if (widget.Type != eUIContainerType.Static)
-            {
-                widget.ShowInternal();
-                return;
-            }
+            widget.gameObject.SetActive(true);
 
-            var previous = GetCurrentStackUI();
-            uiStack.Remove(widget);
-            uiStack.Add(widget);
-
-            bool shown = false;
-            try
+            if (widget.Type == eUIContainerType.Static)
             {
-                widget.ShowInternal();
-                shown = true;
-            }
-            finally
-            {
-                if (!shown)
-                    uiStack.Remove(widget);
+                var previous = GetCurrentStackUI();
+                uiStack.Remove(widget);
+                uiStack.Add(widget);
 
-                // OnShow 중 다른 UI가 열리거나 표시가 실패해도 가장 위 UI만 보이도록 이전 UI를 정리한다.
-                if (previous != null && previous != GetCurrentStackUI())
+                if (previous != null && previous != widget)
                     previous.gameObject.SetActive(false);
 
                 RefreshFocusInternal();
             }
+
+            widget.ShowInternal();
         }
 
         internal void HideWidget(UIBase widget, bool activePrevUI)
         {
             bool wasCurrent = GetCurrentStackUI() == widget;
             uiStack.Remove(widget);
+            widget.gameObject.SetActive(false);
 
-            try
-            {
-                widget.HideInternal();
-            }
-            finally
-            {
-                if (activePrevUI && wasCurrent)
-                    RestorePreviousInternal();
-                else
-                    RefreshFocusInternal();
-            }
+            if (activePrevUI && wasCurrent)
+                RestorePreviousInternal();
+            else
+                RefreshFocusInternal();
+
+            widget.HideInternal();
         }
 
         private void RestorePreviousInternal()

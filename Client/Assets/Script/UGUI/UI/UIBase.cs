@@ -52,29 +52,14 @@ namespace ProjectT.UGUI
             owner.ShowWidget(this);
         }
 
+        // GameObject 활성화는 UIContainer가 스택·포커스와 함께 먼저 처리한다.
         internal void ShowInternal()
         {
-            gameObject.SetActive(true);
-
             if (isActive)
                 return;
 
             isActive = true;
-            bool shown = false;
-
-            try
-            {
-                OnShow();
-                shown = true;
-            }
-            finally
-            {
-                if (!shown)
-                {
-                    isActive = false;
-                    gameObject.SetActive(false);
-                }
-            }
+            OnShow();
         }
 
         public void Hide(bool activePrevUI = true)
@@ -90,8 +75,6 @@ namespace ProjectT.UGUI
 
         internal void HideInternal()
         {
-            gameObject.SetActive(false);
-
             if (!isActive)
                 return;
 
