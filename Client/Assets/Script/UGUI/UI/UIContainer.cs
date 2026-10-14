@@ -314,7 +314,7 @@ namespace ProjectT.UGUI
 
                 rect.InitRectTransform(typeRoot[(int)widget.Type], AnchorPresets.StretchAll, PivotPresets.MiddleCenter);
 
-                widget.InitializeInternal(this);
+                widget.InitializeInternal(this, type);
                 ApplyInputAllowedInternal(instance);
                 token.ThrowIfCancellationRequested();
 
@@ -360,16 +360,7 @@ namespace ProjectT.UGUI
                 return;
 
             uiDatas.Remove(type);
-            bool wasCurrent = GetCurrentStackUI() == widget;
-            try
-            {
-                DestroyWidgetInternal(widget);
-            }
-            finally
-            {
-                if (wasCurrent)
-                    RestorePreviousInternal();
-            }
+            DestroyWidgetInternal(widget);
         }
 
         public void ClearTransientWidgets()
@@ -420,7 +411,7 @@ namespace ProjectT.UGUI
 
             try
             {
-                widget.ReleaseInternal();
+                ReleaseWidget(widget);
             }
             finally
             {
@@ -428,11 +419,30 @@ namespace ProjectT.UGUI
             }
         }
 
+        // 모든 해제 경로(Remove, 정리, 생성 실패, 외부 Destroy)가 이 함수를 거친다.
+        internal void ReleaseWidget(UIBase widget)
+        {
+            if (!widget.MarkReleasedInternal())
+                return;
+
+            bool wasCurrent = GetCurrentStackUI() == widget;
+            uiStack.Remove(widget);
+            if (uiDatas.TryGetValue(widget.UIType, out var registered) && ReferenceEquals(registered, widget))
+                uiDatas.Remove(widget.UIType);
+
+            List<Exception> errors = null;
+            ErrorCollector.Run(ref errors, widget, item => item.HideInternal());
+            ErrorCollector.Run(ref errors, widget, item => item.LeaveInternal());
+            if (wasCurrent)
+                ErrorCollector.Run(ref errors, this, container => container.RestorePreviousInternal());
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
         internal void ShowWidget(UIBase widget)
         {
             EnsureAvailable();
 
-            if (!uiDatas.ContainsValue(widget))
+            if (!uiDatas.TryGetValue(widget.UIType, out var registered) || !ReferenceEquals(registered, widget))
                 throw new InvalidOperationException("UI is not registered.");
 
             // OnShow에서 다른 UI를 열 수 있으므로 표시 순서와 이력을 먼저 반영해야 나중에 연 UI가 앞에 남는다.
@@ -484,7 +494,7 @@ namespace ProjectT.UGUI
             }
         }
 
-        internal void RestorePreviousInternal()
+        private void RestorePreviousInternal()
         {
             if (clearing || stopped || lifetimeToken.IsCancellationRequested)
                 return;
@@ -541,22 +551,6 @@ namespace ProjectT.UGUI
         {
             uiStack.RemoveAll(item => item == null);
             return uiStack.Count == 0 ? null : uiStack[uiStack.Count - 1];
-        }
-
-        internal bool DetachWidget(UIBase widget)
-        {
-            bool wasCurrent = uiStack.Count > 0 && ReferenceEquals(uiStack[uiStack.Count - 1], widget);
-            uiStack.Remove(widget);
-
-            foreach (var pair in uiDatas)
-            {
-                if (ReferenceEquals(pair.Value, widget))
-                {
-                    uiDatas.Remove(pair.Key);
-                    return wasCurrent;
-                }
-            }
-            return false;
         }
 
         private void SetAutoScale()

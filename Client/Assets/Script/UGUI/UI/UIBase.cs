@@ -32,13 +32,16 @@ namespace ProjectT.UGUI
         private UIContainer owner;
         private bool released;
 
+        internal UIDefine.eUIType UIType { get; private set; }
+
         protected virtual void OnEnter() { }
 
         protected virtual void OnLeave() { }
 
-        internal void InitializeInternal(UIContainer container)
+        internal void InitializeInternal(UIContainer container, UIDefine.eUIType uiType)
         {
             owner = container;
+            UIType = uiType;
             OnEnter();
         }
 
@@ -96,31 +99,26 @@ namespace ProjectT.UGUI
             OnHide();
         }
 
-        internal void ReleaseInternal()
+        // 해제 순서는 UIContainer.ReleaseWidget이 정한다.
+        internal bool MarkReleasedInternal()
         {
             if (released)
-                return;
+                return false;
 
             released = true;
-
-            var container = owner;
-            bool restorePrevious = container != null && container.DetachWidget(this);
-
-            List<Exception> errors = null;
-            ErrorCollector.Run(ref errors, this, widget => widget.HideInternal());
-            ErrorCollector.Run(ref errors, this, widget => widget.OnLeave());
-
             owner = null;
+            return true;
+        }
 
-            if (restorePrevious)
-                ErrorCollector.Run(ref errors, container, item => item.RestorePreviousInternal());
-
-            ErrorCollector.ThrowIfAny(errors);
+        internal void LeaveInternal()
+        {
+            OnLeave();
         }
 
         protected virtual void OnDestroy()
         {
-            ReleaseInternal();
+            if (owner != null)
+                owner.ReleaseWidget(this);
         }
 
         protected abstract void OnShow();
