@@ -1,6 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+using System;
 
 namespace ProjectT.UGUI
 {
@@ -15,7 +13,7 @@ namespace ProjectT.UGUI
             switch (type)
             {
                 default:
-                    return string.Empty;
+                    throw new ArgumentOutOfRangeException(nameof(type), type, "HUD path is not defined.");
             }
         }
     }

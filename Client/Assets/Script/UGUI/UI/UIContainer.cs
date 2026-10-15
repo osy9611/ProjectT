@@ -48,10 +48,12 @@ namespace ProjectT.UGUI
         }
 
         private RectTransform[] typeRoot;
+        public RectTransform HudRoot => typeRoot[(int)eUIContainerType.HUD];
 
         private Transform uiCanvas2D;
 
         private Camera canvas2DCam;
+        public Camera UICamera => canvas2DCam;
 
         private CanvasScaler canvas2DScaler;
         private CanvasGroup canvas2DGroup;

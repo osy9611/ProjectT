@@ -1,77 +1,32 @@
 using ProjectT.Pivot;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace ProjectT.UGUI
 {
+    // 월드 위치를 따라가는 HUD. 위치 갱신은 UIManager가 프레임마다 한 번에 수행한다.
     public class ComHudAgent : MonoBehaviour
     {
-        protected PivotInfo pivotInfo;
+        private PivotInfo pivotInfo;
 
-        [SerializeField]
-        protected Animation ani;
-
-        protected AnimationClip[] animationClips;
-
-        public System.Action<GameObject, bool> OnDestory;
-
-        protected void Start()
-        {
-            OnEnter();
-        }
-
-        protected virtual void OnEnter()
-        {
-
-        }
-
-        protected virtual void OnUpdate(float dt)
-        {
-            CalcTransform();
-        }
-
-        protected virtual void OnLeave()
-        {
-
-        }
-
-
-        protected virtual void LoadAni()
-        {
-            if (ani != null)
-            {
-                animationClips = new AnimationClip[ani.GetClipCount()];
-
-                int i = 0;
-                
-                foreach(AnimationState state in ani)
-                {
-                    animationClips[i] = state.clip;
-                    i++;
-                }
-            }
-        }
-
-        protected virtual void AniShowByIndex()
-        {
-            int aniIdx = UnityEngine.Random.Range(0, animationClips.Length);
-            ani.clip = animationClips[aniIdx];
-            ani.Play();
-        }
-
-        protected virtual void CalcTransform()
-        {
-            if (pivotInfo == null)
-                return;
-            transform.position = Camera.main.WorldToScreenPoint(pivotInfo.PivotTr.position);
-        }
-
-        public virtual void RegisterInfo(PivotInfo pivotInfo)
+        internal void AttachInternal(PivotInfo pivotInfo)
         {
             this.pivotInfo = pivotInfo;
         }
 
-    }
+        internal void UpdatePositionInternal(Camera worldCamera, RectTransform root, Camera uiCamera)
+        {
+            Vector3 screenPoint = worldCamera.WorldToScreenPoint(pivotInfo.PivotTr.position);
 
+            // 카메라 뒤의 대상은 화면 좌표가 반전되어 엉뚱한 위치에 그려지므로 숨긴다.
+            bool visible = screenPoint.z > 0f;
+            if (gameObject.activeSelf != visible)
+                gameObject.SetActive(visible);
+
+            if (!visible)
+                return;
+
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screenPoint, uiCamera, out Vector2 localPoint);
+            transform.localPosition = localPoint;
+        }
+    }
 }
