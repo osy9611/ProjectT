@@ -168,6 +168,9 @@ namespace ProjectT.Sample
 
             if (GUILayout.Button("Stun (5)"))
                 ApplyEffectLastInternal(5);
+
+            if (GUILayout.Button("Damage 10"))
+                last.Damage(10f);
             GUILayout.EndHorizontal();
         }
 

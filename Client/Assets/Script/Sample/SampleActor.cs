@@ -1,6 +1,9 @@
 using ProjectT.Controller;
+using ProjectT.Pivot;
 using ProjectT.Skill;
 using ProjectT.SkillAdapter;
+using ProjectT.Stat;
+using ProjectT.UGUI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -12,10 +15,13 @@ namespace ProjectT.Sample
         public const int SkillId = 201;
         public const float BaseHp = 100f;
         public const float BaseAtk = 10f;
+        private const float HudHeight = 1.3f;
 
         private static int s_nextId;
 
         private InputContext context;
+        private PivotInfo hudPivot;
+        private SampleHpHud hud;
         public int Id { get; private set; }
         public Vector2 MoveDirection { get; private set; }
         public int JumpCount { get; private set; }
@@ -28,6 +34,7 @@ namespace ProjectT.Sample
                 .Bind("Player/Jump", OnJumpInternal, eInputEvent.Performed, consume: false);
 
             RegisterInputContext(context);
+            hudPivot ??= CreateHudPivotInternal();
             AddSkillAgent();
             AddStatus().DefineResource(SkillDefinitions.HpStat, SkillDefinitions.MaxHpStat);
             FeatureSampleRunner.Write($"{name} OnInit");
@@ -41,6 +48,8 @@ namespace ProjectT.Sample
             Status.SetBase(SkillDefinitions.AtkStat, BaseAtk);
             Status.SetResource(SkillDefinitions.HpStat, BaseHp);
             SkillAgent.GiveSkill(SkillDefinitions.GetSkill(SkillId));
+            hud = Global.UI.GetHud<SampleHpHud>(HudDefine.eHudType.SampleHpBar, hudPivot);
+            UpdateHpBarInternal();
             FeatureSampleRunner.Write($"Actor{Id} OnEnter");
         }
 
@@ -56,6 +65,7 @@ namespace ProjectT.Sample
             SkillAgent.OnTagChanged += OnTagChangedInternal;
             SkillAgent.OnEffectApplied += OnEffectAppliedInternal;
             SkillAgent.OnEffectRemoved += OnEffectRemovedInternal;
+            Status.OnResourceChanged += OnResourceChangedInternal;
             FeatureSampleRunner.Write($"Actor{Id} Enable");
         }
 
@@ -66,12 +76,19 @@ namespace ProjectT.Sample
             SkillAgent.OnTagChanged -= OnTagChangedInternal;
             SkillAgent.OnEffectApplied -= OnEffectAppliedInternal;
             SkillAgent.OnEffectRemoved -= OnEffectRemovedInternal;
+            Status.OnResourceChanged -= OnResourceChangedInternal;
             FeatureSampleRunner.Write($"Actor{Id} Disable");
         }
 
         protected override void OnRelease()
         {
             FeatureSampleRunner.Write($"Actor{Id} OnRelease");
+
+            // 종료 중에는 UIManager가 먼저 멈추면서 HUD를 이미 반납했으므로 Ready일 때만 돌려준다.
+            if (Global.TryGetReady<UIManager>(out var ui))
+                ui.ReturnHud(hud);
+
+            hud = null;
             MoveDirection = Vector2.zero;
             JumpCount = 0;
         }
@@ -95,6 +112,30 @@ namespace ProjectT.Sample
         public EffectHandle ApplyEffect(int effectId)
         {
             return SkillAgent.ApplyEffect(SkillDefinitions.GetEffect(effectId), this);
+        }
+
+        public void Damage(float amount)
+        {
+            Status.SetResource(SkillDefinitions.HpStat, Status.GetResource(SkillDefinitions.HpStat) - amount);
+        }
+
+        private PivotInfo CreateHudPivotInternal()
+        {
+            var pivot = new GameObject("HudPivot").transform;
+            pivot.SetParent(transform, false);
+            pivot.localPosition = new Vector3(0f, HudHeight, 0f);
+            return new PivotInfo(PivotType.UI, 0, pivot, false, Vector3.zero, Vector3.zero, Vector3.one);
+        }
+
+        private void UpdateHpBarInternal()
+        {
+            hud.SetRatio(Status.GetResource(SkillDefinitions.HpStat) / Status.Get(SkillDefinitions.MaxHpStat));
+        }
+
+        private void OnResourceChangedInternal(StatId resource, float previous, float current)
+        {
+            if (resource == SkillDefinitions.HpStat)
+                UpdateHpBarInternal();
         }
 
         private void OnSkillActivatedInternal(SkillDefinition definition)
