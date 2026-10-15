@@ -1,16 +1,13 @@
 namespace ProjectT.UGUI
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.Threading;
     using UnityEngine;
-    using ProjectT;
     using UnityEngine.EventSystems;
     using UnityEngine.UI;
     using ProjectT.Util;
     using Cysharp.Threading.Tasks;
-    using System.Linq;
 
     internal class UIContainer
     {
@@ -59,8 +56,7 @@ namespace ProjectT.UGUI
         private CanvasGroup canvas2DGroup;
 
         //AutoScale
-        private Vector2 referenceResolution;
-        private Vector2 ratio = new Vector2(16, 9); //16:9
+        private const float TargetAspectRatio = 16f / 9f;
         private Vector2Int screenSize = new Vector2Int(0, 0);
         private ScreenOrientation screenOrientation = ScreenOrientation.AutoRotation;
 
@@ -120,7 +116,6 @@ namespace ProjectT.UGUI
             camUI2D.cullingMask = 1 << LayerMask.NameToLayer("UI");
             camUI2D.depth = 3;
             camUI2D.clearFlags = CameraClearFlags.Depth;
-            camUI2D.backgroundColor = Color.black;
             camUI2D.useOcclusionCulling = false;
             canvas2DCam = camUI2D;
         }
@@ -141,7 +136,6 @@ namespace ProjectT.UGUI
 
             canvas2DScaler = uiCanvas2D.gameObject.AddComponent<CanvasScaler>();
             canvas2DScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            referenceResolution = canvas2DScaler.referenceResolution;
 
             var raycaster2D = uiCanvas2D.gameObject.AddComponent<GraphicRaycaster>();
             raycaster2D.ignoreReversedGraphics = true;
@@ -547,12 +541,7 @@ namespace ProjectT.UGUI
                     //현재 화면의 가로/세로 비율
                     float currentAspectRatio = (float)Screen.width / Screen.height;
 
-                    //기준 비율
-                    float targetAspectRatio = ratio.x / ratio.y;
-
-                    //기준 해상도는 고정하고 매칭 축만 바꾼다. 이전 값에 배율을 누적하면 화면이 바뀔 때마다 기준이 밀린다
-                    canvas2DScaler.referenceResolution = referenceResolution;
-                    canvas2DScaler.matchWidthOrHeight = currentAspectRatio > targetAspectRatio ? 1f : 0f;
+                    canvas2DScaler.matchWidthOrHeight = currentAspectRatio > TargetAspectRatio ? 1f : 0f;
                 }
             }
         }
