@@ -86,7 +86,10 @@ namespace ProjectT
 
         public void ReturnHud(ComHudAgent hud)
         {
-            huds.Remove(hud);
+            // 씬 전환에서 UIManager가 먼저 일괄 반납한 HUD를 뒤이은 풀 정리의 Actor 반납 경로가 다시 반납하므로 추적 중인 HUD만 반납한다.
+            if (!huds.Remove(hud))
+                return;
+
             Global.Pool.Return(hud.gameObject);
         }
 
