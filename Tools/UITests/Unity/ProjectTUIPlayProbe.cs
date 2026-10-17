@@ -44,6 +44,8 @@ public class ProjectTUIPlayProbe : UIBase
             if (error.Message != "expected show error")
                 throw;
         }
+        // 가려진 d는 복원될 때 OnShow를 다시 받으므로 실패 핸들러는 이 시나리오에서만 쓴다.
+        d.Shown = null;
         Check(container.TopWidget == c && !a.gameObject.activeSelf && c.gameObject.activeSelf, "Nested Show failure");
         var input = c.gameObject.AddComponent<UIEventHandler>();
         input.controlPath = "<Gamepad>/leftStick";

@@ -343,7 +343,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
 
         ui.CreateWidget<SampleUI>(UIDefine.eUIType.SampleStaticA).Show();
         var a = ui.FindWidget<SampleUI>(UIDefine.eUIType.SampleStaticA);
-        Check(a != null && a.IsActive && ReferenceEquals(ui.GetCurrentStackUI(), a), "ui", "Static A shown and on top");
+        Check(a != null && a.IsActive && ReferenceEquals(ui.TopWidget, a), "ui", "Static A shown and on top");
         yield return null;
         Check(!(bool)Get(Global.Input.Controller, "inputAllowed"), "ui", "focused Static UI blocks game input");
         int[] before = JumpCounts(actors);
@@ -351,24 +351,24 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         Check(SameCounts(before, JumpCounts(actors)), "ui", "Jump not delivered while Static UI focused");
         // 포커스된 Static UI에서는 같은 South 입력이 UI/Submit으로 선택된 버튼을 누른다.
         var selected = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
-        Note("ui", $"after South on focused A: selected {selected?.name ?? "None"}, top {ui.GetCurrentStackUI()?.name ?? "None"}, A active {a.gameObject.activeSelf}");
-        if (!ReferenceEquals(ui.GetCurrentStackUI(), a) || !a.gameObject.activeSelf)
+        Note("ui", $"after South on focused A: selected {selected?.name ?? "None"}, top {ui.TopWidget?.name ?? "None"}, A active {a.gameObject.activeSelf}");
+        if (!ReferenceEquals(ui.TopWidget, a) || !a.gameObject.activeSelf)
         {
             ui.RemoveWidget(UIDefine.eUIType.SampleStaticB);
             a.Show();
         }
 
-        Check(ReferenceEquals(ui.GetCurrentStackUI(), a) && a.gameObject.activeSelf, "ui", "Static A on top before Next");
+        Check(ReferenceEquals(ui.TopWidget, a) && a.gameObject.activeSelf, "ui", "Static A on top before Next");
 
         ClickInternal(a, "NextButton");
         var b = ui.FindWidget<SampleUI>(UIDefine.eUIType.SampleStaticB);
-        Check(b != null && b.IsActive && ReferenceEquals(ui.GetCurrentStackUI(), b) && !a.gameObject.activeSelf, "ui", "Next opens Static B and hides A");
+        Check(b != null && b.IsActive && ReferenceEquals(ui.TopWidget, b) && !a.gameObject.activeSelf, "ui", "Next opens Static B and hides A");
 
         ClickInternal(b, "CloseButton");
-        Check(ReferenceEquals(ui.GetCurrentStackUI(), a) && a.gameObject.activeSelf, "ui", "Close B restores A");
+        Check(ReferenceEquals(ui.TopWidget, a) && a.gameObject.activeSelf, "ui", "Close B restores A");
 
         ClickInternal(a, "CloseButton");
-        Check(ui.GetCurrentStackUI() == null || !ui.GetCurrentStackUI().gameObject.activeSelf, "ui", $"Close A empties visible stack (top {ui.GetCurrentStackUI()?.name ?? "None"})");
+        Check(ui.TopWidget == null || !ui.TopWidget.gameObject.activeSelf, "ui", $"Close A empties visible stack (top {ui.TopWidget?.name ?? "None"})");
         yield return null;
         yield return null;
         Check((bool)Get(Global.Input.Controller, "inputAllowed"), "ui", "game input allowed after Static UI closed");
@@ -392,7 +392,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         SampleUI asyncB = null;
         yield return ui.CreateWidgetAsync<SampleUI>(UIDefine.eUIType.SampleStaticB, token).ToCoroutine(widget => asyncB = widget);
         asyncB.Show();
-        Check(asyncB.IsActive && ReferenceEquals(ui.GetCurrentStackUI(), asyncB), "ui", "Static B (Async) shown on top");
+        Check(asyncB.IsActive && ReferenceEquals(ui.TopWidget, asyncB), "ui", "Static B (Async) shown on top");
         asyncB.Hide();
 
         ui.ClearTransientWidgets();

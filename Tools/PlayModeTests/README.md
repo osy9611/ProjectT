@@ -12,6 +12,20 @@
 
 에디터가 포커스를 잃은 상태면 `ResetAndDisableNonBackgroundDevices` 설정이 가상 장치를 끄므로, 프로브 실행 중에만 `backgroundBehavior=IgnoreFocus`인 설정 복제본을 쓰고 끝나면 원래 설정으로 되돌린다. 에셋은 수정하지 않는다.
 
+## 결과 (2026-10-17, UI API 변경 반영 HEAD 29ead2f7)
+
+**수정 전에는 컴파일되지 않았다.** 커밋 1ea407c9에서 `UIManager.GetCurrentStackUI()`가 `TopWidget`으로 바뀌었는데 프로브는 옛 이름을 썼다. 이 8곳을 `TopWidget`으로 바꿨다.
+
+**ui-probe의 낡은 기대를 고쳤다.** 이름만 바꾼 상태에서는 결과가 pass=106 fail=1이었다. 실패는 ui-probe의 `expected show error`였다.
+- 원인: 3abb5835 이후 가려진 UI는 복원될 때 OnShow를 다시 받는다. 그런데 `ProjectTUIPlayProbe`의 d는 중첩 Show 실패용 핸들러를 계속 달고 있었다. 그래서 c를 숨겨 d가 복원될 때 이 핸들러가 다시 실행되어, try/catch 밖에서 예외를 던졌다.
+- 조치: 핸들러를 그 시나리오에서만 쓰도록 했다.
+
+**수정 후 결과.** HEAD 코드에서 4회 실행했다.
+- 3회: pass=107 fail=0
+- 1회: `Fresh sender after real OnDisable/OnEnable`에서 fail=1. 같은 코드로 다시 실행했을 때는 재현되지 않았다.
+
+이 1회 실패는 불안정한 실패로 보며 원인은 확인하지 못했다. 에디터 포커스나 가상 Gamepad 상태의 타이밍으로 추정한다. 3abb5835 직전 UIContainer로 실행했을 때도 pass=107 fail=0이었다.
+
 ## 결과 (2026-10-14, Scene·Resource·Pool 매니저 리뷰 리팩토링 HEAD 1ba983d9)
 
 **pass=107 fail=0.** 오류 로그는 의도된 2건(Double Request 거부, Enter Fail)과 iOS 플러그인 참조 오류 2건으로 이전 결과와 같다. Play Mode 종료 시 오류·경고는 없다. 대상 변경은 SceneManager 전환 단계 분리·`HasScene`·`eSceneTransitionResult`·SceneBase 훅 정리·`Transition` 콜백 필수화, `IResource`→`ResourceBase`·씬 언로드 함수 이름 구분, 제네릭 풀 제거·`Release`를 `Return`/`Destroy`로 분리·`GameObjectPool` 생성자 초기화다. Double Request·Enter Fail 콜백은 변경 후에도 `Failure`로 전달된다. 같은 세션에서 턴제 전투 프로브도 실행했다(아래).
