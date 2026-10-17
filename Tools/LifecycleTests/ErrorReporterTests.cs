@@ -49,11 +49,6 @@ static partial class Program
         Debug.Errors.Clear();
     }
 
-    static void ResetGlobal()
-    {
-        typeof(Global).GetMethod("ResetStatics", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
-    }
-
     static Exception Thrown(Exception error)
     {
         try { throw error; }
@@ -264,24 +259,23 @@ static partial class Program
         {
             var sink = new ListSink();
             ResetReporter(sink);
-            ResetGlobal();
+            Global.ResetStaticsForTests();
             var host = new ManagerHost();
-            var global = BindGlobal(host);
+            var global = Global.BindForTests(host);
             try
             {
                 var probe = host.Register(new Probe<A>(new(), "throwing update"));
                 probe.UpdateAction = () => throw new InvalidOperationException("update failed");
                 await host.InitializeAsync();
                 Global.LogException(new InvalidOperationException("before update"));
-                var update = typeof(Global).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic);
-                await ThrowsSync<TargetInvocationException>(() => update.Invoke(global, null));
+                await ThrowsSync<InvalidOperationException>(() => global.UpdateForTests());
                 Check(sink.Events.Count == 1 && sink.Events[0].Exception.Message == "before update", "Update failure skipped the flush");
             }
             finally
             {
                 global.Shutdown();
                 UnityEngine.Object.Destroy(global.gameObject);
-                ResetGlobal();
+                Global.ResetStaticsForTests();
             }
         });
 
@@ -289,17 +283,16 @@ static partial class Program
         {
             var sink = new ListSink();
             ResetReporter(sink);
-            ResetGlobal();
-            var initialize = typeof(Global).GetMethod("InitializeAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+            Global.ResetStaticsForTests();
             var globals = new List<Global>();
             try
             {
                 var failedHost = new ManagerHost();
-                var failedGlobal = BindGlobal(failedHost);
+                var failedGlobal = Global.BindForTests(failedHost);
                 globals.Add(failedGlobal);
                 failedHost.Register(new Probe<A>(new(), "failed stop") { FailStop = true });
                 failedHost.Register(new Probe<B>(new(), "failed start") { FailStart = true });
-                await Throws<InvalidOperationException>(() => (UniTask)initialize.Invoke(failedGlobal, null));
+                await Throws<InvalidOperationException>(() => failedGlobal.InitializeForTests());
                 failedGlobal.Shutdown();
                 // Global.Shutdown releases its sinks after the final flush.
                 ErrorReporter.SetSinks(sink);
@@ -308,10 +301,10 @@ static partial class Program
 
                 var gate = new UniTaskCompletionSource();
                 var stoppedHost = new ManagerHost();
-                var stoppedGlobal = BindGlobal(stoppedHost);
+                var stoppedGlobal = Global.BindForTests(stoppedHost);
                 globals.Add(stoppedGlobal);
                 stoppedHost.Register(new Probe<A>(new(), "stopped stop") { FailStop = true, Gate = gate.Task });
-                var pending = (UniTask)initialize.Invoke(stoppedGlobal, null);
+                var pending = stoppedGlobal.InitializeForTests();
                 stoppedGlobal.Shutdown();
                 // Global.Shutdown releases its sinks after the final flush.
                 ErrorReporter.SetSinks(sink);
@@ -324,28 +317,27 @@ static partial class Program
             {
                 foreach (var global in globals)
                     UnityEngine.Object.Destroy(global.gameObject);
-                ResetGlobal();
+                Global.ResetStaticsForTests();
             }
         });
 
         await ReporterRun("ErrorReporter: initialization failure by cancellation exception reaches the caller", async () =>
         {
             ResetReporter(new ListSink());
-            ResetGlobal();
-            var initialize = typeof(Global).GetMethod("InitializeAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+            Global.ResetStaticsForTests();
             var host = new ManagerHost();
-            var global = BindGlobal(host);
+            var global = Global.BindForTests(host);
             try
             {
                 host.Register(new Probe<A>(new(), "timeout") { StartAction = () => throw new OperationCanceledException("start timeout") });
-                await Throws<OperationCanceledException>(() => (UniTask)initialize.Invoke(global, null));
+                await Throws<OperationCanceledException>(() => global.InitializeForTests());
                 Check(host.State == ManagerState.Failed, "Cancellation failure did not fail the host");
             }
             finally
             {
                 global.Shutdown();
                 UnityEngine.Object.Destroy(global.gameObject);
-                ResetGlobal();
+                Global.ResetStaticsForTests();
             }
         });
 
@@ -355,29 +347,27 @@ static partial class Program
             string log = Path.Combine(directory, "ErrorReports", "errors.log");
             Application.persistentDataPath = directory;
             ResetReporter();
-            ResetGlobal();
-            var init = typeof(Global).GetMethod("Init", BindingFlags.Instance | BindingFlags.NonPublic);
-            var update = typeof(Global).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic);
+            Global.ResetStaticsForTests();
             var globals = new List<Global>();
             try
             {
                 var first = new GameObject("Global").AddComponent<Global>();
                 globals.Add(first);
-                init.Invoke(first, null);
+                first.InitForTests();
                 first.Shutdown();
 
                 var second = new GameObject("Global").AddComponent<Global>();
                 globals.Add(second);
-                init.Invoke(second, null);
+                second.InitForTests();
                 var duplicate = new GameObject("Global").AddComponent<Global>();
                 globals.Add(duplicate);
-                init.Invoke(duplicate, null);
+                duplicate.InitForTests();
                 Check(ReferenceEquals(Global.Instance, second), "Duplicate Global replaced the active instance");
 
                 Global.LogException(new InvalidOperationException("marker-once"));
-                update.Invoke(duplicate, null);
+                duplicate.UpdateForTests();
                 Check(CountOccurrences(log, "Exception: marker-once") == 0, "Inactive Global flushed");
-                update.Invoke(second, null);
+                second.UpdateForTests();
                 Check(CountOccurrences(log, "Exception: marker-once") == 1, "Event written " + CountOccurrences(log, "Exception: marker-once") + " times");
 
                 Global.LogException(new InvalidOperationException("marker-shutdown"));
@@ -393,7 +383,7 @@ static partial class Program
                 Global.Instance?.Shutdown();
                 foreach (var global in globals)
                     UnityEngine.Object.Destroy(global.gameObject);
-                ResetGlobal();
+                Global.ResetStaticsForTests();
                 Application.persistentDataPath = "";
                 Directory.Delete(directory, true);
             }

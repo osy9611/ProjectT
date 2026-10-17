@@ -28,22 +28,8 @@ static class FakeFrames
 
 namespace ProjectT
 {
-    public sealed class ClientLocalStorageManager : ManagerBase
-    {
-        public ClientLocalStorageManager(bool loadData = false) { }
-
-        public void LoadAllData() { }
-    }
-
-    // 원격 부팅은 Firebase SDK에 의존하므로 생명주기 테스트에서는 실제 구현을 컴파일하지 않는다.
-    public sealed class PatchManager : ManagerBase
-    {
-        public PatchManager(bool useRemote = true) { }
-    }
-
     public sealed class DataManager : ManagerBase
     {
-        public DataManager(bool loadData = false) { }
         public DesignTable.DataMgr Table { get; } = new();
     }
 
@@ -62,11 +48,6 @@ namespace ProjectT
     {
         public int SpatialStops;
         public void StopAllSpatialSounds() => SpatialStops++;
-    }
-    public sealed class CostumeManager : ManagerBase { }
-    public static class UtilFunc
-    {
-        public static string MakeColorRichText(string message, string color) => message;
     }
 
     public class FakeTables

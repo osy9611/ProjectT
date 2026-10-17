@@ -20,7 +20,7 @@
 
 # ManagerContext 제거 이후 계약
 
-현재 총 59개 시나리오를 실행한다. Global도 스텁 대신 실제 생산 코드를 컴파일하며, Unity 및 테스트 대상 밖의 매니저는 대체한다.
+현재 총 59개 시나리오를 실행한다. Global도 스텁 대신 실제 생산 코드(Global.cs)를 컴파일하며, 매니저 접근자는 GlobalAccessors.cs가, 테스트 진입점은 Tools/Shared/GlobalTestSupport.cs가 partial로 제공한다. Unity 및 테스트 대상 밖의 매니저는 대체한다.
 
 - Global.Resource 등 개별 속성과 GetManager<T>()는 초기화·종료 중에도 해당 매니저가 Ready면 반환한다. 미등록 또는 Ready가 아닌 매니저 조회는 예외로 차단한다. 종료 토큰 취소 후 새 리소스 로드·풀 대여는 시작하지 않는다.
 - IsReady, WhenReadyAsync, TryGetReady<T>()는 전체 매니저 준비 완료 기준을 유지한다. 업데이트도 전체 준비 완료 후 시작한다.

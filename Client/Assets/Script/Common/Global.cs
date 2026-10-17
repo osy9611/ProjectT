@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ProjectT
 {
     [DefaultExecutionOrder(-10000)]
-    public class Global : MonoBehaviour
+    public partial class Global : MonoBehaviour
     {
         private static Global s_instance;
         public static Global Instance => s_instance;
@@ -20,30 +20,6 @@ namespace ProjectT
         private bool paused;
         public static ManagerState State => s_instance?.host?.State ?? ManagerState.Created;
         public static bool IsReady => State == ManagerState.Ready;
-
-        public static PatchManager Patch { get => GetManager<PatchManager>(); }
-
-        public static ResourceManager Resource { get => GetManager<ResourceManager>(); }
-
-        public static DataManager Data { get => GetManager<DataManager>(); }
-
-        public static PoolManager Pool { get => GetManager<PoolManager>(); }
-
-        public static SceneManager Scene { get => GetManager<SceneManager>(); }
-
-        public static UIManager UI { get => GetManager<UIManager>(); }
-
-        public static SoundManager Sound { get => GetManager<SoundManager>(); }
-
-        public static NotificationManager Notify { get => GetManager<NotificationManager>(); }
-
-        public static InputManager Input { get => GetManager<InputManager>(); }
-
-        public static ClientLocalStorageManager LocalStorage { get => GetManager<ClientLocalStorageManager>(); }
-
-        public static CostumeManager Costume { get => GetManager<CostumeManager>(); }
-
-        public static DesignTable.DataMgr Table => Data.Table;
 
         // 시스템 등록 시점
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -84,18 +60,7 @@ namespace ProjectT
             focused = Application.isFocused;
 
             host = new ManagerHost();
-            // 첫 비동기 대기 전까지는 Awake 안에서 Ready가 되므로 InputManager는 Actor 활성화보다 먼저 준비된다.
-            host.Register(new InputManager());
-            host.Register(new PatchManager(UseRemoteResource));
-            host.Register(new ResourceManager());
-            host.Register(new NotificationManager());
-            host.Register(new ClientLocalStorageManager(LoadData));
-            host.Register(new DataManager(LoadData));
-            host.Register(new PoolManager());
-            host.Register(new SceneManager());
-            host.Register(new UIManager());
-            host.Register(new SoundManager());
-            host.Register(new CostumeManager());
+            RegisterManagers(host);
 
             InitializeAsync().Forget(LogException);
         }

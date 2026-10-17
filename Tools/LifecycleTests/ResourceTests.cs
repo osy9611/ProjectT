@@ -11,7 +11,7 @@ static partial class Program
     static ResourceManager StartResources(out ManagerHost host)
     {
         Addressables.Reset();
-        host = new ManagerHost(); BindGlobal(host);
+        host = new ManagerHost(); Global.BindForTests(host);
         var resource = host.Register(new ResourceManager());
         host.InitializeAsync().GetAwaiter().GetResult();
         return resource;

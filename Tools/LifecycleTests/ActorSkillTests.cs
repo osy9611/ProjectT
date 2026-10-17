@@ -506,7 +506,7 @@ static partial class Program
         {
             InputSystem.actions = new InputActionAsset();
             var host = new ManagerHost();
-            BindGlobal(host);
+            Global.BindForTests(host);
             host.Register(new InputManager());
             var gate = new UniTaskCompletionSource();
             host.Register(new Probe<A>(new(), "pending") { Gate = gate.Task });

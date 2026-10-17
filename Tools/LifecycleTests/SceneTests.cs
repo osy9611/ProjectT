@@ -139,11 +139,10 @@ static partial class Program
         SceneProbe<B>.Reset();
         SceneProbe<C>.Reset();
         UnityEngine.InputSystem.InputSystem.actions = new UnityEngine.InputSystem.InputActionAsset();
-        host = new ManagerHost(); BindGlobal(host);
+        host = new ManagerHost(); Global.BindForTests(host);
         resource = host.Register(new ResourceManager());
         host.Register(new InputManager());
         host.Register(new PoolManager());
-        host.Register(new ClientLocalStorageManager());
         host.Register(new DataManager());
         host.Register(new NotificationManager());
         var manager = host.Register(new Scenes());

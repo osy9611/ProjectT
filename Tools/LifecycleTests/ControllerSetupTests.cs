@@ -374,7 +374,7 @@ static partial class Program
             InputUser.Reset(keyboard, mouse, pad);
             InputSystem.actions = new InputActionAsset();
             var host = new ManagerHost();
-            BindGlobal(host);
+            Global.BindForTests(host);
             host.Register(new InputManager());
             var notify = host.Register(new NotificationManager());
             var gate = new UniTaskCompletionSource();
@@ -476,7 +476,7 @@ static partial class Program
         {
             InputSystem.actions = null;
             var host = new ManagerHost();
-            BindGlobal(host);
+            Global.BindForTests(host);
             var input = host.Register(new InputManager());
             await Throws<InvalidOperationException>(() => host.InitializeAsync());
             Check(host.State == ManagerState.Failed && input.Controller == null, "Missing actions did not fail initialization.");

@@ -24,6 +24,12 @@
     <Compile Include="$(MSBuildThisFileDirectory)Shared\UnityStubs\*.cs" />
   </ItemGroup>
 
+  <!-- 실제 Global의 생명주기·조회·로그를 쓰고, 매니저 등록과 접근자는 각 테스트 프로젝트가 partial로 제공한다. -->
+  <ItemGroup Condition="'$(UseRealGlobal)' == 'true'">
+    <Compile Include="$(ProductScript)Common\Global.cs;$(ProductScript)Common\ErrorCollector.cs;$(ProductScript)Managers\Base\ManagerHost.cs;$(ProductScript)Managers\Base\ManagerBase.cs;$(ProductScript)Common\ErrorReport\*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\GlobalTestSupport.cs;$(MSBuildThisFileDirectory)Shared\UtilFuncStub.cs" />
+  </ItemGroup>
+
   <Target Name="RequireUniTask" BeforeTargets="CoreCompile" Condition="'$(UseUniTask)' == 'true' and '@(UniTaskSource)' == ''">
     <Error Text="Open the Unity project once to restore the UniTask package." />
   </Target>

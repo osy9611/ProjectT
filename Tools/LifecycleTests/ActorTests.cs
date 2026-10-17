@@ -314,7 +314,7 @@ static partial class Program
     {
         InputSystem.actions = asset ?? new InputActionAsset();
         var host = new ManagerHost();
-        BindGlobal(host);
+        Global.BindForTests(host);
         host.Register(new InputManager());
         host.InitializeAsync().GetAwaiter().GetResult();
         return host;
@@ -359,7 +359,7 @@ static partial class Program
         {
             InputSystem.actions = new InputActionAsset();
             actorHost = new ManagerHost();
-            BindGlobal(actorHost);
+            Global.BindForTests(actorHost);
             actorHost.Register(new InputManager());
             var data = actorHost.Register(new DataManager());
             actorHost.InitializeAsync().GetAwaiter().GetResult();

@@ -48,14 +48,6 @@ static partial class Program
         public override void OnAppFocus(bool focused) { Focuses++; }
         public override void OnAppPause(bool paused) { Pauses++; }
     }
-    static Global BindGlobal(ManagerHost host)
-    {
-        var global = new GameObject("Global").AddComponent<Global>();
-        typeof(Global).GetField("host", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(global, host);
-        typeof(Global).GetField("s_instance", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).SetValue(null, global);
-        return global;
-    }
-
     static void Check(bool condition, string message)
     { if (!condition) throw new Exception(message); }
     static async UniTask Throws<T>(Func<UniTask> work) where T : Exception
@@ -108,7 +100,7 @@ static partial class Program
         await Run("Global: initialized dependency is accessible while whole host remains pending", async () =>
         {
             var host = new ManagerHost();
-            var global = BindGlobal(host);
+            var global = Global.BindForTests(host);
             var resource = host.Register(new ResourceManager());
             var gate = new UniTaskCompletionSource();
             var pending = host.Register(new Probe<A>(new(), "pending") { Gate = gate.Task });
@@ -129,12 +121,12 @@ static partial class Program
 
         await Run("Global: readiness waiter started before Global awakens resolves after it becomes ready", async () =>
         {
-            ResetGlobal();
+            Global.ResetStaticsForTests();
             FakeFrames.Clear();
             var ready = Global.WhenReadyAsync();
             Check(Global.State == ManagerState.Created && !ready.Status.IsCompleted(), "Waiter resolved without Global");
             var host = new ManagerHost();
-            var global = BindGlobal(host);
+            var global = Global.BindForTests(host);
             host.Register(new Probe<A>(new(), "A"));
             await host.InitializeAsync();
             FakeFrames.Pump();
@@ -146,7 +138,7 @@ static partial class Program
         await Run("Global: shutdown resolves ready dependencies and rejects new work", async () =>
         {
             var host = new ManagerHost();
-            var global = BindGlobal(host);
+            var global = Global.BindForTests(host);
             var resource = host.Register(new ResourceManager());
             host.Register(new PoolManager());
             var probe = host.Register(new Probe<A>(new(), "consumer"));
@@ -171,10 +163,10 @@ static partial class Program
 
         await Run("Global: absent and unstarted host cannot expose registered managers", async () =>
         {
-            var global = BindGlobal(null);
+            var global = Global.BindForTests(null);
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<ResourceManager>());
             var host = new ManagerHost();
-            BindGlobal(host);
+            Global.BindForTests(host);
             host.Register(new ResourceManager());
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<ResourceManager>());
             Check(!Global.TryGetReady<ResourceManager>(out _), "Created manager exposed");
@@ -184,7 +176,7 @@ static partial class Program
         await Run("root: manager uses Global parent and shutdown preserves Global", async () =>
         {
             var host = new ManagerHost();
-            var global = BindGlobal(host);
+            var global = Global.BindForTests(host);
             var probe = host.Register(new Probe<A>(new(), "child"));
             await host.InitializeAsync();
             var managerRoot = probe.RootObject.gameObject;
@@ -201,7 +193,7 @@ static partial class Program
         await Run("ready waits for preparation; concurrent waiters; gated updates", async () =>
         {
             var gate = new UniTaskCompletionSource<bool>();
-            var host = new ManagerHost(); BindGlobal(host);
+            var host = new ManagerHost(); Global.BindForTests(host);
             var probe = new Probe<A>(new(), "A") { Gate = gate.Task };
             host.Register(probe);
             var w1 = host.WhenReady;
@@ -225,7 +217,7 @@ static partial class Program
         await Run("reverse shutdown preserves dependencies; same display names use exact types", async () =>
         {
             var trace = new List<string>();
-            var host = new ManagerHost(); BindGlobal(host);
+            var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(trace, "A"); var b = new Probe<B>(trace, "B");
             Probe<A> dependency = null;
             b.StartAction = () =>
@@ -245,7 +237,7 @@ static partial class Program
         });
         await Run("partial startup failure rolls back failing manager and preserves error", async () =>
         {
-            var trace = new List<string>(); var host = new ManagerHost(); BindGlobal(host);
+            var trace = new List<string>(); var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(trace, "A"); var b = new Probe<B>(trace, "B") { FailStart = true }; var c = new Probe<C>(trace, "C");
             host.Register(a); host.Register(b); host.Register(c);
             await Throws<InvalidOperationException>(() => host.InitializeAsync());
@@ -256,7 +248,7 @@ static partial class Program
         });
         await Run("cleanup failure does not skip other managers or root cleanup", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host);
+            var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(new(), "A"); var b = new Probe<B>(new(), "B") { FailStop = true };
             host.Register(a); host.Register(b); await host.InitializeAsync(); host.Shutdown();
             Check(a.Stops == 1 && b.Stops == 1 && host.ShutdownErrors.Count == 1, "Cleanup exception not isolated.");
@@ -264,7 +256,7 @@ static partial class Program
         });
         await Run("shutdown during await cancels readiness and prevents late Ready", async () =>
         {
-            var gate = new UniTaskCompletionSource<bool>(); var host = new ManagerHost(); BindGlobal(host);
+            var gate = new UniTaskCompletionSource<bool>(); var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(new(), "A") { Gate = gate.Task };
             host.Register(a); var init = host.InitializeAsync(); host.Shutdown();
             await Throws<OperationCanceledException>(() => host.WhenReady);
@@ -274,7 +266,7 @@ static partial class Program
         });
         await Run("synchronous cancellation callback reentrancy keeps normal shutdown", async () =>
         {
-            var gate = new UniTaskCompletionSource<bool>(); var host = new ManagerHost(); BindGlobal(host);
+            var gate = new UniTaskCompletionSource<bool>(); var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(new(), "A") { Gate = gate.Task };
             a.StartAction = () => a.Token.Register(() => gate.TrySetCanceled());
             host.Register(a); var init = host.InitializeAsync(); host.Shutdown();
@@ -284,14 +276,14 @@ static partial class Program
         });
         await Run("throwing cancellation subscriber does not stop cleanup", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host); var a = new Probe<A>(new(), "A");
+            var host = new ManagerHost(); Global.BindForTests(host); var a = new Probe<A>(new(), "A");
             a.StartAction = () => a.Token.Register(() => throw new Exception("cancel"));
             host.Register(a); await host.InitializeAsync(); host.Shutdown();
             Check(a.Stops == 1 && host.ShutdownErrors.Count == 1, "Cancellation exception broke shutdown.");
         });
         await Run("duplicate registration and mutation after startup rejected", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host); var a = new Probe<A>(new(), "A"); host.Register(a);
+            var host = new ManagerHost(); Global.BindForTests(host); var a = new Probe<A>(new(), "A"); host.Register(a);
             await ThrowsSync<ArgumentException>(() => host.Register(new Probe<A>(new(), "duplicate")));
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<A>>());
             await host.InitializeAsync();
@@ -300,7 +292,7 @@ static partial class Program
         });
         await Run("out-of-order dependency fails and rolls back", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host); var a = new Probe<A>(new(), "A"); var b = new Probe<B>(new(), "B");
+            var host = new ManagerHost(); Global.BindForTests(host); var a = new Probe<A>(new(), "A"); var b = new Probe<B>(new(), "B");
             a.StartAction = () => a.Dependency<Probe<B>>();
             host.Register(a); host.Register(b);
             await Throws<InvalidOperationException>(() => host.InitializeAsync());
@@ -308,14 +300,14 @@ static partial class Program
         });
         await Run("shutdown before initialization settles waiters without initializing", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host); var a = new Probe<A>(new(), "A"); host.Register(a); host.Shutdown();
+            var host = new ManagerHost(); Global.BindForTests(host); var a = new Probe<A>(new(), "A"); host.Register(a); host.Shutdown();
             await Throws<OperationCanceledException>(() => host.WhenReady);
             await ThrowsSync<InvalidOperationException>(() => host.InitializeAsync());
             Check(a.Starts == 0 && a.Stops == 0, "Uninitialized manager executed.");
         });
         await Run("external shutdown cannot claim initialization failure", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host); var a = new Probe<A>(new(), "A"); host.Register(a);
+            var host = new ManagerHost(); Global.BindForTests(host); var a = new Probe<A>(new(), "A"); host.Register(a);
             await host.InitializeAsync();
             await ThrowsSync<ArgumentException>(() => host.Shutdown(ShutdownReason.InitializationFailure));
             Check(host.State == ManagerState.Ready && a.Stops == 0, "Rejected shutdown changed the host.");
@@ -325,7 +317,7 @@ static partial class Program
         await Run("canceling one readiness waiter leaves other waiters alive", async () =>
         {
             var gate = new UniTaskCompletionSource<bool>();
-            var host = new ManagerHost(); BindGlobal(host);
+            var host = new ManagerHost(); Global.BindForTests(host);
             var probe = new Probe<A>(new(), "A") { Gate = gate.Task };
             host.Register(probe);
             var initialization = host.InitializeAsync();
@@ -342,7 +334,7 @@ static partial class Program
         });
         await Run("registration returns the same reference and missing types stay absent", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host);
+            var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(new(), "A");
             Check(ReferenceEquals(host.Register(a), a), "Registration replaced the manager.");
             await host.InitializeAsync();
@@ -353,7 +345,7 @@ static partial class Program
         });
         await Run("shutdown inside update prevents remaining manager callbacks", async () =>
         {
-            var host = new ManagerHost(); BindGlobal(host);
+            var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(new(), "A");
             var b = new Probe<B>(new(), "B");
             a.UpdateAction = () => host.Shutdown();

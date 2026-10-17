@@ -63,7 +63,7 @@ static partial class Program
     {
         Addressables.Reset();
         host = new ManagerHost();
-        BindGlobal(host);
+        Global.BindForTests(host);
         resource = host.Register(new ResourceManager());
         var pool = host.Register(new PoolManager());
         host.InitializeAsync().GetAwaiter().GetResult();
