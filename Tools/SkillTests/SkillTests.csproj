@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Tests.Build.props" />
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CS0169;CS0414;CS0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs;Program.cs" />
+    <Compile Include="$(ProductScript)SkillAdapter\SkillDefinitions.cs;$(ProductScript)SkillAdapter\Action_Melee.cs;$(ProductScript)SkillAdapter\Action_Normal.cs;$(ProductScript)SkillAdapter\Action_Range.cs" />
+    <!-- AbilitySystem은 asmdef 없이 테스트 어셈블리에 함께 컴파일되므로 InternalsVisibleTo가 필요 없다. -->
+    <Compile Include="$(ProductScript)AbilitySystem\**\*.cs" />
+  </ItemGroup>
+</Project>

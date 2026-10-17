@@ -1,6 +1,6 @@
 # Skill·Effect·Status 회귀 테스트
 
-프로젝트 루트에서 `./Tools/SkillTests/run.ps1`을 실행한다. .NET 9 참조 팩이 필요하다.
+프로젝트 루트에서 `dotnet run --project Tools/SkillTests`를 실행한다. .NET 9 참조 팩이 필요하다.
 
 실제 코어 `AbilitySystem/`(Skill·Stat의 모든 .cs)와 `SkillAdapter/`(SkillDefinitions, Action_*)를 한 어셈블리로 함께 컴파일한다(InternalsVisibleTo 불필요). 어댑터가 쓰는 `Global.Table`, 테이블(`skillInfo`, `buffInfo`, `DesignEnum`), `ComBaseActor`(설정 가능한 `Status`·`SkillAgent`·`SpawnSerial`을 가진 `IAbilityOwner` 구현), 어댑터 `using`용 빈 네임스페이스만 스텁으로 대체한다.
 
