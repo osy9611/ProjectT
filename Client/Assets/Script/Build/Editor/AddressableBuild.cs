@@ -8,6 +8,7 @@ using UnityEngine;
 using System.Web;
 using UnityEngine.Profiling;
 using UnityEditor.AddressableAssets.Build;
+using UnityEditor.Build;
 
 namespace ProjectT.Build
 {
@@ -41,12 +42,7 @@ namespace ProjectT.Build
         {
             //Addressable Build를 하면 되는데 지금은 파이어 베이스 어드레서블 빌드만 하기 때문에 우선 구현함
             Debug.Log("Start FireBase Setting");
-            AddressableAssetSettings settings = FireBaseBuildSetting();
-            if (settings == null)
-            {
-                Debug.LogError("AddressableAssetSettings Fail");
-                return;
-            }
+            FireBaseBuildSetting();
 
             while (EditorApplication.isCompiling)
             {
@@ -58,12 +54,14 @@ namespace ProjectT.Build
             AddressableAssetSettings.CleanPlayerContent();
 
             Debug.Log("Build Player Content");
-            AddressableAssetSettings.BuildPlayerContent();
+            AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
+            if (!string.IsNullOrEmpty(result.Error))
+                throw new BuildFailedException($"Addressable Build Failed : {result.Error}");
         }
 
 
         //FireBase는 기본 빌드랑은 다르게 빌드를 해야한다.
-        private static AddressableAssetSettings FireBaseBuildSetting()
+        private static void FireBaseBuildSetting()
         {
             string buildScript = "Assets/AddressableAssetsData/DataBuilders/BuildScriptFirebaseMode.asset";
             string settingAsset = "Assets/AddressableAssetsData/AddressableAssetSettings.asset";
@@ -73,31 +71,24 @@ namespace ProjectT.Build
             settings = AssetDatabase.LoadAssetAtPath<ScriptableObject>(settingAsset) as AddressableAssetSettings;
 
             if (settings == null)
-                Debug.LogError($"{settingAsset} Couldn't be found or isn't a setting object .");
+                throw new BuildFailedException($"{settingAsset} Couldn't be found or isn't a setting object .");
 
             //Set Profile
             string profileName = "FireBaseBuild";
             string profileId = settings.profileSettings.GetProfileId(profileName);
             if (string.IsNullOrEmpty(profileId))
-                Debug.LogWarning($"Couldn't find a profile named, {profileName}");
-            else
-                settings.activeProfileId = profileId;
+                throw new BuildFailedException($"Couldn't find a profile named, {profileName}");
+            settings.activeProfileId = profileId;
 
             //Set Builder
             IDataBuilder builderScript = AssetDatabase.LoadAssetAtPath<ScriptableObject>(buildScript) as IDataBuilder;
             if (builderScript == null)
-            {
-                Debug.LogError($"{buildScript} couldn't be found isn't a build script");
-                return null;
-            }
+                throw new BuildFailedException($"{buildScript} couldn't be found isn't a build script");
 
             int index = settings.DataBuilders.IndexOf((ScriptableObject)builderScript);
-            if (index >= 0)
-                settings.ActivePlayerDataBuilderIndex = index;
-            else
-                Debug.LogWarning($"{builderScript} must be added to ths DataBuilders list before it can be made active. Using last run builder instead.");
-
-            return settings;
+            if (index < 0)
+                throw new BuildFailedException($"{builderScript} must be added to ths DataBuilders list before it can be made active.");
+            settings.ActivePlayerDataBuilderIndex = index;
         }
     }
 }
