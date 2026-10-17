@@ -91,7 +91,7 @@ internal static class Program
         {
             ManualFrameScheduler.Reset();
             TestTrace.Events.Clear();
-            UnityEngine.Object.Destroyed.Clear();
+            UnityEngine.Object.ResetDestroyed();
             Global.Exceptions.Clear();
             AudioListener.pause = false;
             Time.frameCount = 0;
@@ -809,6 +809,7 @@ internal static class Program
         }
 
         Check(failed, "Shutdown did not report the borrowed voice return failure.");
+        UnityEngine.Object.FlushDeferredDestroy();
         Check(sources[0] == null, "Shutdown did not destroy the voice whose return failed.");
     }
 
@@ -842,6 +843,7 @@ internal static class Program
         var previous = ActiveSpatialSource(setup.manager);
 
         setup.pool.Clear();
+        UnityEngine.Object.FlushDeferredDestroy();
         Check(previous == null, "External PoolManager.Clear did not destroy the leased spatial object.");
         Check(setup.manager.ActiveSpatialVoiceCount == 1, "Test did not retain stale manager metadata before repair.");
 
@@ -862,10 +864,13 @@ internal static class Program
         var field = typeof(SoundManager).GetField("spatialOriginal", BindingFlags.Instance | BindingFlags.NonPublic);
         var template = field?.GetValue(setup.manager) as GameObject;
         Check(template != null && copyObjects.Length == 2, "Shutdown order fixture did not find template and prewarmed copies.");
+        // 템플릿은 매니저 루트와 함께 파괴되므로 루트의 Destroy 호출 순서로 비교한다.
+        var templateRoot = template.transform.parent.gameObject;
 
         setup.manager.Shutdown(ShutdownReason.Normal);
 
-        var templateIndex = UnityEngine.Object.Destroyed.IndexOf(template);
+        UnityEngine.Object.FlushDeferredDestroy();
+        var templateIndex = UnityEngine.Object.Destroyed.IndexOf(templateRoot);
         Check(template == null && templateIndex >= 0, "Sound template was not destroyed by manager shutdown.");
         foreach (var copy in copyObjects)
         {
@@ -1097,7 +1102,6 @@ internal static class Program
         var pooled = previous.GetComponent<PooledObject>();
         SpatialSoundHandle recovered = default;
         AudioSource replacement = null;
-        UnityEngine.Object.BeginDeferredDestroy();
         try
         {
             setup.pool.Clear();

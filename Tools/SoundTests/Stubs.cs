@@ -51,6 +51,8 @@ namespace Cysharp.Threading.Tasks
 
         public static void Step()
         {
+            // 이전 프레임 끝에 Unity가 처리하는 지연 파괴를 다음 프레임 재개 전에 반영한다.
+            UnityEngine.Object.FlushDeferredDestroy();
             var frame = pending.ToArray();
             pending.Clear();
             foreach (var wait in frame)
@@ -78,205 +80,8 @@ namespace Cysharp.Threading.Tasks
 
 namespace UnityEngine
 {
-    public class Object
-    {
-        public static readonly List<Object> Destroyed = new List<Object>();
-        private static readonly List<Object> deferredDestroy = new List<Object>();
-        private static bool deferDestroy;
-        internal bool IsDestroyed { get; private set; }
-
-        public static bool operator ==(Object left, Object right)
-        {
-            bool leftNull = ReferenceEquals(left, null) || left.IsDestroyed;
-            bool rightNull = ReferenceEquals(right, null) || right.IsDestroyed;
-            return leftNull && rightNull || !leftNull && !rightNull && ReferenceEquals(left, right);
-        }
-
-        public static bool operator !=(Object left, Object right) => !(left == right);
-        public override bool Equals(object value) => ReferenceEquals(this, value);
-        public override int GetHashCode() => base.GetHashCode();
-
-        public static GameObject Instantiate(GameObject original, Transform parent, bool instantiateInWorldSpace)
-        {
-            if (original == null)
-                return null;
-
-            var result = new GameObject(original.name);
-            result.transform.SetParent(parent, instantiateInWorldSpace);
-            foreach (var component in original.Components)
-            {
-                if (component is Transform)
-                    continue;
-
-                var copy = result.AddComponent(component.GetType());
-                if (component is AudioSource source && copy is AudioSource audio)
-                {
-                    audio.clip = source.clip;
-                    audio.loop = source.loop;
-                    audio.playOnAwake = source.playOnAwake;
-                    audio.pitch = source.pitch;
-                    audio.volume = source.volume;
-                    audio.spatialBlend = source.spatialBlend;
-                    audio.minDistance = source.minDistance;
-                    audio.maxDistance = source.maxDistance;
-                    audio.dopplerLevel = source.dopplerLevel;
-                    audio.rolloffMode = source.rolloffMode;
-                }
-            }
-
-            return result;
-        }
-
-        public static void Destroy(Object target)
-        {
-            if (ReferenceEquals(target, null) || target.IsDestroyed)
-                return;
-
-            if (deferDestroy)
-            {
-                if (!deferredDestroy.Contains(target))
-                    deferredDestroy.Add(target);
-                return;
-            }
-
-            MarkDestroyed(target);
-        }
-
-        public static void BeginDeferredDestroy()
-        {
-            deferDestroy = true;
-        }
-
-        public static void FlushDeferredDestroy()
-        {
-            deferDestroy = false;
-            foreach (var target in deferredDestroy)
-                MarkDestroyed(target);
-            deferredDestroy.Clear();
-        }
-
-        private static void MarkDestroyed(Object target)
-        {
-            if (ReferenceEquals(target, null) || target.IsDestroyed)
-                return;
-
-            target.IsDestroyed = true;
-            Destroyed.Add(target);
-            if (target is GameObject gameObject)
-            {
-                foreach (var child in gameObject.transform.Children.ToArray())
-                    MarkDestroyed(child.gameObject);
-                foreach (var component in gameObject.Components)
-                    MarkDestroyed(component);
-                gameObject.transform.SetParent(null, false);
-            }
-        }
-    }
-
-    public class Component : Object
-    {
-        public GameObject gameObject;
-        public Transform transform => gameObject.transform;
-        public string name => gameObject.name;
-        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
-    }
-
-    public class MonoBehaviour : Component
-    {
-        public bool enabled = true;
-        public bool isActiveAndEnabled => enabled && gameObject != null && gameObject.activeSelf;
-        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : class => gameObject.GetComponentsInChildren<T>(includeInactive);
-    }
-
-    public class GameObject : Object
-    {
-        public static int CreatedCount { get; private set; }
-        private readonly List<Component> components = new List<Component>();
-        internal IEnumerable<Component> Components => components;
-        public string name;
-        public bool activeSelf = true;
-        public Transform transform { get; }
-
-        public GameObject(string name = "")
-        {
-            CreatedCount++;
-            this.name = name;
-            transform = new Transform { gameObject = this };
-            components.Add(transform);
-        }
-
-        public T AddComponent<T>() where T : Component, new()
-        {
-            var component = new T { gameObject = this };
-            components.Add(component);
-            return component;
-        }
-
-        public Component AddComponent(Type type)
-        {
-            var component = (Component)Activator.CreateInstance(type, true);
-            component.gameObject = this;
-            components.Add(component);
-            return component;
-        }
-
-        public T GetComponent<T>() where T : class
-        {
-            foreach (var component in components)
-                if (component is T result)
-                    return result;
-
-            return null;
-        }
-
-        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : class
-        {
-            var found = new List<T>();
-            Collect(this, includeInactive, found);
-            return found.ToArray();
-        }
-
-        private static void Collect<T>(GameObject current, bool includeInactive, List<T> found) where T : class
-        {
-            if (includeInactive || current.activeSelf)
-            {
-                foreach (var component in current.components)
-                    if (component is T value)
-                        found.Add(value);
-            }
-
-            foreach (var child in current.transform.Children)
-                Collect(child.gameObject, includeInactive, found);
-        }
-
-        public void SetActive(bool value)
-        {
-            activeSelf = value;
-        }
-    }
-
-    public class Transform : Component
-    {
-        private Transform parentValue;
-        public Transform parent
-        {
-            get => parentValue;
-            set => SetParent(value, true);
-        }
-        public readonly List<Transform> Children = new List<Transform>();
-        public Vector3 position;
-
-        public void SetParent(Transform value, bool worldPositionStays)
-        {
-            parentValue?.Children.Remove(this);
-            parentValue = value;
-            parentValue?.Children.Add(this);
-        }
-    }
-
     public class AudioClip : Object
     {
-        public string name;
         public AudioDataLoadState loadState = AudioDataLoadState.Loaded;
 
         public AudioClip(string name = "")
@@ -372,49 +177,11 @@ namespace UnityEngine
         }
     }
 
-    public static class Time
-    {
-        public static float deltaTime = 0.02f;
-        public static float unscaledDeltaTime = 0.02f;
-        public static int frameCount;
-    }
-
     public static class AudioListener
     {
         public static bool pause;
     }
 
-    public static class Mathf
-    {
-        public static float Clamp01(float value) => value < 0f ? 0f : value > 1f ? 1f : value;
-        public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp01(t);
-        public static bool Approximately(float a, float b) => Math.Abs(a - b) < 0.0001f;
-    }
-
-    public struct Vector3
-    {
-        public float x;
-        public float y;
-        public float z;
-
-        public Vector3(float x, float y, float z)
-        {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-    }
-
-    public sealed class SerializeField : Attribute
-    {
-    }
-
-    public sealed class TooltipAttribute : Attribute
-    {
-        public TooltipAttribute(string text)
-        {
-        }
-    }
 }
 
 namespace UnityEngine.Events
