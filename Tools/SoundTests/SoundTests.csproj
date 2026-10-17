@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Tests.Build.props" />
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <UseUniTask>true</UseUniTask>
+    <!-- 변경 전 사본과 비교할 때 -p:SoundManagerPath=로 바꾼다. -->
+    <SoundManagerPath Condition="'$(SoundManagerPath)' == ''">$(ProductScript)Managers\SoundManager.cs</SoundManagerPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs;Program.cs" />
+    <Compile Include="$(ProductScript)Managers\Base\ManagerBase.cs;$(ProductScript)Addressable\ResourceScope.cs;$(ProductScript)Common\ErrorCollector.cs;$(ProductScript)Managers\PoolManager.cs" />
+    <Compile Include="$(ProductScript)Pool\GameObjectPool.cs;$(ProductScript)Pool\Pool.cs;$(ProductScript)Pool\PooledObject.cs;$(ProductScript)Pool\IPoolable.cs;$(ProductScript)Sound\UIClickSound.cs" />
+    <Compile Include="$(SoundManagerPath)" />
+  </ItemGroup>
+</Project>

@@ -8,7 +8,7 @@
 
 제어 핸들·자동 회수 도입 시에는 **51/51 통과**했다. 기존 36개 시나리오를 유지하고 개별 제어, 수동 보유, 핸들 무효화, 취소, 실패 롤백, 지연 파괴를 포함한 15개 시나리오를 추가했다. API·변경 이유·주 에이전트의 리뷰와 재작업 기록은 [제어 재생 보고서](../../reports/tests/SoundTests/ControlledPlaybackReport.md), 사전 설계는 [제안서](../../reports/tests/SoundTests/ControlledPlaybackProposal.md)를 참고한다.
 
-프로젝트 루트에서 `./Tools/SoundTests/run.ps1`을 실행한다. .NET 9 참조 팩과 Unity가 복원한 UniTask 패키지가 필요하다.
+프로젝트 루트에서 `dotnet run --project Tools/SoundTests`를 실행한다. .NET 9 참조 팩과 Unity가 복원한 UniTask 패키지가 필요하다.
 
 이 실행기는 실제 `SoundManager`, `PoolManager`, `GameObjectPool`, `Pool<T>`, `PooledObject`, `IPoolable`, `ManagerBase`, `ResourceScope`, `ErrorCollector`, `UIClickSound` 소스와 설치된 UniTask 소스를 C# 9로 함께 컴파일한다. Unity 엔진 객체와 리소스 로더만 최소 스텁으로 대체한다. `UniTask.Yield`는 수동 프레임 스케줄러에 연결되어 페이드의 프레임별 상태와 취소 순서를 결정적으로 검사한다.
 
