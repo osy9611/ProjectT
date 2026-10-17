@@ -46,6 +46,9 @@ internal static partial class Program
         Run("Spatial clear stops before scope release", SpatialClearOrder);
         Run("Stopped manager rejects spatial playback", StoppedManagerRejectsSpatialPlayback);
         Run("Spatial validation rejects invalid requests before loading", SpatialValidation);
+        Run("2D and 3D playback apply one pitch policy", PitchPolicyMatchesAcrossPaths);
+        Run("2D settings and 3D playback apply one volume policy", VolumePolicyMatchesAcrossPaths);
+        Run("Stopped manager ignores invalid arguments", StoppedManagerIgnoresInvalidArguments);
         Run("Sound pool scope release preserves unrelated pools", SoundPoolScopeIsolation);
         Run("Spatial return clears metadata and tolerates repeated stop", SpatialReturnClearsSlot);
         Run("A failed return stays borrowed until shutdown without stopping remaining sound cleanup", FailedReturnCompletesCleanup);

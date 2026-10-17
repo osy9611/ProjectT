@@ -268,18 +268,11 @@ internal static partial class Program
             new Vector3(0f, 0f, float.NegativeInfinity)
         };
         foreach (var position in badPositions)
-            Check(!setup.manager.PlayAt("A", position), "Non-finite spatial position was accepted.");
+            ExpectOutOfRange(() => setup.manager.PlayAt("A", position), "Non-finite spatial position was accepted.");
 
-        Check(!setup.manager.PlayAt("A", new Vector3(), 0f, 30f), "Non-positive minimum distance was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), 2f, 2f), "Maximum distance not greater than minimum was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), 1f, float.PositiveInfinity), "Non-finite maximum distance was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), volume: float.NaN), "Non-finite volume was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), volume: float.PositiveInfinity), "Infinite volume was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), pitch: 0f), "Non-positive pitch was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), pitch: -1f), "Negative pitch was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), pitch: float.NaN), "NaN pitch was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), pitch: float.PositiveInfinity), "Infinite pitch was accepted.");
-        Check(!setup.manager.PlayAt("A", new Vector3(), pitch: 3.01f), "Pitch above the supported range was accepted.");
+        ExpectOutOfRange(() => setup.manager.PlayAt("A", new Vector3(), 0f, 30f), "Non-positive minimum distance was accepted.");
+        ExpectOutOfRange(() => setup.manager.PlayAt("A", new Vector3(), 2f, 2f), "Maximum distance not greater than minimum was accepted.");
+        ExpectOutOfRange(() => setup.manager.PlayAt("A", new Vector3(), 1f, float.PositiveInfinity), "Non-finite maximum distance was accepted.");
         Check(setup.resources.LoadCount == 0 && setup.manager.ActiveSpatialVoiceCount == 0, "Invalid spatial requests loaded or acquired a voice.");
 
         Check(setup.manager.PlayAt(new AudioClip("clamped"), new Vector3(), volume: 2f), "Finite volume above one was rejected instead of clamped.");

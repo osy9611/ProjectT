@@ -170,8 +170,8 @@ internal static partial class Program
         Step(0.25f);
 
         var loads = setup.resources.LoadCount;
-        setup.manager.PlayFade("C", eSound.Bgm, float.NaN);
-        setup.manager.PlayFade("C", eSound.Bgm, float.PositiveInfinity);
+        ExpectOutOfRange(() => setup.manager.PlayFade("C", eSound.Bgm, float.NaN), "A NaN fade duration was accepted.");
+        ExpectOutOfRange(() => setup.manager.PlayFade("C", eSound.Bgm, float.PositiveInfinity), "An infinite fade duration was accepted.");
         Check(setup.resources.LoadCount == loads, "A non-finite fade duration loaded a resource before validation.");
         setup.manager.PlayFade("missing", eSound.Bgm, 1f);
         setup.manager.PlayFade("C", (eSound)999, 1f);
