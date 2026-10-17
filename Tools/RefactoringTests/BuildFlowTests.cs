@@ -41,7 +41,7 @@ internal static class BuildFlowTests
                 return 0;
             }
 
-            foreach (string scenario in new[] { "Success", "Addressables", "Upload", "BuildThrow", "BuildFailedReport", "PendingUpload" })
+            foreach (string scenario in new[] { "Success", "Addressables", "Upload", "BuildThrow", "BuildFailedReport", "PendingUpload", "NoSettings", "NoProfile", "NoBuilder", "UnregisteredBuilder", "ContentBuildError" })
             {
                 Events.Clear();
                 Failure = scenario;
@@ -59,13 +59,21 @@ internal static class BuildFlowTests
                 }
 
                 bool failed = scenario != "Success" && scenario != "PendingUpload";
+                bool settingFailed = scenario == "NoSettings" || scenario == "NoProfile" || scenario == "NoBuilder" || scenario == "UnregisteredBuilder";
                 Check(context.Errors.Count == 0, "Exceptions are handled at the command-line boundary");
                 Check(Events.Contains("Delete") != failed, "Cleanup only after every step succeeded");
                 Check(Events.Last() == (failed ? "Exit:1" : "Exit:0"), "Exit code is the final operation");
                 Check(Events.Count(item => item.StartsWith("Exit:")) == 1, "Exit once");
                 Check(Events.Count(item => item.StartsWith("Exception:")) == (failed ? 1 : 0), "Failure is reported once");
-                if (scenario != "Addressables")
+                if (scenario == "ContentBuildError")
+                    Check(Events.Contains("Exception:Addressable Build Failed : ContentBuildError") && !Events.Any(item => item.StartsWith("Uploader:") || item.StartsWith("Build:")), "Content build error stops before upload and player build");
+                if (scenario != "Addressables" && scenario != "ContentBuildError" && !settingFailed)
                     Check(Events.Contains("Uploader:StandaloneWindows:3.2.1"), "Build target and version");
+                if (settingFailed)
+                {
+                    Check(!Events.Contains("Addressables") && !Events.Any(item => item.StartsWith("Uploader:") || item.StartsWith("Build:")), "Firebase setting failure stops before content build, upload and player build");
+                    Check(!Events.Any(item => item.StartsWith("Error:") || item.StartsWith("Warning:")), "Firebase setting failure is reported only by the exception");
+                }
                 if (scenario == "Upload")
                     Check(!Events.Any(item => item.StartsWith("Build:")), "Failed upload stops before player build");
                 Check(Events.IndexOf("Version:3.2.1") == 0 && Events[1] == "VersionCode:7" && Events[2] == "BuildNumber:7", "Version is applied before Addressables");
@@ -76,10 +84,11 @@ internal static class BuildFlowTests
                     Check(new[] { "Addressable Build", "Upload", "Player Build" }.All(step => Events.Contains("Log:[Build Time] " + step + " : 0.0s")), "Each step logs its elapsed time");
                     Check(Events.IndexOf("Upload") < Events.FindIndex(item => item.StartsWith("Build:")), "Upload before player build");
                     Check(Events.Contains("Build:StandaloneWindows:Builds/EXE/ProjectJ.exe:Development:enabled-scene"), "Player options and enabled scenes");
+                    Check(Events.IndexOf("ActiveProfile:firebase-profile") < Events.IndexOf("ActiveBuilder:1") && Events.IndexOf("ActiveBuilder:1") < Events.IndexOf("Clean") && Events.IndexOf("Clean") < Events.IndexOf("Addressables"), "Firebase profile and builder are active before the content build");
                 }
                 Console.WriteLine("TRACE PreBuild/" + scenario + " " + string.Join("|", Events) + " errors=" + context.Errors.Count);
             }
-            Console.WriteLine("ALL PASSED: 6 build flow scenarios");
+            Console.WriteLine("ALL PASSED: 11 build flow scenarios");
             return 0;
         }
         catch (Exception error)
@@ -147,12 +156,43 @@ internal static class BuildFlowTests
 }
 
 // External operations are recorded, never executed by this fixture.
-namespace ProjectT.Build
+namespace UnityEditor.AddressableAssets.Settings
 {
-    public static class AddressableBuild
+    public sealed class AddressableAssetSettings : UnityEngine.ScriptableObject
     {
-        public static Task Build() { return BuildFlowTests.Step("Addressables"); }
+        internal static readonly UnityEngine.ScriptableObject FirebaseBuilder = new DataBuilder();
+        public readonly ProfileSettings profileSettings = new ProfileSettings();
+        public readonly ProfileValue RemoteCatalogBuildPath = new ProfileValue();
+        public List<UnityEngine.ScriptableObject> DataBuilders = BuildFlowTests.Failure == "UnregisteredBuilder"
+            ? new List<UnityEngine.ScriptableObject> { new DataBuilder() }
+            : new List<UnityEngine.ScriptableObject> { new DataBuilder(), FirebaseBuilder };
+        public string activeProfileId { set { BuildFlowTests.Events.Add("ActiveProfile:" + value); } }
+        public int ActivePlayerDataBuilderIndex { set { BuildFlowTests.Events.Add("ActiveBuilder:" + value); } }
+        public static void CleanPlayerContent() { BuildFlowTests.Events.Add("Clean"); }
+        public static void BuildPlayerContent(out Build.AddressablesPlayerBuildResult result)
+        {
+            BuildFlowTests.Step("Addressables").GetAwaiter().GetResult();
+            result = new Build.AddressablesPlayerBuildResult { Error = BuildFlowTests.Failure == "ContentBuildError" ? "ContentBuildError" : null };
+        }
     }
+
+    public sealed class DataBuilder : UnityEngine.ScriptableObject, Build.IDataBuilder { }
+
+    public sealed class ProfileSettings
+    {
+        public string GetProfileId(string name) { return BuildFlowTests.Failure == "NoProfile" || name != "FireBaseBuild" ? null : "firebase-profile"; }
+    }
+
+    public sealed class ProfileValue
+    {
+        public string GetValue(AddressableAssetSettings settings) { return string.Empty; }
+    }
+}
+
+namespace UnityEditor.AddressableAssets.Build
+{
+    public interface IDataBuilder { }
+    public sealed class AddressablesPlayerBuildResult { public string Error; }
 }
 
 namespace ProjectT.Server
@@ -174,13 +214,30 @@ namespace UnityEngine
     public static class Debug
     {
         public static void Log(object value) { BuildFlowTests.Events.Add("Log:" + value); }
+        public static void LogWarning(object value) { BuildFlowTests.Events.Add("Warning:" + value); }
         public static void LogError(object value) { BuildFlowTests.Events.Add("Error:" + value); }
         public static void LogException(Exception error) { BuildFlowTests.Events.Add("Exception:" + (error is InvalidOperationException || error is UnityEditor.Build.BuildFailedException ? error.Message : error.GetType().Name)); }
     }
 }
 
+namespace UnityEngine
+{
+    public class ScriptableObject { }
+}
+
 namespace UnityEditor
 {
+    public static class AssetDatabase
+    {
+        public static T LoadAssetAtPath<T>(string path) where T : class
+        {
+            if (path == "Assets/AddressableAssetsData/AddressableAssetSettings.asset")
+                return BuildFlowTests.Failure == "NoSettings" ? null : new AddressableAssets.Settings.AddressableAssetSettings() as T;
+            if (path == "Assets/AddressableAssetsData/DataBuilders/BuildScriptFirebaseMode.asset")
+                return BuildFlowTests.Failure == "NoBuilder" ? null : AddressableAssets.Settings.AddressableAssetSettings.FirebaseBuilder as T;
+            throw new InvalidOperationException("Unexpected asset " + path);
+        }
+    }
     public enum BuildTarget { NoTarget, Android, iOS, StandaloneWindows, WebGL }
     public static class PlayerSettings
     {
@@ -198,6 +255,7 @@ namespace UnityEditor
     public sealed class MenuItem : Attribute { public MenuItem(string value) { } }
     public static class EditorApplication
     {
+        public static bool isCompiling => false;
         public static void Exit(int code) { BuildFlowTests.Events.Add("Exit:" + code); }
     }
     public struct BuildPlayerOptions
@@ -251,3 +309,4 @@ namespace UnityEditor.AddressableAssets { }
 namespace UnityEditor.AddressableAssets.Build.DataBuilders { }
 namespace UnityEditor.AddressableAssets.Settings { }
 namespace UnityEngine.AddressableAssets { }
+namespace UnityEngine.Profiling { }

@@ -9,7 +9,7 @@
 & Tools/RefactoringTests/run-unity.ps1
 ```
 
-`run-build.ps1`은 실제 BuildMgr 소스를 .NET 9에서 컴파일한다. Addressables, FirebaseUploader, Unity BuildPipeline, EditorApplication.Exit는 호출을 기록하는 대체물이다. 실제 업로드·플레이어 빌드·서버 파일 삭제는 수행하지 않는다. `PreBuild`의 정상/실패/대기 6개와 CLI 인자 12개(미지원 타깃·값 누락·잘못된 빌드 번호·중복·iOS 등)에서 실행 순서, 버전 적용, 단계 시간 로그, 종료 코드를 확인한다.
+`run-build.ps1`은 실제 BuildMgr와 AddressableBuild 소스를 .NET 9에서 컴파일한다. Addressables API(AssetDatabase, AddressableAssetSettings), FirebaseUploader, Unity BuildPipeline, EditorApplication.Exit는 호출을 기록하는 대체물이다. 실제 업로드·플레이어 빌드·서버 파일 삭제는 수행하지 않는다. `PreBuild`의 정상/실패/대기와 Firebase 설정·Addressables 빌드 오류 11개와 CLI 인자 12개(미지원 타깃·값 누락·잘못된 빌드 번호·중복·iOS 등)에서 실행 순서, 버전 적용, 단계 시간 로그, 종료 코드를 확인한다.
 
 `UploadFlow/UploadFlow.csproj`는 실제 FirebaseUploader 소스를 Firebase Storage 대체물과 함께 컴파일한다. 업로드 대기·실패 전달·완료 3개를 확인한다. 실제 업로드는 수행하지 않는다.
 

@@ -8,6 +8,6 @@
     <ScriptDirectory>$([MSBuild]::EnsureTrailingSlash('$(ScriptRoot)'))</ScriptDirectory>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(ScriptDirectory)Build\Editor\BuildMgr.cs;..\BuildFlowTests.cs" />
+    <Compile Include="$(ScriptDirectory)Build\Editor\BuildMgr.cs;$(ScriptDirectory)Build\Editor\AddressableBuild.cs;..\BuildFlowTests.cs" />
   </ItemGroup>
 </Project>
