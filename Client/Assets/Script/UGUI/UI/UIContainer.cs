@@ -448,10 +448,15 @@ namespace ProjectT.UGUI
                 uiStack.Remove(widget);
                 uiStack.Add(widget);
 
-                if (previous != null && previous != widget)
-                    previous.gameObject.SetActive(false);
+                var covered = previous != null && previous != widget ? previous : null;
+                if (covered != null)
+                    covered.gameObject.SetActive(false);
 
                 RefreshFocusInternal();
+
+                // 가려진 UI도 숨김으로 보아 복원될 때 OnShow를 다시 받게 한다.
+                if (covered != null)
+                    covered.HideInternal();
             }
 
             widget.ShowInternal();
