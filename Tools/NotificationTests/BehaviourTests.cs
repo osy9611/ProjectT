@@ -182,7 +182,7 @@ internal static class BehaviourTests
     private static void ReadyEnableSubscribes()
     {
         using var fixture = new Fixture();
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         fixture.Manager.Publish(First);
@@ -194,7 +194,7 @@ internal static class BehaviourTests
     private static void DeferredGlobalReadiness()
     {
         using var fixture = new Fixture(false);
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         Check(handler.SubscriptionTokens.Count == 0, "The hook ran before Global existed.");
@@ -211,7 +211,7 @@ internal static class BehaviourTests
     private static void DisableWhileWaiting()
     {
         using var fixture = new Fixture(false);
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         handler.Disable();
@@ -227,7 +227,7 @@ internal static class BehaviourTests
     private static void DisableRemovesSubscriptions()
     {
         using var fixture = new Fixture();
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         handler.Disable();
@@ -239,7 +239,7 @@ internal static class BehaviourTests
     private static void ReenableWhileReadinessPending()
     {
         using var fixture = new Fixture(true, false);
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         handler.Disable();
@@ -255,7 +255,7 @@ internal static class BehaviourTests
     private static void ReenableUsesFreshLifetime()
     {
         using var fixture = new Fixture();
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         var firstToken = handler.SubscriptionTokens[0];
@@ -272,7 +272,7 @@ internal static class BehaviourTests
     private static void DestroyRemovesSubscriptions()
     {
         using var fixture = new Fixture();
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         handler.Destroy();
@@ -285,7 +285,7 @@ internal static class BehaviourTests
     {
         using var fixture = new Fixture();
         var expected = new InvalidOperationException("subscribe failure");
-        var handler = new FailingHandler(expected);
+        var handler = new UnityEngine.GameObject().Attach(new FailingHandler(expected));
 
         handler.Enable();
         fixture.Manager.Publish(First);
@@ -300,7 +300,7 @@ internal static class BehaviourTests
         using var fixture = new Fixture();
         var subscriptionFailure = new InvalidOperationException("subscribe failure");
         var cleanupFailure = new ApplicationException("cleanup failure");
-        var handler = new FailingHandler(subscriptionFailure, cleanupFailure);
+        var handler = new UnityEngine.GameObject().Attach(new FailingHandler(subscriptionFailure, cleanupFailure));
 
         handler.Enable();
         fixture.Manager.Publish(First);
@@ -312,7 +312,7 @@ internal static class BehaviourTests
     private static void GlobalShutdownWhileWaiting()
     {
         using var fixture = new Fixture(true, false);
-        var handler = new TestHandler();
+        var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
         Global.Instance.Shutdown();
@@ -326,7 +326,7 @@ internal static class BehaviourTests
     {
         using var fixture = new Fixture();
         var cleanupFailure = new ApplicationException("cleanup failure");
-        var handler = new ExpectedCancellationHandler(cleanupFailure);
+        var handler = new UnityEngine.GameObject().Attach(new ExpectedCancellationHandler(cleanupFailure));
 
         handler.Enable();
 
@@ -343,7 +343,7 @@ internal static class BehaviourTests
     {
         using var fixture = new Fixture();
         var expected = new InvalidOperationException("old generation failure");
-        var handler = new ReentrantHandler(expected);
+        var handler = new UnityEngine.GameObject().Attach(new ReentrantHandler(expected));
 
         handler.Enable();
         fixture.Manager.Publish(First);
@@ -361,7 +361,7 @@ internal static class BehaviourTests
     {
         using var fixture = new Fixture();
         using var source = new CancellationTokenSource();
-        var handler = new FailingHandler(new OperationCanceledException("unexpected hook cancellation", source.Token));
+        var handler = new UnityEngine.GameObject().Attach(new FailingHandler(new OperationCanceledException("unexpected hook cancellation", source.Token)));
 
         handler.Enable();
         fixture.Manager.Publish(First);

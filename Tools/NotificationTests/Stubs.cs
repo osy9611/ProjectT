@@ -154,55 +154,6 @@ namespace Cysharp.Threading.Tasks
     }
 }
 
-namespace UnityEngine
-{
-    public class Object
-    {
-        public static void Destroy(Object value)
-        {
-        }
-    }
-
-    public class GameObject : Object
-    {
-        public string name;
-        public Transform transform { get; }
-        public bool activeSelf { get; private set; } = true;
-
-        public GameObject(string name = "")
-        {
-            this.name = name;
-            transform = new Transform(this);
-        }
-
-        public void SetActive(bool value)
-        {
-            activeSelf = value;
-        }
-    }
-
-    public class MonoBehaviour : Object
-    {
-        public bool enabled = true;
-        public GameObject gameObject { get; } = new GameObject();
-        public bool isActiveAndEnabled => enabled && gameObject.activeSelf;
-    }
-
-    public class Transform : Object
-    {
-        public GameObject gameObject { get; }
-
-        public Transform(GameObject gameObject)
-        {
-            this.gameObject = gameObject;
-        }
-
-        public void SetParent(Transform parent, bool worldPositionStays)
-        {
-        }
-    }
-}
-
 namespace ProjectT
 {
     public sealed class Global : UnityEngine.MonoBehaviour
@@ -217,7 +168,6 @@ namespace ProjectT
         public static IReadOnlyList<Exception> LoggedExceptions => loggedExceptions;
         private ManagerState state = ManagerState.Initializing;
         public static ManagerState State => instance?.state ?? ManagerState.Created;
-        public UnityEngine.Transform transform => gameObject.transform;
 
         public static async Cysharp.Threading.Tasks.UniTask WhenReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -229,7 +179,7 @@ namespace ProjectT
 
         public static Global SetInstance(NotificationManager manager, bool isReady)
         {
-            instance = new Global();
+            instance = new UnityEngine.GameObject("Global").AddComponent<Global>();
             notificationManager = manager;
             if (isReady)
                 instance.SetReady();
