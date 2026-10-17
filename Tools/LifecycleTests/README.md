@@ -39,7 +39,7 @@ ResourceManager 검증 14개가 추가되어 총 28개 시나리오를 실행한
 프로젝트 루트에서 PowerShell로 실행한다.
 
 ```powershell
-./Tools/LifecycleTests/run.ps1
+dotnet run --project Tools/LifecycleTests
 ```
 
 .NET SDK, .NET 9 참조 팩·런타임, Unity가 복원한 UniTask PackageCache가 필요하다. NuGet 다운로드 없이 프로젝트의 ManagerBase·ManagerHost와 설치된 UniTask의 엔진 비의존 소스를 직접 컴파일한다. Unity 경계만 대체하므로 실제 PlayerLoop·GameObject 파괴 시점·Addressables 동작을 검증하지는 않는다.

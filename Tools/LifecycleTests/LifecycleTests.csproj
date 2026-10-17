@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Tests.Build.props" />
+  <PropertyGroup>
+    <UseUniTask>true</UseUniTask>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs;ActorTests.cs;ControllerTests.cs;ErrorReporterTests.cs;PoolConsumerStubs.cs;PoolTests.cs;ResourceStubs.cs;ResourceTests.cs;SceneContractTests.cs;SceneStubs.cs;SceneTests.cs;UnityStubs.cs" />
+    <Compile Include="$(ProductScript)Actor\ComBaseActor.cs" />
+    <Compile Include="$(ProductScript)Addressable\Resource.cs;$(ProductScript)Addressable\ResourceBase.cs;$(ProductScript)Addressable\ResourceScope.cs;$(ProductScript)Addressable\SpriteAtlasResource.cs" />
+    <Compile Include="$(ProductScript)Common\ErrorCollector.cs;$(ProductScript)Common\Global.cs;$(ProductScript)Common\ErrorReport\ErrorReporter.cs;$(ProductScript)Common\ErrorReport\ErrorEvent.cs;$(ProductScript)Common\ErrorReport\IErrorSink.cs;$(ProductScript)Common\ErrorReport\FileErrorSink.cs" />
+    <Compile Include="$(ProductScript)Event\NotificationId.cs" />
+    <Compile Include="$(ProductScript)Input\Controller.cs;$(ProductScript)Input\InputContext.cs" />
+    <Compile Include="$(ProductScript)Managers\Base\ManagerBase.cs;$(ProductScript)Managers\Base\ManagerHost.cs;$(ProductScript)Managers\InputManager.cs;$(ProductScript)Managers\NotificationManager.cs;$(ProductScript)Managers\PoolManager.cs;$(ProductScript)Managers\ResourceManager.cs;$(ProductScript)Managers\SceneManager.cs" />
+    <Compile Include="$(ProductScript)Pool\GameObjectPool.cs;$(ProductScript)Pool\IPoolable.cs;$(ProductScript)Pool\Pool.cs;$(ProductScript)Pool\PooledObject.cs" />
+    <Compile Include="$(ProductScript)Scene\SceneBase.cs" />
+    <Compile Include="$(ProductScript)Server\Socket\Concurrent\ConcurrentPool.cs;$(ProductScript)Server\Socket\Default\BytesPool.cs;$(ProductScript)Server\Socket\Default\PooledBytes.cs" />
+    <Compile Include="$(ProductScript)SkillAdapter\SkillDefinitions.cs;$(ProductScript)SkillAdapter\Action_Melee.cs;$(ProductScript)SkillAdapter\Action_Normal.cs;$(ProductScript)SkillAdapter\Action_Range.cs" />
+    <Compile Include="$(ProductScript)AbilitySystem\**\*.cs" />
+  </ItemGroup>
+</Project>
