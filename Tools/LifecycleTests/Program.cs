@@ -20,7 +20,7 @@ static partial class Program
         public Action StopAction;
         public Action UpdateAction;
         public bool FailStart, FailStop;
-        public int Starts, Stops, Updates, Fixed, Late, Focuses, Pauses;
+        public int Starts, Stops, Updates, Pauses;
         public GameObject Owned;
         public CancellationToken Token => LifetimeToken;
         public Probe(List<string> trace, string id) { Trace = trace; Id = id; }
@@ -42,11 +42,8 @@ static partial class Program
             StopAction?.Invoke();
             if (FailStop) throw new InvalidOperationException("stop:" + Id);
         }
-        public override void OnUpdate(float dt) { Updates++; UpdateAction?.Invoke(); }
-        public override void OnFixedUpdate(float dt) { Fixed++; }
-        public override void OnLateUpdate() { Late++; }
-        public override void OnAppFocus(bool focused) { Focuses++; }
-        public override void OnAppPause(bool paused) { Pauses++; }
+        protected internal override void OnUpdate(float dt) { Updates++; UpdateAction?.Invoke(); }
+        protected internal override void OnAppPause(bool paused) { Pauses++; }
     }
     static void Check(bool condition, string message)
     { if (!condition) throw new Exception(message); }
@@ -200,19 +197,19 @@ static partial class Program
             var w2 = host.WhenReady;
             var init = host.InitializeAsync();
             var repeated = host.InitializeAsync();
-            host.Update(1); host.FixedUpdate(1); host.LateUpdate(); host.Focus(true); host.Pause(false);
+            host.Update(1); host.Pause(false);
             Check(!w1.Status.IsCompleted() && !host.TryGetReady<Probe<A>>(out _), "Ready published early.");
-            Check(probe.Updates + probe.Fixed + probe.Late + probe.Focuses + probe.Pauses == 0, "Early callback.");
+            Check(probe.Updates + probe.Pauses == 0, "Early callback.");
             var allWaiters = UniTask.WhenAll(init, repeated, w1, w2);
             Check(!allWaiters.Status.IsCompleted(), "Waiters completed before preparation.");
             gate.TrySetResult(true);
             await allWaiters;
             Check(probe.Starts == 1, "Initialization/configuration mismatch.");
-            host.Update(1); host.FixedUpdate(1); host.LateUpdate(); host.Focus(true); host.Pause(false);
-            Check(probe.Updates == 1 && probe.Fixed == 1 && probe.Late == 1 && probe.Focuses == 1 && probe.Pauses == 1, "Callback missing.");
+            host.Update(1); host.Pause(false);
+            Check(probe.Updates == 1 && probe.Pauses == 1, "Callback missing.");
             host.Shutdown();
-            host.Update(1); host.FixedUpdate(1); host.LateUpdate();
-            Check(probe.Updates == 1 && probe.Fixed == 1 && probe.Late == 1, "Callback after shutdown.");
+            host.Update(1);
+            Check(probe.Updates == 1, "Callback after shutdown.");
         });
         await Run("reverse shutdown preserves dependencies; same display names use exact types", async () =>
         {

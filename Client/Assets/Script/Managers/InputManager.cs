@@ -79,7 +79,7 @@ namespace ProjectT
             ApplyInputStateInternal();
         }
 
-        public override void OnUpdate(float dt)
+        protected internal override void OnUpdate(float dt)
         {
             if ((switchPending && Time.frameCount > switchFrame) || (uiFocused && !navigationAllowed && Time.frameCount > focusFrame))
                 ApplyInputStateInternal();

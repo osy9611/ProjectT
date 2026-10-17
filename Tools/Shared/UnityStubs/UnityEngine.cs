@@ -394,7 +394,6 @@ namespace UnityEngine
     {
         public static float deltaTime = 0.02f;
         public static float unscaledDeltaTime = 0.02f;
-        public static float fixedDeltaTime = 0.02f;
         public static int frameCount;
     }
 
@@ -426,7 +425,6 @@ namespace UnityEngine
 
     public static class Application
     {
-        public static bool isFocused = true;
         public static bool isConsolePlatform;
         public static RuntimePlatform platform = RuntimePlatform.WindowsPlayer;
         public static string persistentDataPath = "";

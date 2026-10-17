@@ -32,7 +32,7 @@ namespace ProjectT
             uiContainer = null;
         }
 
-        public override void OnUpdate(float dt)
+        protected internal override void OnUpdate(float dt)
         {
             uiContainer.UpdateAutoScale();
             UpdateHudsInternal();

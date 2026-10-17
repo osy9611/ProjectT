@@ -171,48 +171,6 @@ namespace ProjectT
             }
         }
 
-        public void FixedUpdate(float dt)
-        {
-            if (State != ManagerState.Ready)
-                return;
-
-            foreach (var manager in managers)
-            {
-                if (State != ManagerState.Ready)
-                    break;
-
-                manager.OnFixedUpdate(dt);
-            }
-        }
-
-        public void LateUpdate()
-        {
-            if (State != ManagerState.Ready)
-                return;
-
-            foreach (var manager in managers)
-            {
-                if (State != ManagerState.Ready)
-                    break;
-
-                manager.OnLateUpdate();
-            }
-        }
-
-        public void Focus(bool value)
-        {
-            if (State != ManagerState.Ready)
-                return;
-
-            foreach (var manager in managers)
-            {
-                if (State != ManagerState.Ready)
-                    break;
-
-                manager.OnAppFocus(value);
-            }
-        }
-
         public void Pause(bool value)
         {
             if (State != ManagerState.Ready)

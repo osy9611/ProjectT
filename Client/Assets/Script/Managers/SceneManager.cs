@@ -67,7 +67,7 @@ namespace ProjectT
             }
         }
 
-        public override void OnUpdate(float dt)
+        protected internal override void OnUpdate(float dt)
         {
             if (isTransitioning)
                 return;

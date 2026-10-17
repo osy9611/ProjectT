@@ -106,23 +106,11 @@ namespace ProjectT
             UnityEngine.Object.Destroy(root);
         }
 
-        public virtual void OnFixedUpdate(float dt)
+        protected internal virtual void OnUpdate(float dt)
         {
         }
 
-        public virtual void OnUpdate(float dt)
-        {
-        }
-
-        public virtual void OnLateUpdate()
-        {
-        }
-
-        public virtual void OnAppFocus(bool focused)
-        {
-        }
-
-        public virtual void OnAppPause(bool paused)
+        protected internal virtual void OnAppPause(bool paused)
         {
         }
     }

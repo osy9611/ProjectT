@@ -106,7 +106,7 @@ namespace ProjectT
         protected void CreateRootObject(string name) { RootObject=new UnityEngine.GameObject(name).transform; }
         protected virtual UniTask OnInitializeAsync(CancellationToken token)=>UniTask.CompletedTask;
         protected virtual void OnShutdown(ShutdownReason reason) { }
-        public virtual void OnUpdate(float dt) { }
+        protected internal virtual void OnUpdate(float dt) { }
         public UniTask Initialize(CancellationToken token=default) { LifetimeToken=token;return OnInitializeAsync(token); }
         public void Shutdown() { OnShutdown(ShutdownReason.Normal); }
     }

@@ -142,7 +142,7 @@ namespace ProjectT
             Global.Pool.CreatePool(spatialOriginal, spatialSounds.Length, spatialPoolScope);
         }
 
-        public override void OnUpdate(float dt)
+        protected internal override void OnUpdate(float dt)
         {
             if (ActiveSpatialVoiceCount == 0 || appPaused || AudioListener.pause)
                 return;
@@ -181,7 +181,7 @@ namespace ProjectT
                 spatialSounds[index].Finished = true;
         }
 
-        public override void OnAppPause(bool paused)
+        protected internal override void OnAppPause(bool paused)
         {
             appPaused = paused;
         }

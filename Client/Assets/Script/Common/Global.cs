@@ -16,7 +16,6 @@ namespace ProjectT
         public bool UseRemoteResource = true;
         public bool UseDebugLog = true;
         private ManagerHost host;
-        private bool focused = true;
         private bool paused;
         public static ManagerState State => s_instance?.host?.State ?? ManagerState.Created;
         public static bool IsReady => State == ManagerState.Ready;
@@ -57,7 +56,6 @@ namespace ProjectT
             ErrorReporter.SetSinks(new FileErrorSink(Path.Combine(Application.persistentDataPath, "ErrorReports")));
 
             DontDestroyOnLoad(gameObject);
-            focused = Application.isFocused;
 
             host = new ManagerHost();
             RegisterManagers(host);
@@ -73,7 +71,6 @@ namespace ProjectT
                 if (host.State != ManagerState.Ready)
                     return;
 
-                host.Focus(focused);
                 host.Pause(paused);
             }
             // UniTask는 취소 예외로 끝난 초기화 실패(Failed)도 취소로 전달하므로 정상 종료로 인한 취소만 삼킨다.
@@ -132,25 +129,6 @@ namespace ProjectT
             {
                 ErrorReporter.Flush();
             }
-        }
-
-        private void FixedUpdate()
-        {
-            if (ReferenceEquals(s_instance, this))
-                host?.FixedUpdate(Time.fixedDeltaTime);
-        }
-
-        private void LateUpdate()
-        {
-            if (ReferenceEquals(s_instance, this))
-                host?.LateUpdate();
-        }
-
-        private void OnApplicationFocus(bool value)
-        {
-            focused = value;
-            if (ReferenceEquals(s_instance, this))
-                host?.Focus(value);
         }
 
         private void OnApplicationPause(bool value)
