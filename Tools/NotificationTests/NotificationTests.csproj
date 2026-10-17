@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Tests.Build.props" />
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <UseUniTask>true</UseUniTask>
+    <!-- 변경 전 사본과 비교할 때 -p:NotificationManagerPath=로 바꾼다. -->
+    <NotificationManagerPath Condition="'$(NotificationManagerPath)' == ''">$(ProductScript)Managers\NotificationManager.cs</NotificationManagerPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs;Program.cs;BehaviourTests.cs" />
+    <Compile Include="$(ProductScript)Managers\Base\ManagerBase.cs;$(ProductScript)Event\NotificationId.cs;$(ProductScript)Event\NotifyHandlerBehaviour.cs" />
+    <Compile Include="$(NotificationManagerPath)" />
+  </ItemGroup>
+</Project>

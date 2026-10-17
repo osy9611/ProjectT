@@ -1,6 +1,6 @@
 # Notification regression tests
 
-`run.ps1` compiles the production `NotificationManager`, `NotificationId`, lifecycle base, and `NotifyHandlerBehaviour` against the restored UniTask package. The next-frame, delay, and readiness player-loop boundaries are replaced with a deterministic scheduler, so this harness does not claim full Unity PlayerLoop coverage.
+`NotificationTests.csproj` compiles the production `NotificationManager`, `NotificationId`, lifecycle base, and `NotifyHandlerBehaviour` against the restored UniTask package. The next-frame, delay, and readiness player-loop boundaries are replaced with a deterministic scheduler, so this harness does not claim full Unity PlayerLoop coverage.
 
 The public publish API is intended for the Unity main thread. Owner token cancellation may arrive from a worker thread, and the harness verifies that path does not deadlock. It also covers lifecycle admission, stable priority ordering, duplicate subscriptions, snapshot mutation, owner and manager cancellation, shutdown during publication, recursive publication, exception propagation, argument validation, identifier isolation, delayed argument ownership, and delayed cancellation.
 
@@ -21,14 +21,14 @@ Unity-reference runtime/editor compilation passed again for A2. The earlier life
 Run from PowerShell:
 
 ```powershell
-.\Tools\NotificationTests\run.ps1
+dotnet run --project Tools/NotificationTests
 ```
 
-To compare an original source snapshot with the current implementation, use separate output directories:
+To compare an original source snapshot with the current implementation, run once with each source:
 
 ```powershell
-.\Tools\NotificationTests\run.ps1 -NotificationManagerPath '<original NotificationManager.cs>' -OutputPath 'Tools/NotificationTests/bin/a2-before'
-.\Tools\NotificationTests\run.ps1 -OutputPath 'Tools/NotificationTests/bin/a2-after'
+dotnet run --project Tools/NotificationTests -p:NotificationManagerPath='<original NotificationManager.cs>'
+dotnet run --project Tools/NotificationTests
 ```
 
 The test runner uses real .NET cancellation tokens and worker threads. Unity readiness/frame boundaries remain stubs; the controlled cancellation cases do not prove all possible thread interleavings or in-flight callback/Dispose races on Mono or IL2CPP.
