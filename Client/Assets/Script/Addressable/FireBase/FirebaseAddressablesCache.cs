@@ -15,9 +15,6 @@ namespace ProjectT.Addressable
     {
         private static readonly Dictionary<string, string> internalIdToStorageUrlDict = new Dictionary<string, string>();
 
-        private static int runningFetchUrlOperationCount;
-
-
         public static string IdTransformFunc(IResourceLocation location)
         {
             if (internalIdToStorageUrlDict.TryGetValue(location.InternalId, out string storageUrl))
@@ -68,12 +65,7 @@ namespace ProjectT.Addressable
 
         private static void GetFirebaseUrl(List<object> keys, Action completed)
         {
-            if (runningFetchUrlOperationCount > 0)
-            {
-                Debug.LogError("Wait until the previous operation is completed before starting a new one");
-                return;
-            }
-            runningFetchUrlOperationCount = 0;
+            var references = new List<(StorageReference reference, string firebaseUrl)>();
             foreach (var key in keys)
             {
                 foreach (IResourceLocator locator in UnityEngine.AddressableAssets.Addressables.ResourceLocators)
@@ -92,7 +84,7 @@ namespace ProjectT.Addressable
 
                                 StorageReference reference = FirebaseStorage.DefaultInstance.GetReferenceFromUrl(firebaseUrl);
 
-                                StartUrlFetch(completed, reference, firebaseUrl);
+                                references.Add((reference, firebaseUrl));
                             }
                         }
                     }
@@ -100,13 +92,27 @@ namespace ProjectT.Addressable
             }
 
             // 로컬 카탈로그처럼 gs:// 의존성이 없으면 요청이 한 번도 시작되지 않으므로 여기서 완료를 알린다.
-            if (runningFetchUrlOperationCount == 0)
+            if (references.Count == 0)
+            {
                 completed();
+                return;
+            }
+
+            // 남은 요청 수를 호출마다 따로 세야 앞선 PreWarm이 끝나기 전에 들어온 호출도 자기 요청이 끝나면 완료된다.
+            int remainingFetchCount = references.Count;
+            foreach (var (reference, firebaseUrl) in references)
+            {
+                StartUrlFetch(reference, firebaseUrl, () =>
+                {
+                    remainingFetchCount--;
+                    if (remainingFetchCount == 0)
+                        completed();
+                });
+            }
         }
 
-        private static void StartUrlFetch(Action completed, StorageReference reference, string firebaseUrl)
+        private static void StartUrlFetch(StorageReference reference, string firebaseUrl, Action fetched)
         {
-            runningFetchUrlOperationCount++;
             reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
             {
                 if (task.IsCanceled || task.IsFaulted)
@@ -119,11 +125,7 @@ namespace ProjectT.Addressable
                     SetInternalIdToStorageUrlMapping(firebaseUrl, url);
                 }
 
-                runningFetchUrlOperationCount--;
-                if (runningFetchUrlOperationCount <= 0)
-                {
-                    completed();
-                }
+                fetched();
             });
         }
     }
