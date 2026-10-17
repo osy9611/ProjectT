@@ -10,37 +10,16 @@ namespace ProjectT
 {
     public class PoolManager : ManagerBase
     {
-        private readonly struct PoolKey : IEquatable<PoolKey>
+        // Scope 하나의 풀 상태다. Scope가 해제되면 Registration이 항목을 지운다.
+        private sealed class ScopePools
         {
-            public readonly ResourceScope Scope;
-            public readonly GameObject Original;
-
-            public PoolKey(ResourceScope scope, GameObject original)
-            {
-                Scope = scope;
-                Original = original;
-            }
-
-            public bool Equals(PoolKey other)
-            {
-                return ReferenceEquals(Scope, other.Scope) && ReferenceEquals(Original, other.Original);
-            }
-
-            public override bool Equals(object obj)
-            {
-                return obj is PoolKey other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                return HashCode.Combine(Scope, Original);
-            }
+            public readonly Dictionary<GameObject, GameObjectPool> Pools = new Dictionary<GameObject, GameObjectPool>();
+            public CancellationTokenRegistration Registration;
+            // ClearScope 이후 해제 전까지 같은 Scope로 새 풀이 만들어지지 않도록 막는다.
+            public bool IsClosed;
         }
 
-        private readonly Dictionary<PoolKey, GameObjectPool> gameObjectPools = new Dictionary<PoolKey, GameObjectPool>();
-        private readonly Dictionary<ResourceScope, CancellationTokenRegistration> scopeReleaseRegistrations = new Dictionary<ResourceScope, CancellationTokenRegistration>();
-        // ClearScope 이후 해제 전까지 같은 Scope로 새 풀이 만들어지지 않도록 막고, Scope가 해제되면 표시를 지운다.
-        private readonly Dictionary<ResourceScope, CancellationTokenRegistration> closedScopes = new Dictionary<ResourceScope, CancellationTokenRegistration>();
+        private readonly Dictionary<ResourceScope, ScopePools> scopes = new Dictionary<ResourceScope, ScopePools>();
         // 경로로 로드한 원본도 PoolManager 종료 시 풀 인스턴스와 함께 반환되도록 ResourceManager.AppScope 대신 전용 Scope를 사용한다.
         private ResourceScope appScope;
 
@@ -114,15 +93,18 @@ namespace ProjectT
         {
             GameObject result = null;
 
-            foreach (var pool in gameObjectPools.Values)
+            foreach (var entry in scopes.Values)
             {
-                if (pool.Original == null || pool.Original.name != name)
-                    continue;
+                foreach (var pool in entry.Pools.Values)
+                {
+                    if (pool.Original == null || pool.Original.name != name)
+                        continue;
 
-                if (result != null && !ReferenceEquals(result, pool.Original))
-                    throw new InvalidOperationException($"Ambiguous original name: {name}");
+                    if (result != null && !ReferenceEquals(result, pool.Original))
+                        throw new InvalidOperationException($"Ambiguous original name: {name}");
 
-                result = pool.Original;
+                    result = pool.Original;
+                }
             }
 
             return result;
@@ -130,23 +112,14 @@ namespace ProjectT
 
         public void Clear()
         {
-            var objects = new List<GameObjectPool>(gameObjectPools.Values);
-
-            gameObjectPools.Clear();
-
-            foreach (var registration in scopeReleaseRegistrations.Values)
+            var objects = new List<GameObjectPool>();
+            foreach (var entry in scopes.Values)
             {
-                registration.Dispose();
+                entry.Registration.Dispose();
+                objects.AddRange(entry.Pools.Values);
             }
 
-            scopeReleaseRegistrations.Clear();
-
-            foreach (var registration in closedScopes.Values)
-            {
-                registration.Dispose();
-            }
-
-            closedScopes.Clear();
+            scopes.Clear();
 
             List<Exception> errors = null;
             foreach (var pool in objects)
@@ -159,14 +132,19 @@ namespace ProjectT
 
         public void ClearScope(ResourceScope scope)
         {
-            if (scopeReleaseRegistrations.Remove(scope, out var registration))
-                registration.Dispose();
+            // 해제된 Scope는 ResolveScope가 거부하므로 닫지 않고 남은 풀만 정리한다.
+            if (scope.Token.IsCancellationRequested)
+            {
+                ReleaseScopeInternal(scope);
+                return;
+            }
 
-            // 해제된 Scope는 ResolveScope가 거부하므로 표시하지 않는다. 정리 중 콜백의 대여도 거부되도록 풀 해제보다 먼저 표시한다.
-            if (!scope.Token.IsCancellationRequested && !closedScopes.ContainsKey(scope))
-                closedScopes.Add(scope, scope.Token.Register(() => closedScopes.Remove(scope)));
+            // 정리 중 콜백의 대여도 거부되도록 풀 해제보다 먼저 닫는다. 닫힌 항목은 Scope가 해제될 때 함께 지워진다.
+            if (!scopes.TryGetValue(scope, out var entry))
+                entry = AddScopeInternal(scope);
 
-            ReleaseScopeInternal(scope);
+            entry.IsClosed = true;
+            ErrorCollector.ThrowIfAny(DisposePoolsInternal(entry));
         }
 
         private GameObjectPool GetOrCreatePoolInternal(GameObject original, int count, ResourceScope scope)
@@ -180,41 +158,54 @@ namespace ProjectT
             scope = Global.Resource.ResolveScope(scope ?? appScope);
             ThrowIfScopeClosedInternal(scope);
 
-            var key = new PoolKey(scope, original);
-            if (gameObjectPools.TryGetValue(key, out var pool))
+            scopes.TryGetValue(scope, out var entry);
+            if (entry != null && entry.Pools.TryGetValue(original, out var pool))
                 return pool;
 
             pool = new GameObjectPool(original, count, RootObject);
-            gameObjectPools.Add(key, pool);
+            if (entry == null)
+                entry = AddScopeInternal(scope);
 
-            if (!scopeReleaseRegistrations.ContainsKey(scope))
-                scopeReleaseRegistrations.Add(scope, scope.Token.Register(() => ReleaseScopeInternal(scope)));
-
+            entry.Pools.Add(original, pool);
             return pool;
+        }
+
+        private ScopePools AddScopeInternal(ResourceScope scope)
+        {
+            var entry = new ScopePools();
+            scopes.Add(scope, entry);
+            entry.Registration = scope.Token.Register(() => ReleaseScopeInternal(scope));
+            return entry;
         }
 
         private void ThrowIfScopeClosedInternal(ResourceScope scope)
         {
-            if (closedScopes.ContainsKey(scope))
+            if (scopes.TryGetValue(scope, out var entry) && entry.IsClosed)
                 throw new InvalidOperationException("Resource scope is closed for new pooled objects.");
         }
 
         // Scope 취소 콜백은 리소스 반환보다 먼저 실행되므로 원본이 해제되기 전에 인스턴스 파괴를 요청한다.
         private void ReleaseScopeInternal(ResourceScope scope)
         {
-            scopeReleaseRegistrations.Remove(scope);
+            if (!scopes.TryGetValue(scope, out var entry))
+                return;
 
+            var errors = DisposePoolsInternal(entry);
+            scopes.Remove(scope);
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        // 정리 콜백이 남은 풀을 볼 수 있도록 풀마다 목록에서 뺀 직후 해제한다.
+        private static List<Exception> DisposePoolsInternal(ScopePools entry)
+        {
             List<Exception> errors = null;
-            foreach (var pair in new List<KeyValuePair<PoolKey, GameObjectPool>>(gameObjectPools))
+            foreach (var pair in new List<KeyValuePair<GameObject, GameObjectPool>>(entry.Pools))
             {
-                if (!ReferenceEquals(pair.Key.Scope, scope))
-                    continue;
-
-                gameObjectPools.Remove(pair.Key);
+                entry.Pools.Remove(pair.Key);
                 ErrorCollector.Run(ref errors, pair.Value, pool => pool.Dispose());
             }
 
-            ErrorCollector.ThrowIfAny(errors);
+            return errors;
         }
     }
 }

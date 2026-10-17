@@ -53,10 +53,21 @@ static partial class Program
         }
     }
 
-    static int PoolCount(PoolManager manager, string field)
+    // 풀·Scope 누수는 공개 API로 관찰할 수 없어 PoolManager의 Scope 상태를 직접 센다.
+    static (int Pools, int OpenScopes, int ClosedScopes) ScopeState(PoolManager manager)
     {
-        var value = typeof(PoolManager).GetField(field, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(manager);
-        return ((System.Collections.ICollection)value).Count;
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+        var scopes = (System.Collections.IDictionary)typeof(PoolManager).GetField("scopes", flags).GetValue(manager);
+        int pools = 0, open = 0, closed = 0;
+        foreach (var entry in scopes.Values)
+        {
+            pools += ((System.Collections.ICollection)entry.GetType().GetField("Pools", flags).GetValue(entry)).Count;
+            if ((bool)entry.GetType().GetField("IsClosed", flags).GetValue(entry))
+                closed++;
+            else
+                open++;
+        }
+        return (pools, open, closed);
     }
 
     static PoolManager StartPools(out ManagerHost host, out ResourceManager resource)
@@ -461,21 +472,21 @@ static partial class Program
             var scope = resources.CreateScope();
             manager.Get(prefab, null, scope);
             manager.ClearScope(scope);
-            int pools = PoolCount(manager, "gameObjectPools");
+            int pools = ScopeState(manager).Pools;
             await ThrowsSync<InvalidOperationException>(() => manager.Get(prefab, null, scope));
             await ThrowsSync<InvalidOperationException>(() => manager.CreatePool(prefab, 1, scope));
             await ThrowsSync<InvalidOperationException>(() => manager.Get("asset", null, scope));
             await Throws<InvalidOperationException>(async () => { await manager.GetAsync("asset", null, scope); });
-            Check(PoolCount(manager, "gameObjectPools") == pools && PoolCount(manager, "scopeReleaseRegistrations") == 0, "Rejected lease created a pool or scope registration");
+            Check(ScopeState(manager).Pools == pools && ScopeState(manager).OpenScopes == 0, "Rejected lease created a pool or scope registration");
             Check(Addressables.Operations.Count == 0, "Rejected lease started a resource load");
             Check(manager.Get(prefab) != null && manager.Get(prefab, null, resources.CreateScope()) != null, "Closing one scope blocked other scopes");
-            Check(PoolCount(manager, "closedScopes") == 1, "Clear did not close the scope");
+            Check(ScopeState(manager).ClosedScopes == 1, "Clear did not close the scope");
             scope.Dispose();
-            Check(PoolCount(manager, "closedScopes") == 0, "Scope disposal kept the closed mark");
+            Check(ScopeState(manager).ClosedScopes == 0, "Scope disposal kept the closed mark");
             var other = resources.CreateScope();
             manager.ClearScope(other);
             host.Shutdown();
-            Check(PoolCount(manager, "closedScopes") == 0 && host.ShutdownErrors.Count == 0, "Pool shutdown kept a closed mark");
+            Check(ScopeState(manager).ClosedScopes == 0 && host.ShutdownErrors.Count == 0, "Pool shutdown kept a closed mark");
         });
 
         await Run("pool: lease from a scope during its own clear is rejected and leaves nothing", async () =>
@@ -491,7 +502,7 @@ static partial class Program
             item.ReturnAction = () => nested = CaptureSync(() => manager.Get(other, null, scope));
             manager.ClearScope(scope);
             Check(nested is InvalidOperationException && item.Returns == 1, "Lease during clear was not rejected");
-            Check(PoolCount(manager, "gameObjectPools") == 0 && PoolCount(manager, "scopeReleaseRegistrations") == 0, "Lease during clear left a pool or registration");
+            Check(ScopeState(manager).Pools == 0 && ScopeState(manager).OpenScopes == 0, "Lease during clear left a pool or registration");
             scope.Dispose();
             host.Shutdown();
             Check(host.ShutdownErrors.Count == 0, "Shutdown failed after a rejected lease");
