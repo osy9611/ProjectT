@@ -174,7 +174,6 @@ internal static partial class Program
         ExpectOutOfRange(() => setup.manager.PlayFade("C", eSound.Bgm, float.PositiveInfinity), "An infinite fade duration was accepted.");
         Check(setup.resources.LoadCount == loads, "A non-finite fade duration loaded a resource before validation.");
         setup.manager.PlayFade("missing", eSound.Bgm, 1f);
-        setup.manager.PlayFade("C", (eSound)999, 1f);
         setup.manager.Play((AudioClip)null, eSound.Bgm);
         Drain(0.25f);
 

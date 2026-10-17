@@ -46,6 +46,7 @@ namespace ProjectT
         }
 
         private const float SpatialVoiceCheckInterval = 0.1f;
+        private const float MaxPitch = 3f;
         private static long nextSpatialManagerId;
         private static readonly int SoundTypeCount = Enum.GetNames(typeof(eSound)).Length;
 
@@ -81,7 +82,7 @@ namespace ProjectT
         {
             get
             {
-                return TryGetSource(eSound.Bgm, out var source) ? source.clip : null;
+                return audioSources[(int)eSound.Bgm].clip;
             }
         }
 
@@ -197,9 +198,11 @@ namespace ProjectT
 
         public SpatialSoundHandle SpawnAt(string path, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f, bool loop = false, bool autoRelease = true)
         {
-            if (!CanPlaySpatialInternal(position, minDistance, maxDistance, volume, pitch))
+            if (!CanAcceptWorkInternal())
                 return default;
 
+            ValidateSpatialInternal(position, minDistance, maxDistance, pitch);
+            volume = ToVolumeInternal(volume);
             ReleaseSpatialVoicesBeforePlaybackInternal();
             if (ActiveSpatialVoiceCount >= spatialSounds.Length)
                 return default;
@@ -210,7 +213,12 @@ namespace ProjectT
 
         public SpatialSoundHandle SpawnAt(AudioClip clip, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f, bool loop = false, bool autoRelease = true)
         {
-            if (!CanPlaySpatialInternal(position, minDistance, maxDistance, volume, pitch) || clip == null)
+            if (!CanAcceptWorkInternal())
+                return default;
+
+            ValidateSpatialInternal(position, minDistance, maxDistance, pitch);
+            volume = ToVolumeInternal(volume);
+            if (clip == null)
                 return default;
 
             ReleaseSpatialVoicesBeforePlaybackInternal();
@@ -253,7 +261,7 @@ namespace ProjectT
                 InUse = true,
                 AutoRelease = autoRelease,
                 Generation = generation,
-                Volume = Mathf.Clamp01(volume),
+                Volume = volume,
                 StartFrame = Time.frameCount
             };
 
@@ -419,24 +427,19 @@ namespace ProjectT
             return true;
         }
 
-        private bool CanPlaySpatialInternal(Vector3 position, float minDistance, float maxDistance, float volume, float pitch)
+        private static void ValidateSpatialInternal(Vector3 position, float minDistance, float maxDistance, float pitch)
         {
-            if (!CanAcceptWorkInternal())
-                return false;
+            ValidateFiniteInternal(position.x, nameof(position));
+            ValidateFiniteInternal(position.y, nameof(position));
+            ValidateFiniteInternal(position.z, nameof(position));
+            ValidateFiniteInternal(minDistance, nameof(minDistance));
+            ValidateFiniteInternal(maxDistance, nameof(maxDistance));
+            if (minDistance <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(minDistance), minDistance, "Minimum distance must be positive.");
+            if (maxDistance <= minDistance)
+                throw new ArgumentOutOfRangeException(nameof(maxDistance), maxDistance, "Maximum distance must be greater than the minimum distance.");
 
-            if (!IsFinite(position.x) || !IsFinite(position.y) || !IsFinite(position.z))
-                return false;
-
-            if (!IsFinite(minDistance) || !IsFinite(maxDistance))
-                return false;
-
-            if (minDistance <= 0f || maxDistance <= minDistance)
-                return false;
-
-            if (!IsFinite(volume))
-                return false;
-
-            return IsFinite(pitch) && pitch > 0f && pitch <= 3f;
+            ValidatePitchInternal(pitch);
         }
 
         public void StopAllSpatialSounds()
@@ -482,19 +485,6 @@ namespace ProjectT
             source.volume = GetCategoryGainInternal(eSound.FX) * spatialSounds[index].Volume;
         }
 
-        private bool TryGetSource(eSound type, out AudioSource source)
-        {
-            int index = (int)type;
-            if (index < 0 || index >= audioSources.Length)
-            {
-                source = null;
-                return false;
-            }
-
-            source = audioSources[index];
-            return source != null;
-        }
-
         // BGM은 씬 전환 뒤에도 이어서 재생되므로 사운드 전용 Scope에 두고, 나머지 채널은 현재 씬 Scope에 둔다.
         private AudioClip LoadClipInternal(string path, eSound type, ResourceScope scope = null)
         {
@@ -510,7 +500,7 @@ namespace ProjectT
 
         public void Play(string path, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            if (!CanAcceptWorkInternal() || !TryGetSource(type, out _))
+            if (!CanAcceptWorkInternal())
                 return;
 
             AudioClip clip = LoadClipInternal(path, type);
@@ -536,18 +526,20 @@ namespace ProjectT
 
         public void PlayBgm(AudioClip clip, float pitch = 1.0f, bool restart = false)
         {
-            if (!CanAcceptWorkInternal() || clip == null || !TryGetSource(eSound.Bgm, out var source))
+            if (!CanAcceptWorkInternal())
+                return;
+
+            ValidatePitchInternal(pitch);
+            if (clip == null)
                 return;
 
             CancelFadeInternal(eSound.Bgm, true);
-            PlayBgmInternal(source, clip, pitch, restart);
+            PlayBgmInternal(audioSources[(int)eSound.Bgm], clip, pitch, restart);
         }
 
         public void StopBgm()
         {
-            if (!TryGetSource(eSound.Bgm, out var source))
-                return;
-
+            AudioSource source = audioSources[(int)eSound.Bgm];
             CancelFadeInternal(eSound.Bgm, true);
             source.Stop();
             source.clip = null;
@@ -555,7 +547,7 @@ namespace ProjectT
 
         public void PlayOneShot(string path, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            if (!CanAcceptWorkInternal() || !TryGetOneShotSource(type, out _))
+            if (!CanAcceptWorkInternal() || type == eSound.Bgm)
                 return;
 
             AudioClip clip = LoadClipInternal(path, type);
@@ -564,33 +556,19 @@ namespace ProjectT
 
         public void PlayOneShot(AudioClip clip, eSound type = eSound.FX, float pitch = 1.0f)
         {
-            if (!CanAcceptWorkInternal() || clip == null || !TryGetOneShotSource(type, out var source))
+            if (!CanAcceptWorkInternal())
+                return;
+
+            ValidatePitchInternal(pitch);
+            if (clip == null || type == eSound.Bgm)
                 return;
 
             CancelFadeInternal(type, true);
-            PlayOneShotInternal(source, clip, pitch);
-        }
-
-        private bool TryGetOneShotSource(eSound type, out AudioSource source)
-        {
-            if (type == eSound.Bgm)
-            {
-                source = null;
-                return false;
-            }
-
-            return TryGetSource(type, out source);
-        }
-
-        private static float NormalizePitch(float pitch)
-        {
-            return float.IsNaN(pitch) || float.IsInfinity(pitch) ? 1f : pitch;
+            PlayOneShotInternal(audioSources[(int)type], clip, pitch);
         }
 
         private void PlayBgmInternal(AudioSource source, AudioClip clip, float pitch, bool restart)
         {
-            pitch = NormalizePitch(pitch);
-
             if (!restart && source.clip == clip && source.isPlaying)
             {
                 source.pitch = pitch;
@@ -606,14 +584,17 @@ namespace ProjectT
         private static void PlayOneShotInternal(AudioSource source, AudioClip clip, float pitch)
         {
             // FX와 UI는 채널별 AudioSource를 공유하므로 겹치는 재생의 pitch를 개별 제어할 수 없다.
-            source.pitch = NormalizePitch(pitch);
+            source.pitch = pitch;
             source.PlayOneShot(clip);
         }
 
         public void PlayFade(string path, eSound type = eSound.FX, float fadeTime = 1.0f, float pitch = 1.0f)
         {
-            if (!CanAcceptWorkInternal() || !TryGetSource(type, out _) || !IsFinite(fadeTime))
+            if (!CanAcceptWorkInternal())
                 return;
+
+            ValidateFiniteInternal(fadeTime, nameof(fadeTime));
+            ValidatePitchInternal(pitch);
 
             ResourceScope sceneScope = type == eSound.Bgm ? null : Global.Resource.SceneScope;
             AudioClip clip = LoadClipInternal(path, type, sceneScope);
@@ -700,9 +681,22 @@ namespace ProjectT
                 PlayOneShotInternal(source, clip, pitch);
         }
 
-        private static bool IsFinite(float value)
+        private static void ValidateFiniteInternal(float value, string name)
         {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                throw new ArgumentOutOfRangeException(name, value, "Value must be finite.");
+        }
+
+        private static void ValidatePitchInternal(float pitch)
+        {
+            if (!(pitch > 0f && pitch <= MaxPitch))
+                throw new ArgumentOutOfRangeException(nameof(pitch), pitch, "Pitch must be greater than 0 and at most 3.");
+        }
+
+        private static float ToVolumeInternal(float volume)
+        {
+            ValidateFiniteInternal(volume, nameof(volume));
+            return Mathf.Clamp01(volume);
         }
 
         private void CancelFadeInternal(eSound type, bool restoreGain)
@@ -720,10 +714,7 @@ namespace ProjectT
 
         public void SetMasterVolume(float volume)
         {
-            if (float.IsNaN(volume))
-                return;
-
-            masterVolume = Mathf.Clamp01(volume);
+            masterVolume = ToVolumeInternal(volume);
             ApplyAllVolumesInternal();
         }
 
@@ -735,20 +726,17 @@ namespace ProjectT
 
         public float GetCategoryVolume(eSound type)
         {
-            return TryGetSource(type, out _) ? categoryVolumes[(int)type] : 0f;
+            return categoryVolumes[(int)type];
         }
 
         public bool GetCategoryMuted(eSound type)
         {
-            return TryGetSource(type, out _) && categoryMuted[(int)type];
+            return categoryMuted[(int)type];
         }
 
         public void SetCategoryVolume(eSound type, float volume)
         {
-            if (!TryGetSource(type, out _) || float.IsNaN(volume))
-                return;
-
-            categoryVolumes[(int)type] = Mathf.Clamp01(volume);
+            categoryVolumes[(int)type] = ToVolumeInternal(volume);
             ApplyVolumeInternal(type);
             if (type == eSound.FX)
                 ApplyAllSpatialVolumesInternal();
@@ -756,9 +744,6 @@ namespace ProjectT
 
         public void SetCategoryMuted(eSound type, bool muted)
         {
-            if (!TryGetSource(type, out _))
-                return;
-
             categoryMuted[(int)type] = muted;
             ApplyVolumeInternal(type);
             if (type == eSound.FX)
@@ -791,11 +776,7 @@ namespace ProjectT
         private void ApplyVolumeInternal(eSound type)
         {
             int index = (int)type;
-            AudioSource source = audioSources[index];
-            if (source == null)
-                return;
-
-            source.volume = GetCategoryGainInternal(type) * fadeGains[index];
+            audioSources[index].volume = GetCategoryGainInternal(type) * fadeGains[index];
         }
 
         private float GetCategoryGainInternal(eSound type)
@@ -825,9 +806,6 @@ namespace ProjectT
             CancelFadeInternal((eSound)index, true);
 
             AudioSource source = audioSources[index];
-            if (source == null)
-                return;
-
             source.Stop();
             source.clip = null;
         }
