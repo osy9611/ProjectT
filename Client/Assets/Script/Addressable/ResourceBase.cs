@@ -16,18 +16,30 @@ namespace ProjectT.Addressable
 
     public abstract class ResourceBase
     {
+        // Loading에서만 Ready·Failed·ReleasedBeforeReady로 넘어가고, Ready는 해제되면 Released가 된다.
+        private enum State
+        {
+            Loading,
+            Ready,
+            Failed,
+            // 완료 전에 해제되었으므로 IsDone은 false로 남는다.
+            ReleasedBeforeReady,
+            Released
+        }
+
         private readonly UniTaskCompletionSource<bool> ready = new UniTaskCompletionSource<bool>();
         private Action<ResourceBase> onFailed;
         protected object resourceData;
+        private State state;
+        // Failed일 때만 값이 있다.
         private Exception error;
-        private bool isReleased;
         public string Path { get; private set; }
         public ResourceSource Source { get; private set; }
         internal ResourceRequest Request { get; private set; }
         public abstract Type AssetType { get; }
         private AsyncOperationHandle Handle { get; set; }
         internal HashSet<ResourceScope> Owners { get; } = new HashSet<ResourceScope>();
-        public bool IsDone { get; private set; }
+        public bool IsDone => state == State.Ready || state == State.Failed || state == State.Released;
         internal UniTask<bool> WhenReady => ready.Task;
 
         internal void Initialize(string path, ResourceSource source, bool asynchronous, Action<ResourceBase> onFailed)
@@ -62,7 +74,11 @@ namespace ProjectT.Addressable
                 return;
             }
 
-            IsDone = true;
+            // OnInitialize 안에서 해제·실패·재완료될 수 있어 그 결과를 덮어쓰지 않는다.
+            if (state == State.Loading)
+                state = State.Ready;
+            else if (state == State.ReleasedBeforeReady)
+                state = State.Released;
             ready.TrySetResult(true);
         }
 
@@ -84,7 +100,7 @@ namespace ProjectT.Addressable
 
         private void CompleteResource(UnityEngine.Object asset)
         {
-            if (IsDone || isReleased)
+            if (state != State.Loading)
                 return;
 
             if (asset == null)
@@ -129,7 +145,7 @@ namespace ProjectT.Addressable
 
         internal void Complete(AsyncOperationHandle handle)
         {
-            if (IsDone || isReleased)
+            if (state != State.Loading)
                 return;
 
             if (handle.Status != AsyncOperationStatus.Succeeded)
@@ -144,17 +160,17 @@ namespace ProjectT.Addressable
 
         internal void Fail(Exception exception)
         {
-            if (IsDone || isReleased)
+            if (state != State.Loading)
                 return;
 
-            IsDone = true;
+            state = State.Failed;
             error = exception;
 
             onFailed(this);
 
             try
             {
-                ReleaseHandle();
+                ReleaseHandleInternal();
             }
             catch (Exception releaseError)
             {
@@ -176,20 +192,16 @@ namespace ProjectT.Addressable
         internal void ThrowIfFailed()
         {
             // 공유 리소스의 실패는 여러 호출자에게 전달되므로 최초 실패 지점의 스택을 보존한다.
-            if (error != null)
+            if (state == State.Failed)
                 ExceptionDispatchInfo.Capture(error).Throw();
 
-            if (isReleased)
+            if (state == State.Released || state == State.ReleasedBeforeReady)
                 throw new ObjectDisposedException(Path);
         }
 
-        private void ReleaseHandle()
+        // 호출자가 상태를 먼저 바꾼 뒤 호출하므로, OnRelease 안에서 다시 해제를 요청해도 한 번만 실행된다.
+        private void ReleaseHandleInternal()
         {
-            if (isReleased)
-                return;
-
-            isReleased = true;
-
             if (Request != null)
                 Request.completed -= CompleteResource;
             Request = null;
@@ -213,7 +225,11 @@ namespace ProjectT.Addressable
         {
             try
             {
-                ReleaseHandle();
+                if (state == State.Loading || state == State.Ready)
+                {
+                    state = state == State.Loading ? State.ReleasedBeforeReady : State.Released;
+                    ReleaseHandleInternal();
+                }
             }
             finally
             {
