@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Tests.Build.props" />
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <CodePage>949</CodePage>
+    <!-- 변경 전 사본과 비교할 때 -p:SocketRoot=로 바꾼다. -->
+    <SocketRoot Condition="'$(SocketRoot)' == ''">$(ProductScript)Server\Socket\</SocketRoot>
+    <SocketDirectory>$([MSBuild]::EnsureTrailingSlash('$(SocketRoot)'))</SocketDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs;Program.cs" />
+    <Compile Include="$(SocketDirectory)Concurrent\ConcurrentObject.cs;$(SocketDirectory)Concurrent\ConcurrentPool.cs;$(SocketDirectory)Default\BytesPool.cs;$(SocketDirectory)Default\PooledBytes.cs;$(SocketDirectory)Message\MessageDefine.cs" />
+    <Compile Include="$(SocketDirectory)Stream\NetStreamUtility.cs;$(SocketDirectory)Stream\NetWriteStream.cs;$(SocketDirectory)Stream\NetWriteStreamPool.cs;$(SocketDirectory)Stream\SendPipe.cs" />
+    <Compile Include="$(ProductScript)Pool\Pool.cs;$(ProductScript)Pool\IPoolable.cs;$(ProductScript)Common\ErrorCollector.cs" />
+  </ItemGroup>
+</Project>

@@ -7,13 +7,13 @@
 PowerShell에서 저장소 루트를 기준으로 실행한다. .NET SDK와 .NET 9 reference pack/runtime이 필요하며 NuGet 복원이나 네트워크 접근은 하지 않는다.
 
 ```powershell
-& ./Tools/SocketTests/run.ps1
+dotnet run --project Tools/SocketTests
 ```
 
 변경 전 소켓 소스를 별도 복사한 경우 같은 테스트를 적용할 수 있다. `SocketRoot`는 `Concurrent`, `Default`, `Message`, `Stream` 하위 폴더를 포함하는 경로다.
 
 ```powershell
-& ./Tools/SocketTests/run.ps1 -SocketRoot 'C:/path/to/baseline/Socket'
+dotnet run --project Tools/SocketTests -p:SocketRoot='C:/path/to/baseline/Socket'
 ```
 
 두 실행은 같은 `bin`을 사용하므로 순서대로 실행한다. `Pool`, `IPoolable`, `ErrorCollector`는 두 실행 모두 현재 저장소 소스를 사용한다. 이 의존성도 바뀌는 작업이라면 비교 기준을 함께 보존해야 한다.
