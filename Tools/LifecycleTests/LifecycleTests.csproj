@@ -5,7 +5,7 @@
     <UseUnityStubs>true</UseUnityStubs>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Program.cs;ActorTests.cs;ControllerTests.cs;ErrorReporterTests.cs;PoolConsumerStubs.cs;PoolTests.cs;ResourceStubs.cs;ResourceTests.cs;SceneContractTests.cs;SceneStubs.cs;SceneTests.cs;UnityStubs.cs" />
+    <Compile Include="Program.cs;ActorTests.cs;ActorInputTests.cs;ActorSpawnTests.cs;ActorReturnTests.cs;ActorSkillTests.cs;ControllerTests.cs;ControllerDispatchTests.cs;ControllerResetFailureTests.cs;ControllerSetupTests.cs;ErrorReporterTests.cs;PoolConsumerStubs.cs;PoolTests.cs;ResourceStubs.cs;ResourceTests.cs;SceneContractTests.cs;SceneStubs.cs;SceneTests.cs;UnityStubs.cs" />
     <Compile Include="$(ProductScript)Actor\ComBaseActor.cs" />
     <Compile Include="$(ProductScript)Addressable\Resource.cs;$(ProductScript)Addressable\ResourceBase.cs;$(ProductScript)Addressable\ResourceScope.cs;$(ProductScript)Addressable\SpriteAtlasResource.cs" />
     <Compile Include="$(ProductScript)Common\ErrorCollector.cs;$(ProductScript)Common\Global.cs;$(ProductScript)Common\ErrorReport\ErrorReporter.cs;$(ProductScript)Common\ErrorReport\ErrorEvent.cs;$(ProductScript)Common\ErrorReport\IErrorSink.cs;$(ProductScript)Common\ErrorReport\FileErrorSink.cs" />
