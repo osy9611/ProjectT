@@ -8,6 +8,7 @@ $projects = @(
     'TurnGameTests/TurnGameTests.csproj',
     'UITests/UITests.csproj',
     'RefactoringTests/Downloader/Downloader.csproj',
+    'RefactoringTests/FirebaseCache/FirebaseCache.csproj',
     'RefactoringTests/UISoundTool/UISoundTool.csproj',
     'RefactoringTests/UploadFlow/UploadFlow.csproj'
 )

@@ -2,6 +2,7 @@
   <Folder Name="/RefactoringTests/">
     <Project Path="RefactoringTests/BuildFlow/BuildFlow.csproj" />
     <Project Path="RefactoringTests/Downloader/Downloader.csproj" />
+    <Project Path="RefactoringTests/FirebaseCache/FirebaseCache.csproj" />
     <Project Path="RefactoringTests/UISoundTool/UISoundTool.csproj" />
     <Project Path="RefactoringTests/UploadFlow/UploadFlow.csproj" />
   </Folder>

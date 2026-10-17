@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\Tests.Build.props" />
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <UseUniTask>true</UseUniTask>
+    <UseUnityStubs>true</UseUnityStubs>
+    <!-- 변경 전 사본과 비교할 때 -p:CachePath=로 바꾼다. -->
+    <CachePath Condition="'$(CachePath)' == ''">$(ProductScript)Addressable\FireBase\FirebaseAddressablesCache.cs</CachePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(CachePath);..\FirebaseCacheStubs.cs;..\FirebaseCacheTests.cs" />
+  </ItemGroup>
+</Project>

@@ -50,6 +50,14 @@ Compare-Object (Get-Content 'Tools/RefactoringTests/bin/downloader-before.txt') 
 
 2026-09-27 A1의 구현·검증·리뷰 결과는 [Downloader 보고서](../../reports/tests/RefactoringTests/DownloaderReport.md)에 별도로 기록한다. 기존 7개 항목의 완료 기록과 구분한다.
 
+## FirebaseCache 검증
+
+```powershell
+dotnet run --project Tools/RefactoringTests/FirebaseCache
+```
+
+실제 FirebaseAddressablesCache와 UniTask 소스를 .NET 9에서 컴파일한다. Firebase Storage URL 요청, 메인 스레드 후속 처리, Addressables 위치 조회와 FirebaseAddressablesManager의 준비 상태는 테스트가 응답 시점을 정하는 대체물이다. 단일 PreWarm 완료, gs:// 의존성 없음, 진행 중 중복 호출, 취소 후 재호출 4개 시나리오를 확인한다. `-p:CachePath=`로 변경 전 사본을 지정할 수 있다. 실제 Firebase 접속은 검증하지 않는다.
+
 ## 결과와 한계
 
 2026-09-27 실행 결과는 [리팩토링 보고서](../../reports/tests/RefactoringTests/RefactoringReport.md)의 당시 기록이다. 이후 현재 소스 대조에서 7개 항목 중 6개가 미반영 상태임을 확인했다. 현재 코드 반영 및 검증 상태는 [갱신된 작업 목록](../../ADDITIONAL_REFACTORING_ANALYSIS.md)을 따른다. 로그와 컴파일 결과는 무시되는 `bin/`에 생성한다. Unity 에디터 검증은 플레이어 빌드·모바일 프로파일링·실제 Firebase 업로드 검증을 대신하지 않는다.
