@@ -4,26 +4,6 @@ namespace Cysharp.Threading.Tasks { internal sealed class SkillTestPlaceholder {
 
 namespace UnityEngine { internal sealed class SkillTestPlaceholder { } }
 
-namespace DesignEnum
-{
-    public enum SkillType : sbyte
-    {
-        Normal = 0,
-        Melee = 1,
-        Range = 2,
-    }
-
-    public enum BuffType : sbyte
-    {
-        AddATK = 0,
-        AddDEF = 1,
-        LowATK = 2,
-        LowDEF = 3,
-        Strun = 4,
-        Dot = 5,
-    }
-}
-
 namespace DesignTable
 {
     public class skillInfo
