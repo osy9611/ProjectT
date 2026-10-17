@@ -20,6 +20,10 @@
     <Compile Include="@(UniTaskSource)" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(UseUnityStubs)' == 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\UnityStubs\*.cs" />
+  </ItemGroup>
+
   <Target Name="RequireUniTask" BeforeTargets="CoreCompile" Condition="'$(UseUniTask)' == 'true' and '@(UniTaskSource)' == ''">
     <Error Text="Open the Unity project once to restore the UniTask package." />
   </Target>
