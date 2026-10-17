@@ -39,7 +39,7 @@ static class BindingTests
             throw new Exception("Failed bind left partial registration.");
         var container = new UIContainer(new GameObject("RootContainer").transform, default);
         container.Initialize();
-        Global.Resource = new FakeResource { Prefab = new GameObject("Broken") };
+        Global.Resource = new FakeResource { Prefab = new GameObject("Broken", typeof(RectTransform)) };
         Global.Resource.Prefab.AddComponent<Probe>();
         Probe.EnterAction = ui => ui.gameObject.AddComponent<BindingProbe>().BindNames(new[] { "Missing" });
         try

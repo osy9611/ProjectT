@@ -4,82 +4,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 namespace UnityEngine
 {
-    public class Object
-    {
-        public static readonly List<Object> Destroyed = new();
-        public static GameObject Instantiate(GameObject source)
-        {
-            var go = new GameObject(source.name);
-            foreach (var component in source.Components.Values)
-            {
-                if (component is Transform) continue;
-                var copy = go.AddComponent(component.GetType());
-                for (var t = component.GetType(); t != typeof(MonoBehaviour) && t != null; t = t.BaseType)
-                    foreach (var field in t.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly))
-                        if (field.Name == "type") field.SetValue(copy, field.GetValue(component));
-            }
-            return go;
-        }
-        public static GameObject Instantiate(GameObject source, Transform parent, bool instantiateInWorldSpace) { var go = Instantiate(source); go.transform.SetParent(parent, instantiateInWorldSpace); return go; }
-        public static void Destroy(Object obj) { Destroyed.Add(obj); }
-    }
-    public class MonoBehaviour : Object
-    {
-        public GameObject gameObject;
-        public Transform transform => gameObject.transform;
-        public string name => gameObject.name;
-        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
-        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : class => gameObject.GetComponentsInChildren<T>(includeInactive);
-    }
-    public class GameObject : Object
-    {
-        public string name;
-        public Dictionary<Type, MonoBehaviour> Components = new();
-        public Transform transform;
-        public bool activeSelf = true;
-        public bool activeInHierarchy => activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
-        public GameObject(string name = "") { this.name = name; transform = new RectTransform { gameObject = this }; }
-        public MonoBehaviour AddComponent(Type type)
-        {
-            if (typeof(Transform).IsAssignableFrom(type) && type.IsInstanceOfType(transform)) return transform;
-            var c = (MonoBehaviour)Activator.CreateInstance(type, true); c.gameObject = this; Components[type] = c; return c;
-        }
-        public T AddComponent<T>() where T : MonoBehaviour => (T)AddComponent(typeof(T));
-        public T GetComponent<T>() where T : class { if (transform is T tr) return tr; foreach (var c in Components.Values) if (c is T v) return v; return null; }
-        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : class
-        {
-            var found = new List<T>();
-            CollectComponentsInChildren(this, includeInactive, found);
-            return found.ToArray();
-        }
-        private static void CollectComponentsInChildren<T>(GameObject current, bool includeInactive, List<T> found) where T : class
-        {
-            if (includeInactive || current.activeInHierarchy)
-            {
-                if (current.transform is T transform) found.Add(transform);
-                foreach (var component in current.Components.Values) if (component is T value) found.Add(value);
-            }
-            foreach (var child in current.transform.Children) CollectComponentsInChildren(child.gameObject, includeInactive, found);
-        }
-        public bool TryGetComponent<T>(out T component) where T : class { component = GetComponent<T>(); return component != null; }
-        public void SetActive(bool value) { activeSelf = value; }
-    }
-    public class Transform : MonoBehaviour
-    {
-        public Transform parent { get; private set; }
-        public readonly List<Transform> Children = new();
-        public Vector3 localPosition;
-        public int FrontChanges;
-        public void SetParent(Transform value, bool worldPositionStays) { parent?.Children.Remove(this); parent = value; parent?.Children.Add(this); }
-        public void SetSiblingIndex(int index) { }
-        public void SetAsLastSibling() { FrontChanges++; }
-        public bool IsChildOf(Transform value) { for (var t = this; t != null; t = t.parent) if (t == value) return true; return false; }
-        public Transform Find(string value) => Children.Find(child => child.name == value);
-    }
-    public class RectTransform : Transform { }
-    public struct Vector2 { public float x,y; public Vector2(float x,float y) { this.x=x;this.y=y; } }
     public struct Vector2Int { public int x,y; public Vector2Int(int x,int y) {this.x=x;this.y=y;} }
-    public struct Vector3 { public Vector3(float x,float y,float z) { } }
     public struct Color { public static Color black; }
     public enum ScreenOrientation { AutoRotation }
     public static class Screen { public static int width=1920,height=1080; public static ScreenOrientation orientation; }
@@ -89,15 +14,13 @@ namespace UnityEngine
     public class Camera : MonoBehaviour { public static Camera main; public float fieldOfView,nearClipPlane,farClipPlane,depth; public int cullingMask; public CameraClearFlags clearFlags; public Color backgroundColor; public bool useOcclusionCulling; }
     public class Canvas : MonoBehaviour { public RenderMode renderMode; public Camera worldCamera; public float planeDistance; }
     public class CanvasGroup : MonoBehaviour { public bool interactable,blocksRaycasts; }
-    public class SerializeField : Attribute { }
-    public static class Debug { public static void LogError(object value) { } }
 }
 namespace UnityEngine.UI
 {
     public class CanvasScaler : UnityEngine.MonoBehaviour { public enum ScaleMode { ScaleWithScreenSize } public ScaleMode uiScaleMode; public UnityEngine.Vector2 referenceResolution; public float matchWidthOrHeight; }
     public class GraphicRaycaster : UnityEngine.MonoBehaviour { public enum BlockingObjects { None } public bool ignoreReversedGraphics; public BlockingObjects blockingObjects; public int blockingMask; }
     public class Text : UnityEngine.MonoBehaviour { }
-    public class Selectable : UnityEngine.MonoBehaviour { public bool interactable = true, enabled = true; public bool isActiveAndEnabled => enabled && gameObject.activeInHierarchy; }
+    public class Selectable : UnityEngine.MonoBehaviour { public bool interactable = true; }
     public class Button : Selectable { }
     public class Image : UnityEngine.MonoBehaviour { }
 }

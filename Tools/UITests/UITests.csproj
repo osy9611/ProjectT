@@ -2,6 +2,7 @@
   <Import Project="..\Tests.Build.props" />
   <PropertyGroup>
     <UseUniTask>true</UseUniTask>
+    <UseUnityStubs>true</UseUnityStubs>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Stubs.cs;Program.cs;InputTests.cs;BindingTests.cs" />

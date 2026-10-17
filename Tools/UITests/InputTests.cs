@@ -224,7 +224,7 @@ static class InputTests
 
     private static GameObject CreateProbePrefab()
     {
-        var prefab = new GameObject("Probe");
+        var prefab = new GameObject("Probe", typeof(RectTransform));
         var probe = prefab.AddComponent<Probe>();
         typeof(UIBase).GetField("type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(probe, eUIContainerType.Static);
         return prefab;

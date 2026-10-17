@@ -22,7 +22,7 @@ static class Program
     static readonly UIDefine.eUIType Key = UIDefine.eUIType.Test;
     static GameObject Prefab(eUIContainerType type = eUIContainerType.Static)
     {
-        var go = new GameObject("Probe");
+        var go = new GameObject("Probe", typeof(RectTransform));
         var probe = go.AddComponent<Probe>();
         typeof(UIBase).GetField("type",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(probe,type);
         return go;
