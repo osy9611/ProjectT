@@ -1,0 +1,26 @@
+<Project>
+  <!-- Directory.Build.props로 두면 DesignGenerator 프로젝트까지 가져가므로 테스트 csproj가 명시적으로 Import한다. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProductScript>$(MSBuildThisFileDirectory)..\Client\Assets\Script\</ProductScript>
+    <UniTaskRuntime>$(MSBuildThisFileDirectory)..\Client\Library\PackageCache\com.cysharp.unitask@*\Runtime\</UniTaskRuntime>
+  </PropertyGroup>
+
+  <!-- PlayerLoop·UnityEngine에 의존하는 UniTask 소스는 테스트 스텁으로 대체할 수 없어 제외한다. -->
+  <ItemGroup Condition="'$(UseUniTask)' == 'true'">
+    <UniTaskSource Include="$(UniTaskRuntime)*.cs" Exclude="$(UniTaskRuntime)Unity*.cs;$(UniTaskRuntime)CancellationTokenSourceExtensions.cs;$(UniTaskRuntime)EnumeratorAsyncExtensions.cs;$(UniTaskRuntime)PlayerLoopHelper.cs;$(UniTaskRuntime)PlayerLoopTimer.cs;$(UniTaskRuntime)TimeoutController.cs;$(UniTaskRuntime)UniTask.Delay.cs;$(UniTaskRuntime)UniTask.Bridge.cs;$(UniTaskRuntime)UniTask.Run.cs;$(UniTaskRuntime)UniTask.WaitUntil.cs;$(UniTaskRuntime)UniTaskSynchronizationContext.cs" />
+    <UniTaskSource Include="$(UniTaskRuntime)CompilerServices\*.cs" />
+    <UniTaskSource Include="$(UniTaskRuntime)Internal\*.cs" Exclude="$(UniTaskRuntime)Internal\ContinuationQueue.cs;$(UniTaskRuntime)Internal\PlayerLoopRunner.cs;$(UniTaskRuntime)Internal\UnityEqualityComparer.cs;$(UniTaskRuntime)Internal\UnityWebRequestExtensions.cs;$(UniTaskRuntime)Internal\DiagnosticsExtensions.cs" />
+    <Compile Include="@(UniTaskSource)" />
+  </ItemGroup>
+
+  <Target Name="RequireUniTask" BeforeTargets="CoreCompile" Condition="'$(UseUniTask)' == 'true' and '@(UniTaskSource)' == ''">
+    <Error Text="Open the Unity project once to restore the UniTask package." />
+  </Target>
+</Project>
