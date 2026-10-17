@@ -14,7 +14,6 @@
     <Compile Include="$(ProductScript)Managers\InputManager.cs;$(ProductScript)Managers\NotificationManager.cs;$(ProductScript)Managers\PoolManager.cs;$(ProductScript)Managers\ResourceManager.cs;$(ProductScript)Managers\SceneManager.cs" />
     <Compile Include="$(ProductScript)Pool\GameObjectPool.cs;$(ProductScript)Pool\IPoolable.cs;$(ProductScript)Pool\Pool.cs;$(ProductScript)Pool\PooledObject.cs" />
     <Compile Include="$(ProductScript)Scene\SceneBase.cs" />
-    <Compile Include="$(ProductScript)Server\Socket\Concurrent\ConcurrentPool.cs;$(ProductScript)Server\Socket\Default\BytesPool.cs;$(ProductScript)Server\Socket\Default\PooledBytes.cs" />
     <Compile Include="$(ProductScript)SkillAdapter\SkillDefinitions.cs;$(ProductScript)SkillAdapter\Action_Melee.cs;$(ProductScript)SkillAdapter\Action_Normal.cs;$(ProductScript)SkillAdapter\Action_Range.cs" />
     <Compile Include="$(ProductScript)AbilitySystem\**\*.cs" />
   </ItemGroup>

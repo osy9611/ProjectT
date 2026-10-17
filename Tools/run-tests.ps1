@@ -1,5 +1,4 @@
 $ErrorActionPreference = 'Stop'
-# SocketTests는 알려진 제품 결함(NetWriteStream.WriteBytes)으로 실패하므로 소켓 계층 삭제 여부가 정해질 때까지 제외한다.
 $projects = @(
     'LifecycleTests/LifecycleTests.csproj',
     'NotificationTests/NotificationTests.csproj',

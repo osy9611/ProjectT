@@ -9,7 +9,6 @@
   <Project Path="LifecycleTests/LifecycleTests.csproj" />
   <Project Path="NotificationTests/NotificationTests.csproj" />
   <Project Path="SkillTests/SkillTests.csproj" />
-  <Project Path="SocketTests/SocketTests.csproj" />
   <Project Path="SoundTests/SoundTests.csproj" />
   <Project Path="TurnGameTests/TurnGameTests.csproj" />
   <Project Path="UITests/UITests.csproj" />

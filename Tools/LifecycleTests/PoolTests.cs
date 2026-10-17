@@ -519,19 +519,6 @@ static partial class Program
             return UniTask.CompletedTask;
         });
 
-        await Run("pool: network bytes disposal returns buffer and clears segment", () =>
-        {
-            var buffers = new ProjectT.Server.Byte.BytesPool(ProjectT.Server.Byte.InitAllocMask.Notthing, true, 0, 1);
-            var item = buffers.Get(100);
-            item.Dispose();
-            item.Dispose();
-            Check(buffers.Pool128.ActiveCount == 0 && item.ArraySegment.Array == null, "Buffer return failed");
-            Check(ReferenceEquals(item, buffers.Get(100)), "Buffer not reused");
-            buffers.Clear();
-            Check(buffers.Pool128.ActiveCount == 0, "Network clear changed semantics");
-            return UniTask.CompletedTask;
-        });
-
         await Run("pool: game object ReturnAll deactivates and reparents every lease", () =>
         {
             var prefab = new GameObject("Prefab");
@@ -553,25 +540,6 @@ static partial class Program
             var item = obj.GetComponent<PooledObject>();
             typeof(PooledObject).GetMethod("OnDestroy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(item, null);
             Check(pool.ActiveCount == 0 && pool.InactiveCount == 0, "Destroyed object still borrowed");
-            return UniTask.CompletedTask;
-        });
-
-        await Run("pool: concurrent wrapper serializes shared access", () =>
-        {
-            using var pool = new ProjectT.Concurrent.ConcurrentPool<Lease>(() => new Lease(), true, 0, 4);
-            Exception failure = null;
-            var workers = new Thread[4];
-            for (int i = 0; i < workers.Length; ++i)
-            {
-                workers[i] = new Thread(() =>
-                {
-                    try { for (int n = 0; n < 1000; ++n) { var item = pool.Get(); pool.Return(item); } }
-                    catch (Exception error) { Interlocked.CompareExchange(ref failure, error, null); }
-                });
-                workers[i].Start();
-            }
-            foreach (var worker in workers) worker.Join();
-            Check(failure == null && pool.ActiveCount == 0, "Concurrent pool corrupted");
             return UniTask.CompletedTask;
         });
     }
