@@ -652,7 +652,7 @@ static partial class Program
             var asset = new InputActionAsset();
             var host = StartInput(asset);
             var module = UIModule(Global.Input);
-            Check(module.gameObject.GetComponent<UnityEngine.EventSystems.EventSystem>() != null && module.gameObject.Active, "EventSystem was not created with the module.");
+            Check(module.gameObject.GetComponent<UnityEngine.EventSystems.EventSystem>() != null && module.gameObject.activeSelf, "EventSystem was not created with the module.");
             Check(ReferenceEquals(module.gameObject.transform.parent, Global.Input.RootObject), "EventSystem is not owned by the InputManager root.");
             Check(ReferenceEquals(module.actionsAsset, asset), "UI module does not share the project-wide asset.");
             Check(!module.deselectOnBackgroundClick, "Background clicks can clear pad selection.");

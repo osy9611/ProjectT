@@ -121,7 +121,7 @@ static partial class Program
     static bool IsReturnedAtStop<T>(PoolScene<T> scene, int returns = 1)
     {
         var item = scene.Item;
-        return scene.State == SceneState.Stopped && item.Returns == returns && !item.gameObject.Active && UnityEngine.Object.Destroyed.Contains(item.gameObject);
+        return scene.State == SceneState.Stopped && item.Returns == returns && !item.gameObject.activeSelf && UnityEngine.Object.Destroyed.Contains(item.gameObject);
     }
 
     static bool HasStopAndReturnErrors(Exception error)
@@ -516,7 +516,7 @@ static partial class Program
             Check(native.isLoaded && !scope.Token.IsCancellationRequested, "Scene pool cleanup waited for unload or scope disposal");
             await Finish(transition);
             Check(scope.Token.IsCancellationRequested && previous.Item.Returns == 1, "Scope disposal returned the cleaned pool again");
-            Check(PoolScene<B>.Last.Item.Returns == 0 && PoolScene<B>.Last.Item.gameObject.Active, "Next scene pool affected");
+            Check(PoolScene<B>.Last.Item.Returns == 0 && PoolScene<B>.Last.Item.gameObject.activeSelf, "Next scene pool affected");
             host.Shutdown();
             Check(host.ShutdownErrors.Count == 0, "Shutdown repeated scene pool cleanup");
         });
@@ -532,7 +532,7 @@ static partial class Program
             var closing = manager.UnloadAdditiveAsync<PoolScene<B>>();
             Check(IsReturnedAtStop(additive), "Additive pool object kept running after stop");
             Check(native.isLoaded && !scope.Token.IsCancellationRequested, "Additive pool cleanup waited for unload or scope disposal");
-            Check(PoolScene<A>.Last.Item.Returns == 0 && PoolScene<A>.Last.Item.gameObject.Active, "Primary scene pool affected");
+            Check(PoolScene<A>.Last.Item.Returns == 0 && PoolScene<A>.Last.Item.gameObject.activeSelf, "Primary scene pool affected");
             await Finish(closing);
             Check(scope.Token.IsCancellationRequested && additive.Item.Returns == 1, "Scope disposal returned the cleaned pool again");
             host.Shutdown();

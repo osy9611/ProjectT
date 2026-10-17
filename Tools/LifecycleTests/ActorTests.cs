@@ -191,7 +191,7 @@ static partial class Program
         }
         finally
         {
-            if (!actor.gameObject.Active)
+            if (!actor.gameObject.activeSelf)
                 ActorMessage(actor, "OnDisable");
         }
     }
@@ -237,7 +237,7 @@ static partial class Program
         string trace = TraceOf(actor);
         var caught = CaptureSync(() => ReturnActor(pool, actor));
         Check(IsRejection(caught) && TraceOf(actor) == trace, "Faulted actor was returned or cleaned up again");
-        Check(pool.ActiveCount == 1 && pool.InactiveCount == 0 && actor.gameObject.Active && actor.transform.parent != pool.Root, "Rejected return changed pool tracking or deactivated the object");
+        Check(pool.ActiveCount == 1 && pool.InactiveCount == 0 && actor.gameObject.activeSelf && actor.transform.parent != pool.Root, "Rejected return changed pool tracking or deactivated the object");
     }
 
     // Dispose calls OnReturn on borrowed items, so the rejection is aggregated at the pool boundary while the object is still destroyed.
@@ -839,7 +839,7 @@ static partial class Program
             Check(TraceOf(actor) == "init,enter,enable", "Steps after the reset failure still ran");
             Check(!IsRegistered(actor.Input) && !IsRegistered(later), "Reset failure kept input attached");
             Check(ReferenceEquals(later.Actor, actor) && ReferenceEquals(actor.Input.Actor, actor), "Failed return dropped component lifetime registrations");
-            Check(pool.ActiveCount == 1 && actor.gameObject.Active, "Failed return changed pool tracking or deactivated the object");
+            Check(pool.ActiveCount == 1 && actor.gameObject.activeSelf, "Failed return changed pool tracking or deactivated the object");
             CheckQuarantined(actor);
             CheckReturnRejected(pool, actor);
             DisposeFaultedPool(pool, actor);
@@ -890,7 +890,7 @@ static partial class Program
             Check(ReferenceEquals(caught, releaseError), "Return wrapped or lost the hook error");
             Check(TraceOf(actor) == "init,enter,enable,disable,release", "Return skipped a step before the release hook");
             Check(!IsRegistered(actor.Input) && !Dispatches(actor) && ReferenceEquals(actor.Input.Actor, actor), "Hook failure left input attached or dropped the registration");
-            Check(pool.ActiveCount == 1 && pool.InactiveCount == 0 && actor.gameObject.Active && actor.transform.parent != pool.Root, "Failed return changed pool tracking or deactivated the object");
+            Check(pool.ActiveCount == 1 && pool.InactiveCount == 0 && actor.gameObject.activeSelf && actor.transform.parent != pool.Root, "Failed return changed pool tracking or deactivated the object");
             actor.ReleasedAction = null;
             CheckQuarantined(actor);
             CheckReturnRejected(pool, actor);
@@ -923,7 +923,7 @@ static partial class Program
             Check(TraceOf(actor) == "init,enter,enable", "Spawn did not enter and enable the actor");
             ReturnActor(pool, actor);
             Check(TraceOf(actor) == "init,enter,enable,disable,release", "Return did not disable before a single release");
-            Check(!actor.gameObject.Active && !IsRegistered(actor.Input) && ReferenceEquals(actor.Input.Actor, actor), "Return kept the object active, kept input attached or dropped the registration");
+            Check(!actor.gameObject.activeSelf && !IsRegistered(actor.Input) && ReferenceEquals(actor.Input.Actor, actor), "Return kept the object active, kept input attached or dropped the registration");
             Check(pool.ActiveCount == 0 && pool.InactiveCount == 1, "Return did not move the object to the inactive list");
         });
 
@@ -937,7 +937,7 @@ static partial class Program
             actor.Spawn();
             Check(actor.Count("enter") == 2 && actor.Releases == 1, "Return during enter ended the spawn");
             Check(pool.ActiveCount == 1 && pool.InactiveCount == 0, "Return during enter moved the object to the inactive list");
-            Check(actor.gameObject.Active && actor.transform.parent != pool.Root && actor.Count("enable") == 2, "Rejected return deactivated the object");
+            Check(actor.gameObject.activeSelf && actor.transform.parent != pool.Root && actor.Count("enable") == 2, "Rejected return deactivated the object");
             actor.EnterAction = null;
             ReturnActor(pool, actor);
             Check(actor.Releases == 2 && pool.ActiveCount == 0 && pool.InactiveCount == 1, "Later return did not end the spawn");
@@ -953,7 +953,7 @@ static partial class Program
             actor.enabled = false;
             ActorMessage(actor, "OnDisable");
             Check(IsRejection(caught), "Return during plain disable was not rejected");
-            Check(TraceOf(actor) == "init,enter,enable,disable" && pool.ActiveCount == 1 && actor.gameObject.Active, "Rejected return ended the spawn, skipped the disable hook or changed pool tracking");
+            Check(TraceOf(actor) == "init,enter,enable,disable" && pool.ActiveCount == 1 && actor.gameObject.activeSelf, "Rejected return ended the spawn, skipped the disable hook or changed pool tracking");
             actor.enabled = true;
             ActorMessage(actor, "OnEnable");
             Check(actor.Count("enable") == 2 && Dispatches(actor), "Actor did not keep the spawn after the rejected return");
@@ -970,7 +970,7 @@ static partial class Program
             actor.enabled = false;
             ActorMessage(actor, "OnDisable");
             Check(IsRejection(caught), "Return from the disable hook was not rejected");
-            Check(TraceOf(actor) == "init,enter,enable,disable" && pool.ActiveCount == 1 && actor.gameObject.Active, "Rejected return ended the spawn or changed pool tracking");
+            Check(TraceOf(actor) == "init,enter,enable,disable" && pool.ActiveCount == 1 && actor.gameObject.activeSelf, "Rejected return ended the spawn or changed pool tracking");
             actor.DisabledAction = null;
             actor.enabled = true;
             ActorMessage(actor, "OnEnable");
@@ -1337,7 +1337,7 @@ static partial class Program
             actor.enabled = false;
             ActorMessage(actor, "OnDisable");
             Check(IsRejection(caught), "Return from a skill cancel was not rejected");
-            Check(TraceOf(actor) == "init,enter,enable,skill-activate,skill-cancel,disable" && pool.ActiveCount == 1 && actor.gameObject.Active, "Rejected return ended the spawn, skipped the disable hook or changed pool tracking");
+            Check(TraceOf(actor) == "init,enter,enable,skill-activate,skill-cancel,disable" && pool.ActiveCount == 1 && actor.gameObject.activeSelf, "Rejected return ended the spawn, skipped the disable hook or changed pool tracking");
             TestSkillAction.CancelAction = null;
             actor.enabled = true;
             ActorMessage(actor, "OnEnable");
@@ -1661,7 +1661,7 @@ static partial class Program
             var error = await Capture(() => Finish(manager.TransitionAsync<FlowScene<B>>("B", LoadSceneMode.Single)));
             var errors = error is AggregateException aggregate ? new List<Exception>(aggregate.Flatten().InnerExceptions) : new List<Exception> { error };
             Check(errors.Count == 1 && errors[0] is InvalidOperationException, "Closed scope lease did not reach the close boundary");
-            Check(actor.Releases == 1 && !IsRegistered(actor.Input) && !actor.gameObject.Active && UnityEngine.Object.Destroyed.Contains(actor.gameObject), "Scene actor stayed active");
+            Check(actor.Releases == 1 && !IsRegistered(actor.Input) && !actor.gameObject.activeSelf && UnityEngine.Object.Destroyed.Contains(actor.gameObject), "Scene actor stayed active");
             Check(PoolCount(Global.Pool, "gameObjectPools") == pools - 1 && PoolCount(Global.Pool, "closedScopes") == 1, "Rejected lease left a pool or the scope was not closed");
             actor.ReleasedAction = null;
             await Finish(manager.TransitionAsync<FlowScene<B>>("B", LoadSceneMode.Single));
@@ -1692,7 +1692,7 @@ static partial class Program
             }
             Check(ReferenceEquals(caught, failure), "Object return wrapped or lost the callback error");
             Check(failing.Returns == 1 && later.Returns == 0, "Later callback ran after the failure");
-            Check(obj.Active && obj.transform.parent != pool.Root && pool.ActiveCount == 1 && pool.InactiveCount == 0, "Failed return deactivated the object or changed tracking");
+            Check(obj.activeSelf && obj.transform.parent != pool.Root && pool.ActiveCount == 1 && pool.InactiveCount == 0, "Failed return deactivated the object or changed tracking");
             failing.Failure = null;
             pool.Dispose();
             Check(failing.Returns == 2 && later.Returns == 1 && UnityEngine.Object.Destroyed.Contains(obj) && pool.ActiveCount == 0, "Dispose skipped callbacks or destruction");

@@ -269,7 +269,7 @@ static partial class Program
             var component = obj.GetComponent<PoolComponent>();
             Check(component.Gets == 1 && component.ParentAtGet == parent, "Get hook missing or parent late");
             manager.Return(obj);
-            Check(component.Returns == 1 && !obj.Active, "Return hook or deactivation missing");
+            Check(component.Returns == 1 && !obj.activeSelf, "Return hook or deactivation missing");
             manager.Get(prefab);
             Check(component.Gets == 2, "Component not reused");
             host.Shutdown();
@@ -443,8 +443,8 @@ static partial class Program
             var item = manager.Get(prefab, null, scope).GetComponent<PoolComponent>();
             var kept = manager.Get(prefab, null, other).GetComponent<PoolComponent>();
             manager.ClearScope(scope);
-            Check(item.Returns == 1 && !item.gameObject.Active && UnityEngine.Object.Destroyed.Contains(item.gameObject), "Scope clear left the borrowed object running");
-            Check(kept.Returns == 0 && kept.gameObject.Active, "Scope clear crossed ownership");
+            Check(item.Returns == 1 && !item.gameObject.activeSelf && UnityEngine.Object.Destroyed.Contains(item.gameObject), "Scope clear left the borrowed object running");
+            Check(kept.Returns == 0 && kept.gameObject.activeSelf, "Scope clear crossed ownership");
             scope.Dispose();
             manager.ClearScope(scope);
             Check(item.Returns == 1, "Scope disposal repeated cleanup");
@@ -529,7 +529,7 @@ static partial class Program
             var a = pool.Get(null);
             var b = pool.Get(null);
             pool.ReturnAll();
-            Check(pool.ActiveCount == 0 && pool.InactiveCount == 2 && !a.Active && !b.Active, "ReturnAll left active objects");
+            Check(pool.ActiveCount == 0 && pool.InactiveCount == 2 && !a.activeSelf && !b.activeSelf, "ReturnAll left active objects");
             Check(a.transform.parent == pool.Root && a.GetComponent<PoolComponent>().Returns == 1, "ReturnAll skipped cleanup");
             return UniTask.CompletedTask;
         });

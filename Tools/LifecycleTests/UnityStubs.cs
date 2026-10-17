@@ -1,139 +1,4 @@
 using System.Collections.Generic;
-// Only the engine boundary is substituted. Tests compile the production lifecycle sources.
-// These stubs cannot validate Unity object destruction timing or PlayerLoop callbacks.
-namespace UnityEngine
-{
-    public class Object
-    {
-        public static readonly List<Object> Destroyed = new();
-        public static void DontDestroyOnLoad(Object value) { }
-        public static T[] FindObjectsByType<T>(FindObjectsSortMode mode) => System.Array.Empty<T>();
-        public static T Instantiate<T>(T value) where T : Object
-        {
-            if (value is UnityEngine.InputSystem.InputActionAsset inputAsset) return (T)(Object)inputAsset.Clone();
-            throw new System.NotSupportedException();
-        }
-        public static GameObject Instantiate(GameObject value, Transform parent, bool worldPositionStays)
-        {
-            var clone = new GameObject(value.name);
-            clone.transform.SetParent(parent, false);
-            foreach (var type in value.Components.Keys) clone.Attach(System.Activator.CreateInstance(type, true));
-            return clone;
-        }
-        public static void Destroy(Object value) => Destroyed.Add(value);
-    }
-    public class MonoBehaviour : Object
-    {
-        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
-        public bool isActiveAndEnabled => enabled && gameObject.Active;
-
-        public T[] GetComponentsInChildren<T>(bool includeInactive) where T : class
-        {
-            var result = new List<T>();
-            foreach (var component in gameObject.Components.Values) if (component is T item) result.Add(item);
-            return result.ToArray();
-        }
-        public void StopAllCoroutines() { }
-        public bool enabled = true;
-        public GameObject gameObject;
-        public Transform transform => gameObject.transform;
-    }
-    public static class Debug
-    {
-        public static readonly List<System.Exception> Errors = new();
-        public static void Log(object message) { }
-        public static void LogWarning(object message) { }
-        // Unity invokes logMessageReceivedThreaded synchronously on the logging thread.
-        public static void LogError(object message)
-        {
-            Errors.Add(new System.Exception(message.ToString()));
-            Application.RaiseLog(message.ToString(), "UnityEngine.Debug:LogError (object)\n" + UnityStackTrace(new System.Diagnostics.StackTrace(1)), LogType.Error);
-        }
-        // Unity formats frames as "Namespace.Type:Method (args)"; source locations are omitted here.
-        public static string UnityStackTrace(System.Diagnostics.StackTrace trace)
-        {
-            var builder = new System.Text.StringBuilder();
-            foreach (var frame in trace.GetFrames())
-            {
-                var method = frame.GetMethod();
-                if (method?.DeclaringType != null)
-                    builder.Append(method.DeclaringType.FullName).Append(':').Append(method.Name).Append(" ()\n");
-            }
-            return builder.ToString();
-        }
-        public static void LogException(System.Exception error)
-        {
-            Errors.Add(error);
-            Application.RaiseLog(error.GetType().Name + ": " + error.Message, error.StackTrace ?? "", LogType.Exception);
-        }
-    }
-    public sealed class GameObject : Object
-    {
-        public string name;
-        public T AddComponent<T>() where T : MonoBehaviour => (T)Attach(System.Activator.CreateInstance(typeof(T), true));
-        public readonly Dictionary<System.Type, object> Components = new();
-        internal object Attach(object component) { ((MonoBehaviour)component).gameObject = this; Components[component.GetType()] = component; return component; }
-        public T GetComponent<T>() where T : class
-        {
-            foreach (var value in Components.Values) if (value is T found) return found;
-            return null;
-        }
-        public Object GetComponent(System.Type type)
-        {
-            foreach (var value in Components.Values) if (type.IsInstanceOfType(value)) return (Object)value;
-            return null;
-        }
-        public Transform transform { get; }
-        public bool Active { get; private set; } = true;
-        public bool activeInHierarchy => Active;
-        public GameObject(string name, params System.Type[] types)
-        {
-            this.name = name;
-            transform = System.Array.IndexOf(types, typeof(RectTransform)) >= 0 ? new RectTransform(this) : new Transform(this);
-        }
-        public void SetActive(bool value) => Active = value;
-    }
-    public class Transform : Object
-    {
-        public GameObject gameObject { get; }
-        public Transform(GameObject owner) { gameObject = owner; }
-        public Transform parent { get; set; }
-        public void SetParent(Transform parent, bool worldPositionStays) { this.parent = parent; }
-    }
-}
-
-namespace UnityEngine
-{
-    public sealed class RequireComponent : System.Attribute
-    {
-        public RequireComponent(System.Type type) { }
-    }
-
-    public sealed class DefaultExecutionOrder : System.Attribute
-    {
-        public DefaultExecutionOrder(int order) { }
-    }
-
-    public sealed class RuntimeInitializeOnLoadMethodAttribute : System.Attribute
-    {
-        public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType type) { }
-    }
-
-    public enum RuntimeInitializeLoadType { SubsystemRegistration, AfterSceneLoad }
-    public enum FindObjectsSortMode { None }
-    public enum RuntimePlatform { WindowsPlayer, Switch }
-    public enum LogType { Error, Assert, Warning, Log, Exception }
-    public static class Application
-    {
-        public static bool isFocused = true; public static RuntimePlatform platform = RuntimePlatform.WindowsPlayer; public static bool isConsolePlatform;
-        public static string persistentDataPath = "";
-        public delegate void LogCallback(string condition, string stackTrace, LogType type);
-        public static event LogCallback logMessageReceivedThreaded;
-        public static int LogSubscriberCount => logMessageReceivedThreaded?.GetInvocationList().Length ?? 0;
-        public static void RaiseLog(string condition, string stackTrace, LogType type) => logMessageReceivedThreaded?.Invoke(condition, stackTrace, type);
-    }
-    public static class Time { public static float deltaTime = 0.016f, fixedDeltaTime = 0.02f; public static int frameCount; }
-}
 
 namespace ProjectT.Pivot
 {
@@ -142,12 +7,6 @@ namespace ProjectT.Pivot
 
 namespace UnityEngine
 {
-    public struct Vector2 { public static Vector2 zero, one; }
-    public sealed class RectTransform : Transform
-    {
-        public Vector2 anchorMin, anchorMax, offsetMin, offsetMax;
-        public RectTransform(GameObject owner) : base(owner) { }
-    }
     public sealed class CanvasGroup : MonoBehaviour { public bool interactable, blocksRaycasts; }
     public sealed class AudioClip : Object { }
     public sealed class AudioSource : MonoBehaviour
@@ -236,7 +95,7 @@ namespace UnityEngine.InputSystem
         public static void NotifyActionChange(object target, InputActionChange change) => onActionChange?.Invoke(target, change);
     }
 
-    public class InputActionAsset : UnityEngine.Object, IInputActionCollection
+    public class InputActionAsset : UnityEngine.Object, IInputActionCollection, System.ICloneable
     {
         public InputActionMap Map = new();
         public IReadOnlyList<InputDevice> devices { get; set; }
@@ -276,6 +135,7 @@ namespace UnityEngine.InputSystem
             }
         }
 
+        object System.ICloneable.Clone() => Clone();
         public InputActionAsset Clone()
         {
             var clone = new InputActionAsset { Map = CloneMap(Map) };

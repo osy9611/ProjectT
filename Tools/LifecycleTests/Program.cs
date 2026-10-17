@@ -241,7 +241,7 @@ static partial class Program
             Check(string.Join(",", trace) == "start:A,start:B,stop:B:Normal,stop:A:Normal", "Incorrect lifecycle order.");
             Check(a.Stops == 1 && b.Stops == 1 && host.ShutdownErrors.Count == 0, "Repeated/failed cleanup.");
             Check(UnityEngine.Object.Destroyed.Count == 2 && UnityEngine.Object.Destroyed.All(o => o is GameObject), "Wrong destruction target.");
-            Check(!a.Owned.Active && a.RootObject == null, "Root remains usable.");
+            Check(!a.Owned.activeSelf && a.RootObject == null, "Root remains usable.");
         });
         await Run("partial startup failure rolls back failing manager and preserves error", async () =>
         {
