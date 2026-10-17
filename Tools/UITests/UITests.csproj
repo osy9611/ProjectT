@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Tests.Build.props" />
+  <PropertyGroup>
+    <UseUniTask>true</UseUniTask>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Stubs.cs;Program.cs;InputTests.cs;BindingTests.cs" />
+    <Compile Include="$(ProductScript)UGUI\UI\UIEventHandler.cs;$(ProductScript)UGUI\UI\UIContainer.cs;$(ProductScript)UGUI\UI\UIBase.cs;$(ProductScript)UGUI\UI\UIDefine.cs" />
+    <Compile Include="$(ProductScript)Managers\UIManager.cs;$(ProductScript)Common\ErrorCollector.cs" />
+  </ItemGroup>
+</Project>

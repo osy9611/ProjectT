@@ -37,7 +37,7 @@ Dynamic/System/HUD는 정적 화면 스택에 포함하지 않는다. 표시 시
 
 ## 검증
 
-프로젝트 루트에서 `./Tools/UITests/run.ps1` 실행. .NET 9 참조 팩과 Unity가 복원한 UniTask 패키지가 필요하다.
+프로젝트 루트에서 `dotnet run --project Tools/UITests` 실행. .NET 9 참조 팩과 Unity가 복원한 UniTask 패키지가 필요하다.
 
 실제 UIManager/UIContainer/UIBase/UIEventHandler/UIDefine/ErrorCollector 소스와 UniTask를 컴파일한다. Input System의 장치 및 Unity 엔진 동작은 스텁으로 대체한다. 엔진, 리소스 로딩, ManagerBase는 테스트 경계로 대체한다. 기존 LifecycleTests는 UI를 스텁으로 검사하므로 UI 전용 실행기를 추가했다. 생산 코드에 새 매니저나 공용 계층은 추가하지 않았다.
 
@@ -53,7 +53,7 @@ UIContainer.SetInputAllowed는 CanvasGroup과 자식 UIEventHandler의 입력 �
 
 UIEventHandler는 포인터 ID와 버튼별 Down을 추적한다. 차단 또는 OnDisable에서는 진행 중 입력과 클릭 대기를 지우고 가상 컨트롤을 기본값으로 초기화한다. 차단 해제 뒤에는 새 Down부터 받으며 기존 Drag/Up/Click을 재생하지 않는다. 취소는 사용자 Up/Click 액션을 호출하지 않는다. 게임별 드래그 시각 효과 등 별도 상태는 화면 수명/취소 정책에서 정리해야 한다.
 
-기존 26개 테스트에 외부 파괴 복원, 복원 전 정리 순서, 중첩 OnShow 실패, 정리/복원 복수 오류 보존 등의 7개를 추가했다. 추가 입력 테스트는 실제 UIEventHandler를 컴파일해 포인터 순서, 차단/해제, 비활성화, 멀티 포인터/버튼 및 컨테이너 연동을 확인한다. 구체적인 최신 개수는 run.ps1 출력에서 확인한다.
+기존 26개 테스트에 외부 파괴 복원, 복원 전 정리 순서, 중첩 OnShow 실패, 정리/복원 복수 오류 보존 등의 7개를 추가했다. 추가 입력 테스트는 실제 UIEventHandler를 컴파일해 포인터 순서, 차단/해제, 비활성화, 멀티 포인터/버튼 및 컨테이너 연동을 확인한다. 구체적인 최신 개수는 실행 출력에서 확인한다.
 
 실제 Unity EventSystem, 지연 Destroy와 OnEnable/OnDisable 콜백 타이밍은 Play Mode에서 추가로 확인해야 한다.
 
@@ -65,7 +65,7 @@ Bind는 필수 참조 바인딩이다. enum은 0부터 연속한 고유 값이�
 
 화면 전환 로직은 UIBase의 OnShow/OnHide 훅에 둔다. Unity OnEnable/OnDisable에서 Show/Hide/Remove를 재진입시키는 사용은 현재 지원 계약에 포함하지 않는다. 해당 콜백에서 직접 화면을 전환해야 한다면 별도의 전환 상태 설계와 엔진 회귀 검증이 필요하다.
 
-`./Tools/UITests/run.ps1`은 현재 수명·스택 33개, 입력 9개 시나리오 및 바인딩 검증 묶음을 실행한다. 바인딩 검증은 enum 오류, 필수 참조, 중복 그룹, 범위 오류, 실패 후 재시도와 생성 롤백을 확인한다.
+`dotnet run --project Tools/UITests`는 현재 수명·스택 33개, 입력 9개 시나리오 및 바인딩 검증 묶음을 실행한다. 바인딩 검증은 enum 오류, 필수 참조, 중복 그룹, 범위 오류, 실패 후 재시도와 생성 롤백을 확인한다.
 
 ## Unity Play Mode smoke 실행
 
