@@ -26,7 +26,7 @@ namespace ProjectT.Pivot
         public bool SetParent => setParent;
 
         [SerializeField] private Vector3 posOffset;
-        public Vector3 PosOffset;
+        public Vector3 PosOffset => posOffset;
 
         [SerializeField] private Vector3 rotOffset;
         public Vector3 RotOffset => rotOffset;
