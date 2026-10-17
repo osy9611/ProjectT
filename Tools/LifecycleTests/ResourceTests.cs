@@ -264,6 +264,18 @@ static partial class Program
             return UniTask.CompletedTask;
         });
 
+        await Run("resources: a resource released with its last scope stays done and rejects reads as disposed", async () =>
+        {
+            var resource = StartResources(out var host);
+            var scope = resource.CreateScope();
+            var loaded = resource.LoadResource<ProjectT.Addressable.Resource<Asset>>("held", scope);
+            loaded.GetResult<Asset>();
+            scope.Dispose();
+            await ThrowsSync<ObjectDisposedException>(() => loaded.GetResult<Asset>());
+            Check(loaded.IsDone, "Released resource stopped reporting completion");
+            host.Shutdown();
+        });
+
         await Run("resources: cache hit can add app ownership", () =>
         {
             var resource = StartResources(out var host);
