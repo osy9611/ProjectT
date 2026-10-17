@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\Tests.Build.props" />
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <UseUniTask>true</UseUniTask>
+    <!-- 변경 전 사본과 비교할 때 -p:DownloaderPath=로 바꾼다. -->
+    <DownloaderPath Condition="'$(DownloaderPath)' == ''">$(ProductScript)Addressable\Downloader.cs</DownloaderPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(DownloaderPath);..\DownloaderStubs.cs;..\DownloaderTests.cs" />
+  </ItemGroup>
+</Project>

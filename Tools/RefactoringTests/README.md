@@ -5,16 +5,13 @@
 저장소 루트 `D:\Project\ProjectT`에서 PowerShell로 실행한다.
 
 ```powershell
-& Tools/NotificationTests/run.ps1
-& Tools/SoundTests/run.ps1
-& Tools/LifecycleTests/run.ps1
-& Tools/RefactoringTests/run-build.ps1
+& Tools/run-tests.ps1
 & Tools/RefactoringTests/run-unity.ps1
 ```
 
 `run-build.ps1`은 실제 BuildMgr 소스를 .NET 9에서 컴파일한다. Addressables, FirebaseUploader, Unity BuildPipeline, EditorApplication.Exit는 호출을 기록하는 대체물이다. 실제 업로드·플레이어 빌드·서버 파일 삭제는 수행하지 않는다. `PreBuild`의 정상/실패/대기 6개와 CLI 인자 12개(미지원 타깃·값 누락·잘못된 빌드 번호·중복·iOS 등)에서 실행 순서, 버전 적용, 단계 시간 로그, 종료 코드를 확인한다.
 
-`run-upload.ps1`은 실제 FirebaseUploader 소스를 Firebase Storage 대체물과 함께 컴파일한다. 업로드 대기·실패 전달·완료 3개를 확인한다. 실제 업로드는 수행하지 않는다.
+`UploadFlow/UploadFlow.csproj`는 실제 FirebaseUploader 소스를 Firebase Storage 대체물과 함께 컴파일한다. 업로드 대기·실패 전달·완료 3개를 확인한다. 실제 업로드는 수행하지 않는다.
 
 변경 전 소스와 비교하려면 아래처럼 별도 스냅샷을 지정한다. 스냅샷은 저장소에 포함하지 않는다.
 
@@ -29,26 +26,26 @@ Unity 검증 항목은 프리팹 추가·변경·삭제, 비활성 자식과 동
 ## R2 UISoundTool 검증
 
 ```powershell
-& Tools/RefactoringTests/run-ui-sound.ps1
+dotnet run --project Tools/RefactoringTests/UISoundTool
 & Tools/RefactoringTests/run-unity.ps1 -PrefabOnly -OutputPath Tools/RefactoringTests/bin/r2-unity
 ```
 
-첫 명령은 실제 UISoundTool 소스를 CP949로 읽어 .NET 9에서 컴파일한다. Unity 편집 API는 호출을 기록하는 대체물이며 정상/실패/선택 처리 23개 시나리오와 TRACE를 확인한다. `-UISoundToolPath`로 원본 스냅샷, `-OutputPath`로 격리 산출물 경로를 지정할 수 있다. 두 번째 명령은 에디터가 종료된 상태에서 실제 Unity 프리팹 fixture만 실행한다. 2026-09-27의 전후 23/23 및 실제 엔진 실행 제한은 [R2 보고서](../../reports/tests/RefactoringTests/UISoundToolReport.md)를 참고한다.
+첫 명령은 실제 UISoundTool 소스를 CP949로 읽어 .NET 9에서 컴파일한다. Unity 편집 API는 호출을 기록하는 대체물이며 정상/실패/선택 처리 23개 시나리오와 TRACE를 확인한다. `-p:UISoundToolPath=`로 원본 스냅샷을 지정할 수 있다. 두 번째 명령은 에디터가 종료된 상태에서 실제 Unity 프리팹 fixture만 실행한다. 2026-09-27의 전후 23/23 및 실제 엔진 실행 제한은 [R2 보고서](../../reports/tests/RefactoringTests/UISoundToolReport.md)를 참고한다.
 
 ## A1 Downloader 검증
 
 ```powershell
-& Tools/RefactoringTests/run-downloader.ps1
+dotnet run --project Tools/RefactoringTests/Downloader
 ```
 
-실제 Downloader와 프로젝트에 설치된 UniTask 소스를 .NET 9에서 컴파일한다. Addressables 핸들·위치 조회 및 PlayerLoop Yield/Delay는 제어 가능한 대체물이다. 진행/완료 통지, 콜백 없음·예외, 재시도·취소와 해제를 12개 시나리오로 확인한다. 각 실행의 PASS/TRACE 결과는 `bin/downloader/results.txt`에 기록한다. 실제 네트워크·Unity 프레임 시간·Firebase 초기화는 검증하지 않는다.
+실제 Downloader와 프로젝트에 설치된 UniTask 소스를 .NET 9에서 컴파일한다. Addressables 핸들·위치 조회 및 PlayerLoop Yield/Delay는 제어 가능한 대체물이다. 진행/완료 통지, 콜백 없음·예외, 재시도·취소와 해제를 12개 시나리오로 확인한다. 실제 네트워크·Unity 프레임 시간·Firebase 초기화는 검증하지 않는다.
 
-변경 전후 동일 시나리오의 호출 순서를 비교하려면 원본 소스 스냅샷과 서로 다른 출력 경로를 지정한다.
+변경 전후 동일 시나리오의 호출 순서를 비교하려면 원본 소스 스냅샷으로 한 번, 현재 소스로 한 번 실행해 출력을 비교한다.
 
 ```powershell
-& Tools/RefactoringTests/run-downloader.ps1 -DownloaderPath '<변경 전 Downloader.cs 경로>' -OutputPath 'Tools/RefactoringTests/bin/downloader-before'
-& Tools/RefactoringTests/run-downloader.ps1 -OutputPath 'Tools/RefactoringTests/bin/downloader-after'
-Compare-Object (Get-Content 'Tools/RefactoringTests/bin/downloader-before/results.txt') (Get-Content 'Tools/RefactoringTests/bin/downloader-after/results.txt') -SyncWindow 0
+dotnet run --project Tools/RefactoringTests/Downloader -p:DownloaderPath='<변경 전 Downloader.cs 경로>' > Tools/RefactoringTests/bin/downloader-before.txt
+dotnet run --project Tools/RefactoringTests/Downloader > Tools/RefactoringTests/bin/downloader-after.txt
+Compare-Object (Get-Content 'Tools/RefactoringTests/bin/downloader-before.txt') (Get-Content 'Tools/RefactoringTests/bin/downloader-after.txt') -SyncWindow 0
 ```
 
 2026-09-27 A1의 구현·검증·리뷰 결과는 [Downloader 보고서](../../reports/tests/RefactoringTests/DownloaderReport.md)에 별도로 기록한다. 기존 7개 항목의 완료 기록과 구분한다.

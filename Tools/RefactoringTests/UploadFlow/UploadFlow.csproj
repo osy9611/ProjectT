@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\Tests.Build.props" />
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <CodePage>949</CodePage>
+    <!-- 변경 전 사본과 비교할 때 -p:ScriptRoot=로 바꾼다. -->
+    <ScriptRoot Condition="'$(ScriptRoot)' == ''">$(ProductScript)</ScriptRoot>
+    <ScriptDirectory>$([MSBuild]::EnsureTrailingSlash('$(ScriptRoot)'))</ScriptDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(ScriptDirectory)Server\Firebase\Editor\FirebaseUploader.cs;..\UploadFlowTests.cs" />
+  </ItemGroup>
+</Project>
