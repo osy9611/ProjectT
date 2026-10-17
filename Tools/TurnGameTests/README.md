@@ -4,7 +4,7 @@
 
 스킬·효과·유닛 정의와 AI 우선순위는 Unity 샘플과 공유하는 `Client/Assets/Script/Sample/TurnBattle/TurnBattleDefinitions.cs`(Unity 비의존)를 함께 컴파일한다. 같은 시나리오의 Play Mode 판정은 `Tools/PlayModeTests`의 `ProjectTTurnBattleProbe`가 한다.
 
-프로젝트 루트에서 `./Tools/TurnGameTests/run.ps1`을 실행한다. .NET 9 참조 팩이 필요하다. `AbilitySystem/`의 모든 .cs와 공유 정의를 `Game.cs`·`Program.cs`와 한 어셈블리로 컴파일하므로 스텁이 필요 없다.
+프로젝트 루트에서 `dotnet run --project Tools/TurnGameTests`를 실행한다. .NET 9 참조 팩이 필요하다. `AbilitySystem/`의 모든 .cs와 공유 정의를 `Game.cs`·`Program.cs`와 한 어셈블리로 컴파일하므로 스텁이 필요 없다.
 
 ## 게임 규칙
 
