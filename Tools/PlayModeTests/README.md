@@ -1,0 +1,79 @@
+# P0 Play Mode 검사
+
+`Unity/ProjectTP0PlayProbe.cs`는 FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, 입력, UI, Scene)를 실행 중인 Unity 에디터의 Play Mode에서 순서대로 실행한다. 샘플 버튼 함수는 private이라 같은 함수를 리플렉션으로 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 단계에서 `Tools/UITests/Unity/ProjectTUIPlayProbe.Verify`도 같은 세션에서 실행한다.
+
+## 실행
+
+1. `Client/Assets/ProjectTP0ProbeHarness/`를 만들고 `Unity/ProjectTP0PlayProbe.cs`와 `../UITests/Unity/ProjectTUIPlayProbe.cs`를 복사한다.
+2. 컴파일이 끝나면 `Assets/Scenes/Sample/FeatureSample.unity`를 열고 Play Mode에 진입한다.
+3. Global이 Ready가 되면 `ProjectTP0PlayProbe.Run()`을 호출한다(MCP RunCommand 또는 에디터 스크립트).
+4. 콘솔의 `[P0] PASS/FAIL/NOTE` 줄과 `PROJECTT_P0_PLAYMODE_RESULT pass=N fail=M`을 확인한다. `ProjectTP0PlayProbe.Results`로도 읽을 수 있다.
+5. Play Mode를 종료하고 임시 폴더와 `.meta`를 삭제한다.
+
+에디터가 포커스를 잃은 상태면 `ResetAndDisableNonBackgroundDevices` 설정이 가상 장치를 끄므로, 프로브 실행 중에만 `backgroundBehavior=IgnoreFocus`인 설정 복제본을 쓰고 끝나면 원래 설정으로 되돌린다. 에셋은 수정하지 않는다.
+
+## 결과 (2026-10-14, Scene·Resource·Pool 매니저 리뷰 리팩토링 HEAD 1ba983d9)
+
+**pass=107 fail=0.** 오류 로그는 의도된 2건(Double Request 거부, Enter Fail)과 iOS 플러그인 참조 오류 2건으로 이전 결과와 같다. Play Mode 종료 시 오류·경고는 없다. 대상 변경은 SceneManager 전환 단계 분리·`HasScene`·`eSceneTransitionResult`·SceneBase 훅 정리·`Transition` 콜백 필수화, `IResource`→`ResourceBase`·씬 언로드 함수 이름 구분, 제네릭 풀 제거·`Release`를 `Return`/`Destroy`로 분리·`GameObjectPool` 생성자 초기화다. Double Request·Enter Fail 콜백은 변경 후에도 `Failure`로 전달된다. 같은 세션에서 턴제 전투 프로브도 실행했다(아래).
+
+## 결과 (2026-10-13, ResourceManager 리뷰 리팩토링 HEAD 54dc8aec)
+
+**pass=107 fail=0.** 오류 로그는 의도된 2건(Double Request 거부, Enter Fail)과 iOS 플러그인 참조 오류 2건으로 이전 결과와 같다. Play Mode 종료 시 오류·경고는 없다. 대상 변경은 LoadAsset 제거, dontDestroy를 AppScope 지정으로 통일, 씬 로드·언로드 API internal 축소, GetResource 분리다. 프로브는 변경된 API를 직접 호출하지 않으며 씬 전환·System UI·Scope 풀 경로로 확인했다.
+
+## 결과 (2026-10-12, Manager Lifecycle 리팩토링 HEAD 70ee163e)
+
+**pass=107 fail=0.** 오류 로그는 의도된 2건과 iOS 플러그인 참조 오류 2건으로 3차와 같다. Play Mode 종료 시 `OnApplicationQuit` → Shutdown에서 오류는 없고, 종료 후 `Global.State`는 Created다. 종료 중 ResourceManager가 마지막 씬을 해제할 때 Unity 경고 "Unloading the last loaded scene ... is not supported" 2건이 나왔다. 앱 종료(ApplicationExit)에서는 씬 언로드를 건너뛰도록 고친 뒤, SampleSceneA Single 전환 후 종료하는 재현에서 경고가 사라졌다.
+
+## 결과 (2026-10-11 3차, 씬 배치 Actor 계약 Check 추가)
+
+**pass=107 fail=0.** scene 단계에 배치 Actor 검사 12개를 추가했다. SampleSceneA·SampleSceneB Unity 씬에 Actor를 옮겨 놓고 `Spawn()`한 뒤 확인했다. 정지 뒤 언로드까지 갱신 계속(Additive 1프레임, Single 2프레임), 그 동안 입력 차단, 언로드 파괴 시 `enter,enable,disable-after-stop,release`, Additive 언로드가 A의 배치 Actor에 영향 없음. 계약은 [SceneManager.md](../../reports/tests/LifecycleTests/SceneManager.md) "씬 배치 Actor". 이번 실행은 에디터 포커스가 있어 기존 UI 검사도 통과했다. 오류 로그는 의도된 2건(Double Request 거부, Enter Fail)과 에디터 임포트의 iOS 플러그인 참조 오류 2건이다.
+
+## 결과 (2026-10-11 2차, 진행 중 입력 계약 Check 추가)
+
+**pass=95 fail=1.** input 단계에 "스틱 유지 중 재활성화는 다음 값 변화부터 전달"(0,0)과 "다음 값 변화가 재활성화된 Actor에 도달"(0,0.59) 두 Check를 추가해 통과했다. 실패 1건은 포커스 없는 실행의 기존 UI 검사다.
+
+## 결과 (2026-10-11, HEAD ca39853d + 작업 트리, Skill 단계 추가)
+
+**pass=93 fail=1.** skill 단계 13/13 통과: 스폰 Hp 100/100·Atk 10, 스킬 201 발동·완료, 쿨다운 중 무시·3초 뒤 발동, 버프 1 Atk 12, 버프 5 스턴 태그·발동 차단·만료 해제, 재스폰 시 Atk·Hp·태그 초기화와 스킬 재등록. 실패 1건은 에디터 포커스 없는 실행의 `Fresh sender after real OnDisable/OnEnable`로 아래 10/9 1차 실행과 같다. Skill 단계와 무관하다.
+
+## 결과 (2026-10-09, Unity 6000.3.14f1, HEAD c56035db + 작업 트리)
+
+2차 실행: **pass=81 fail=0**. 의도된 오류 로그 2건(Double Request 거부, Enter Fail 테스트 예외) 외에 Error/Exception 로그 없음.
+
+1차 실행은 69/5였다. 5건 중 3건은 프로브 결함(Respawn 판정식, `DoubleRequestInternal` 소유 클래스, cleanup 순회 중 목록 수정)이었고 수정 후 통과했다. 1건(`Close B restores A`)은 UI 포커스 중 누른 Gamepad South가 UI/Submit으로 A의 버튼을 눌러 A가 먼저 닫혔기 때문이며, 프로브 순서를 고친 뒤 통과했다. 남은 1건이 아래 UI 검사다.
+
+### `Fresh sender after real OnDisable/OnEnable` (9/26 배치 실패)
+
+- 1차 실행(에디터 포커스 없음)에서 같은 지점에서 실패가 재현됐다.
+- 같은 상태에서 MCP 명령으로 확인했을 때, Hide/Show 전 첫 송신은 물론 가상 Gamepad에 상태를 직접 넣고 `InputSystem.Update()`로 읽어도 값이 0이었다. 실패가 OnDisable/OnEnable 이전 단계에서도 나타나므로 재활성화 경로만의 결함으로 볼 근거는 없다.
+- 2차 실행(프로브 시작 시 에디터 포커스 있음)에서 `onscreen-diag`가 직접 장치, 첫 송신, 재활성화 뒤 새 sender 모두 값을 쓰는 것을 확인했고, `ProjectTUIPlayProbe.Verify`도 통과했다.
+- 결론: 재활성화 뒤 새 sender는 정상 동작한다. 실패는 실행 환경(에디터/배치 실행의 포커스 상태)에 따라 달라지는 것으로 보이나, 포커스 없는 상태에서 직접 장치 읽기까지 0이 되는 정확한 원인은 확정하지 않았다.
+
+### 관찰 사항 (판정 없음)
+
+- 스틱을 누른 채 Actor를 비활성화했다가 다시 활성화하면, 스틱 값이 바뀔 때까지 Move가 다시 전달되지 않는다(`MoveDirection` 0 유지). 2026-10-11 현재 계약으로 확정해 input 단계의 Check로 고정했다([ControllerContextReport](../../reports/tests/LifecycleTests/ControllerContextReport.md) "진행 중 입력").
+- Single B(Enter Fail) 실패 뒤 `CurrentScene`은 None, Unity 활성 씬은 SampleSceneB, 전환 중 아님, 입력 허용 상태였다.
+- 포커스된 Static UI에서 Gamepad South는 게임 Jump로 전달되지 않고 UI/Submit으로 처리됐다.
+
+# 턴제 전투 Skill System 검사
+
+결과: **pass=61 fail=0** (2026-10-14, HEAD 1ba983d9, PoolManager `Release` 제거·`GameObjectPool` 생성자 전환 후 재확인). 이전: **pass=61 fail=0** (2026-10-11, `TurnBattleSample` 씬). AI 전투는 콘솔(`Tools/TurnGameTests`)과 같은 8라운드·유닛별 발동 수로 끝났다.
+
+`Unity/ProjectTTurnBattleProbe.cs`는 `TurnBattleRunner` 공개 API로 콘솔 테스트와 같은 시나리오를 실제 `ComBaseActor`(`TurnUnit`)와 풀 경로로 실행한다. 리플렉션은 쓰지 않는다.
+
+## 실행
+
+1. `Client/Assets/ProjectTTurnProbeHarness/`에 `Unity/ProjectTTurnBattleProbe.cs`를 복사하고 컴파일을 기다린다.
+2. `Assets/Scenes/Sample/TurnBattleSample.unity`로 Play Mode에 진입한 뒤 `ProjectTTurnBattleProbe.Run()`을 호출한다.
+3. `[Turn] PASS/FAIL` 줄과 `PROJECTT_TURN_BATTLE_RESULT`를 확인한다. 끝나면 새 전투가 시작되어 직접 플레이할 수 있다.
+4. Play Mode를 종료하고 임시 폴더와 `.meta`를 삭제한다.
+
+## 콘솔 테스트에 없는 Unity 전용 항목
+
+| 항목 | 확인 내용 |
+|---|---|
+| `AutoTickSkills => false` | 30프레임이 지나도 스턴·쿨다운 유지, `TickSkills`(EndTurn)로만 진행 |
+| 비활성화 | `SetActive(false)`가 활성 채널링을 취소하고, 비활성 중 `TickSkills`는 진행하지 않음 |
+| 풀 사망·재대여 | 사망 = `Global.Pool.Return` → `SpawnSerial` 변경·`Released` 정리, 재대여 시 같은 인스턴스가 깨끗한 상태로 스킬 재등록 |
+
+IMGUI 버튼 클릭(직접 플레이 경로)은 프로브가 누르지 않는다. 버튼은 `pendingAction`으로 같은 공개 API를 호출한다.
