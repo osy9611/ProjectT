@@ -22,8 +22,6 @@ namespace ProjectT
 
         public static ClientLocalStorageManager LocalStorage { get => GetManager<ClientLocalStorageManager>(); }
 
-        public static CostumeManager Costume { get => GetManager<CostumeManager>(); }
-
         public static DesignTable.DataMgr Table => Data.Table;
 
         private void RegisterManagers(ManagerHost host)
@@ -39,7 +37,6 @@ namespace ProjectT
             host.Register(new SceneManager());
             host.Register(new UIManager());
             host.Register(new SoundManager());
-            host.Register(new CostumeManager());
         }
     }
 }

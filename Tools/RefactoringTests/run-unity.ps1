@@ -1,6 +1,5 @@
 param(
     [string]$UnityPath = 'C:\Program Files\Unity\Hub\Editor\6000.3.14f1\Editor\Unity.exe',
-    [switch]$PrefabOnly,
     [string]$OutputPath = (Join-Path $PSScriptRoot 'bin')
 )
 
@@ -21,8 +20,7 @@ $process = $null
 try {
     New-Item -ItemType Directory -Path (Join-Path $target 'Editor') | Out-Null
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Unity/RefactoringProbe.cs') -Destination (Join-Path $target 'Editor/RefactoringProbe.cs')
-    $entryPoint = if ($PrefabOnly) { 'RefactoringProbe.RunPrefabSound' } else { 'RefactoringProbe.Run' }
-    $arguments = '-batchmode -nographics -projectPath "' + $project + '" -executeMethod ' + $entryPoint + ' -logFile "' + $log + '"'
+    $arguments = '-batchmode -nographics -projectPath "' + $project + '" -executeMethod RefactoringProbe.Run -logFile "' + $log + '"'
     $process = Start-Process -FilePath $UnityPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
     $deadline = [DateTime]::UtcNow.AddMinutes(4)
     while (!$process.WaitForExit(1000)) {
