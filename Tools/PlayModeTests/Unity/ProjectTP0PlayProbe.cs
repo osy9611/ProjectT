@@ -86,15 +86,13 @@ public class ProjectTP0PlayProbe : MonoBehaviour
             Check(runner != null, "setup", "FeatureSampleRunner exists");
             Check(Global.IsReady, "setup", $"Global Ready ({Global.State})");
 
-            // 편집기가 포커스를 잃으면 ResetAndDisableNonBackgroundDevices가 가상 장치를 꺼서 이벤트가 버려지므로 프로브 동안만 설정 복제본을 쓴다.
+            // 게임 뷰 포커스가 없으면 ResetAndDisableNonBackgroundDevices가 가상 장치를 끄고, 동기 InputSystem.Update()가 Editor 업데이트로 실행되어 Gamepad 이벤트를 처리하지 않는다.
+            // 포커스는 실행 중에도 바뀌므로 시작 시점과 관계없이 프로브 동안 두 설정을 모두 바꾼 복제본을 쓴다.
             originalSettings = InputSystem.settings;
-            if (!Application.isFocused)
-            {
-                var copy = ScriptableObject.Instantiate(originalSettings);
-                copy.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
-                InputSystem.settings = copy;
-                Note("setup", "Editor not focused: InputSettings.backgroundBehavior=IgnoreFocus (runtime copy)");
-            }
+            var copy = ScriptableObject.Instantiate(originalSettings);
+            copy.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+            copy.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+            InputSystem.settings = copy;
 
             yield return Step("actor", ActorInternal());
             yield return Step("skill", SkillInternal());

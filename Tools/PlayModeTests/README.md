@@ -10,7 +10,25 @@
 4. 콘솔의 `[P0] PASS/FAIL/NOTE` 줄과 `PROJECTT_P0_PLAYMODE_RESULT pass=N fail=M`을 확인한다. `ProjectTP0PlayProbe.Results`로도 읽을 수 있다.
 5. Play Mode를 종료하고 임시 폴더와 `.meta`를 삭제한다.
 
-에디터가 포커스를 잃은 상태면 `ResetAndDisableNonBackgroundDevices` 설정이 가상 장치를 끄므로, 프로브 실행 중에만 `backgroundBehavior=IgnoreFocus`인 설정 복제본을 쓰고 끝나면 원래 설정으로 되돌린다. 에셋은 수정하지 않는다.
+프로브는 실행 중에만 `backgroundBehavior=IgnoreFocus`, `editorInputBehaviorInPlayMode=AllDeviceInputAlwaysGoesToGameView`인 설정 복제본을 쓰고 끝나면 원래 설정으로 되돌린다. 에셋은 수정하지 않는다. 게임 뷰에 포커스가 없으면 원래 설정에서는 두 가지 문제가 생긴다.
+- `ResetAndDisableNonBackgroundDevices`가 가상 장치를 끈다.
+- 동기 `InputSystem.Update()`가 Editor 업데이트로 실행되어 Gamepad 이벤트를 처리하지 않는다. Input System은 `IgnoreFocus`와 `AllDeviceInputAlwaysGoesToGameView`가 함께 설정될 때만 포커스와 관계없이 Player 업데이트를 실행한다.
+
+포커스는 실행 도중에도 바뀌므로 시작 시점의 포커스와 관계없이 항상 복제본을 쓴다.
+
+## 결과 (2026-10-17, 불안정 실패 원인 확인과 수정, HEAD 84c4a124 + 작업 트리)
+
+**수정 후 15회 모두 pass=107 fail=0이고, 결과 117줄이 모두 같다.** 실행 동안 Input System의 포커스 상태(`m_HasFocus`)를 매 에디터 틱 기록했다.
+- 포커스가 계속 있음: 8회
+- 포커스가 계속 없음: 3회
+- 포커스를 강제로 끈 상태(매 틱 `InputManager.OnFocusChanged(false)`): 4회
+
+`+ InputSystem.Update()` 진단값 45개는 모두 (0.47, 0.00)이었다.
+
+**원인 확인.** `Fresh sender after real OnDisable/OnEnable` 불안정 실패의 원인은 다음과 같다. 게임 뷰에 포커스가 없으면 동기 `InputSystem.Update()`가 Editor 업데이트로 실행되어 Gamepad 이벤트를 처리하지 않는다. 그래서 직후에 읽은 값이 0이다. 다음 프레임의 Player 업데이트가 이벤트를 처리하므로 1프레임 뒤에는 값이 들어온다. 근거는 다음과 같다.
+- Input System 1.19.0 `InputManager.defaultUpdateType`은 Play Mode라도 `gameHasFocus`가 false면 `Editor`를 돌려준다.
+- 수정 전 프로브를 5회 실행했다. 4회 실패했고, 실패한 4회 모두 동기 Update 시점에 `m_HasFocus=False, defaultUpdateType=Editor`였다. 통과한 1회는 `True, Dynamic`이었다. 실패 중 2회는 시작 때 포커스가 있다가 실행 도중 잃은 경우였다.
+- 같은 프레임에서 `m_HasFocus`만 바꿔 읽으면 true일 때 0.47, false일 때 0이었다. `AllDeviceInputAlwaysGoesToGameView`를 함께 설정하면 false에서도 0.47이었다.
 
 ## 결과 (2026-10-17, UI API 변경 반영 HEAD 29ead2f7)
 
@@ -26,9 +44,9 @@
 
 **불안정한 실패.** 이 1회 실패는 `onscreen-diag`의 `+ InputSystem.Update()` 진단값이 (0.00, 0.00)일 때 함께 나타난다(확인됨). 이 진단값은 동기 `InputSystem.Update()` 직후에 읽은 값이다. 실패한 실행에서는 이 값이 0이고, 1프레임 뒤 값만 (0.47, 0.00)이다. 통과한 실행에서는 두 값이 모두 (0.47, 0.00)이다.
 
-에디터에 포커스가 없을 때(`[P0] NOTE setup: Editor not focused`)는 지금까지 매번 실패했다. 하지만 2026-10-17에는 포커스가 있는 실행에서도 같은 실패가 났다. 따라서 포커스는 원인 중 하나일 뿐이며, 근본 원인은 아직 확인하지 못했다.
+원인은 위 "원인 확인"에 있다. 당시 프로브는 시작 시점에 포커스가 없을 때만 `backgroundBehavior`만 바꾼 복제본을 썼다. 그래서 시작 때 포커스가 있다가 실행 도중 잃은 실행도 실패했다.
 
-이 실패만으로 코드 변경의 회귀를 판단하지 않는다. 전후 비교는 포커스 안내 줄을 뺀 전체 결과로 한다. 2026-10-17 ResourceBase 변경과 ErrorReporter 취소 보고 변경을 검증할 때 이렇게 비교했고, 변경 전 코드와 변경 후 코드의 결과 117줄이 같았다. 3abb5835 직전 UIContainer로 실행했을 때도 pass=107 fail=0이었다.
+수정 전에는 이 실패만으로 코드 변경의 회귀를 판단하지 않았다. 전후 비교는 포커스 안내 줄을 뺀 전체 결과로 했다. 2026-10-17 ResourceBase 변경과 ErrorReporter 취소 보고 변경을 검증할 때 이렇게 비교했고, 변경 전 코드와 변경 후 코드의 결과 117줄이 같았다. 3abb5835 직전 UIContainer로 실행했을 때도 pass=107 fail=0이었다.
 
 ## 결과 (2026-10-14, Scene·Resource·Pool 매니저 리뷰 리팩토링 HEAD 1ba983d9)
 
@@ -65,7 +83,7 @@
 - 1차 실행(에디터 포커스 없음)에서 같은 지점에서 실패가 재현됐다.
 - 같은 상태에서 MCP 명령으로 확인했을 때, Hide/Show 전 첫 송신은 물론 가상 Gamepad에 상태를 직접 넣고 `InputSystem.Update()`로 읽어도 값이 0이었다. 실패가 OnDisable/OnEnable 이전 단계에서도 나타나므로 재활성화 경로만의 결함으로 볼 근거는 없다.
 - 2차 실행(프로브 시작 시 에디터 포커스 있음)에서 `onscreen-diag`가 직접 장치, 첫 송신, 재활성화 뒤 새 sender 모두 값을 쓰는 것을 확인했고, `ProjectTUIPlayProbe.Verify`도 통과했다.
-- 결론: 재활성화 뒤 새 sender는 정상 동작한다. 실패는 실행 환경(에디터/배치 실행의 포커스 상태)에 따라 달라지는 것으로 보이나, 포커스 없는 상태에서 직접 장치 읽기까지 0이 되는 정확한 원인은 확정하지 않았다.
+- 결론: 재활성화 뒤 새 sender는 정상 동작한다. 포커스 없는 상태에서 직접 장치 읽기까지 0이 되는 원인은 2026-10-17에 확인했다(위 "원인 확인").
 
 ### 관찰 사항 (판정 없음)
 
