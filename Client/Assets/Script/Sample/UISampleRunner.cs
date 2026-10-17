@@ -139,9 +139,13 @@ namespace ProjectT.Sample
             Global.UI.RemoveWidget(type);
 
             var token = this.GetCancellationTokenOnDestroy();
-            var (first, second) = await UniTask.WhenAll(
+            var (canceled, widgets) = await UniTask.WhenAll(
                 Global.UI.CreateWidgetAsync<SampleUI>(type, token),
-                Global.UI.CreateWidgetAsync<SampleUI>(type, token));
+                Global.UI.CreateWidgetAsync<SampleUI>(type, token)).SuppressCancellationThrow();
+            if (canceled)
+                return;
+
+            var (first, second) = widgets;
 
             FeatureSampleRunner.Write($"Async x2 same instance: {ReferenceEquals(first, second)}");
             first.Show();

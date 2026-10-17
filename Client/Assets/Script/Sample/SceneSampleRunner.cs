@@ -92,7 +92,10 @@ namespace ProjectT.Sample
         private async UniTask UnloadAdditiveInternalAsync()
         {
             FeatureSampleRunner.Write("UnloadAdditive SampleSceneB");
-            await Global.Scene.UnloadAdditiveAsync<SampleSceneB>();
+            // 언로드 중 SceneManager가 종료되면 취소로 끝나며 이는 정상 종료다.
+            if (await Global.Scene.UnloadAdditiveAsync<SampleSceneB>().SuppressCancellationThrow())
+                return;
+
             FeatureSampleRunner.Write("UnloadAdditive SampleSceneB done");
         }
     }

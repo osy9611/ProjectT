@@ -401,7 +401,6 @@ internal static class BehaviourTests
         fixture.Manager.Publish(First);
 
         Check(handler.Calls == 0, "An unexpectedly canceled hook retained its partial subscription.");
-        // 결함 후보: 실제 ErrorReporter.Report는 OperationCanceledException을 모두 버리므로 예기치 않은 훅 취소가 보고되지 않아 이 검사는 실패한다.
         var reported = fixture.Reported();
         Check(reported.Count == 1 && reported[0] is OperationCanceledException cancellation &&
             cancellation.CancellationToken == source.Token,

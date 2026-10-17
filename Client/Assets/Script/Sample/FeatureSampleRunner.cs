@@ -196,7 +196,7 @@ namespace ProjectT.Sample
                     Debug.LogError("[Sample] repeated error");
             }
 
-            if (GUILayout.Button("Canceled (ignored)"))
+            if (GUILayout.Button("Canceled (reported)"))
                 Global.LogException(new OperationCanceledException("[Sample] canceled"));
 
             if (GUILayout.Button("Open Log Folder"))

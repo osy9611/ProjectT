@@ -42,9 +42,10 @@ namespace ProjectT
             UniTaskScheduler.UnobservedTaskException += Report;
         }
 
+        // 정상 취소는 호출 지점의 catch나 SuppressCancellationThrow가 거른다. 여기까지 온 취소는 예상하지 못한 취소이므로 보고한다.
         internal static void Report(Exception error)
         {
-            if (error == null || error is OperationCanceledException)
+            if (error == null)
                 return;
 
             var id = Guid.NewGuid();
@@ -56,16 +57,10 @@ namespace ProjectT
                 return;
             }
 
-            if (AllCanceledInternal(inners))
-                return;
-
             // ErrorCollector가 묶은 오류는 내부 예외별 지문으로 나누고 같은 사건 id로 묶는다.
             WriteExceptionInternal(error);
             foreach (var inner in inners)
-            {
-                if (!(inner is OperationCanceledException))
-                    EnqueueInternal(new ErrorEvent(id, inner.GetType().FullName, inner.Message, inner.StackTrace, inner));
-            }
+                EnqueueInternal(new ErrorEvent(id, inner.GetType().FullName, inner.Message, inner.StackTrace, inner));
         }
 
         internal static void SetSinks(params IErrorSink[] sinks)
@@ -173,17 +168,6 @@ namespace ProjectT
             // 매 프레임 터지는 오류가 sink를 채우지 않도록 처음 몇 번과 10의 거듭제곱 번째만 전달한다.
             if (count <= MaxDeliveriesPerFingerprint || IsPowerOfTenInternal(count))
                 s_batch.Add(error.WithFingerprint(fingerprint, count));
-        }
-
-        private static bool AllCanceledInternal(IReadOnlyList<Exception> errors)
-        {
-            foreach (var error in errors)
-            {
-                if (!(error is OperationCanceledException))
-                    return false;
-            }
-
-            return true;
         }
 
         private static bool IsPowerOfTenInternal(int value)

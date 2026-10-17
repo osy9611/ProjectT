@@ -110,15 +110,17 @@ static partial class Program
             Global.LogException(new AggregateException(Thrown(new InvalidOperationException("a")), inner));
             ErrorReporter.Flush();
             ErrorReporter.Flush();
-            Check(sink.Events.Count == 2 && sink.Batches == 1, "Inner events were not delivered exactly once");
-            Check(sink.Events[0].Id == sink.Events[1].Id, "Inner events do not share the event id");
-            Check(sink.Events[0].Exception is InvalidOperationException && sink.Events[1].Exception is ArgumentException, "Inner exceptions lost");
+            Check(sink.Events.Count == 3 && sink.Batches == 1, "Inner events were not delivered exactly once");
+            Check(sink.Events[0].Id == sink.Events[1].Id && sink.Events[1].Id == sink.Events[2].Id, "Inner events do not share the event id");
+            Check(sink.Events[0].Exception is InvalidOperationException && sink.Events[1].Exception is ArgumentException &&
+                sink.Events[2].Exception is OperationCanceledException, "Inner exceptions lost");
             Check(sink.Events[0].Fingerprint.StartsWith("System.InvalidOperationException|", StringComparison.Ordinal), "Fingerprint lacks exception type");
             Check(Debug.Errors.Count == 1 && Debug.Errors[0] is AggregateException, "Console did not receive the original exception once");
             return UniTask.CompletedTask;
         });
 
-        await ReporterRun("ErrorReporter: normal cancellation is not reported", () =>
+        // 정상 취소는 호출 지점이 거르므로 보고 경계까지 온 취소는 예상하지 못한 취소로 보고한다.
+        await ReporterRun("ErrorReporter: cancellation that reaches the reporter is reported and null is ignored", () =>
         {
             var sink = new ListSink();
             ResetReporter(sink);
@@ -126,7 +128,9 @@ static partial class Program
             Global.LogException(new AggregateException(new System.Threading.Tasks.TaskCanceledException()));
             Global.LogException(null);
             ErrorReporter.Flush();
-            Check(sink.Events.Count == 0 && sink.Batches == 0 && Debug.Errors.Count == 0, "Cancellation was reported");
+            Check(sink.Events.Count == 2 && sink.Events[0].Exception is OperationCanceledException &&
+                sink.Events[1].Exception is System.Threading.Tasks.TaskCanceledException, "Cancellation reaching the reporter was not reported");
+            Check(Debug.Errors.Count == 2, "Console did not receive each reported cancellation once");
             return UniTask.CompletedTask;
         });
 
