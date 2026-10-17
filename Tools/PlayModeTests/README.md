@@ -24,7 +24,7 @@
 - 3회: pass=107 fail=0
 - 1회: `Fresh sender after real OnDisable/OnEnable`에서 fail=1. 같은 코드로 다시 실행했을 때는 재현되지 않았다.
 
-이 1회 실패는 불안정한 실패로 보며 원인은 확인하지 못했다. 에디터 포커스나 가상 Gamepad 상태의 타이밍으로 추정한다. 3abb5835 직전 UIContainer로 실행했을 때도 pass=107 fail=0이었다.
+이 1회 실패는 에디터에 포커스가 없을 때 생긴다(확인됨). 그때 결과에는 `[P0] NOTE setup: Editor not focused` 줄이 있고, `onscreen-diag` 값이 (0.47, 0.00)에서 (0.00, 0.00)으로 바뀐다. 2026-10-17 ResourceBase 변경을 검증할 때 이 조건을 비교했다. 포커스가 없는 같은 조건에서 변경 전 코드와 변경 후 코드는 결과 117줄이 같았다. 따라서 이 실패만으로 코드 변경의 회귀를 판단하지 않는다. 전후 비교는 같은 포커스 조건에서 한다. 3abb5835 직전 UIContainer로 실행했을 때도 pass=107 fail=0이었다.
 
 ## 결과 (2026-10-14, Scene·Resource·Pool 매니저 리뷰 리팩토링 HEAD 1ba983d9)
 
