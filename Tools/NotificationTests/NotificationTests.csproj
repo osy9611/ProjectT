@@ -4,12 +4,13 @@
     <LangVersion>9.0</LangVersion>
     <UseUniTask>true</UseUniTask>
     <UseUnityStubs>true</UseUnityStubs>
+    <UseRealGlobal>true</UseRealGlobal>
     <!-- 변경 전 사본과 비교할 때 -p:NotificationManagerPath=로 바꾼다. -->
     <NotificationManagerPath Condition="'$(NotificationManagerPath)' == ''">$(ProductScript)Managers\NotificationManager.cs</NotificationManagerPath>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Stubs.cs;Program.cs;BehaviourTests.cs" />
-    <Compile Include="$(ProductScript)Managers\Base\ManagerBase.cs;$(ProductScript)Event\NotificationId.cs;$(ProductScript)Event\NotifyHandlerBehaviour.cs" />
+    <Compile Include="Stubs.cs;GlobalAccessors.cs;Program.cs;BehaviourTests.cs" />
+    <Compile Include="$(ProductScript)Event\NotificationId.cs;$(ProductScript)Event\NotifyHandlerBehaviour.cs" />
     <Compile Include="$(NotificationManagerPath)" />
   </ItemGroup>
 </Project>

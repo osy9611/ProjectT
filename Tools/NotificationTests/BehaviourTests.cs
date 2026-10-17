@@ -8,26 +8,55 @@ internal static class BehaviourTests
 {
     private static readonly NotificationId First = (NotificationId)1;
 
+    private sealed class ListSink : IErrorSink
+    {
+        public readonly List<Exception> Exceptions = new List<Exception>();
+
+        public void Write(IReadOnlyList<ErrorEvent> errors)
+        {
+            foreach (var error in errors)
+                Exceptions.Add(error.Exception);
+        }
+    }
+
     private sealed class Fixture : IDisposable
     {
-        public readonly CancellationTokenSource Lifetime = new CancellationTokenSource();
-        public readonly NotificationManager Manager = new NotificationManager();
+        public readonly ManagerHost Host = new ManagerHost();
+        public readonly NotificationManager Manager;
+        private readonly ListSink sink = new ListSink();
 
         public Fixture(bool hasGlobal = true, bool isReady = true)
         {
-            Global.ResetForTests();
-            Manager.InitializeAsync(Lifetime.Token).GetAwaiter().GetResult();
-            if (hasGlobal)
-                Global.SetInstance(Manager, isReady);
+            ErrorReporter.ResetStatics();
+            ErrorReporter.SetSinks(sink);
+            UnityEngine.Debug.Errors.Clear();
+            Manager = Host.Register(new NotificationManager());
+            if (!hasGlobal)
+                return;
+
+            BindGlobal();
+            if (isReady)
+                Ready();
+        }
+
+        public void BindGlobal() => Global.BindForTests(Host);
+
+        public void Ready() => Host.InitializeAsync().GetAwaiter().GetResult();
+
+        // Global.Shutdown은 마지막 Flush 뒤 sink를 해제하므로 종료 뒤에 보고된 예외도 받도록 다시 지정한다.
+        public IReadOnlyList<Exception> Reported()
+        {
+            ErrorReporter.SetSinks(sink);
+            ErrorReporter.Flush();
+            return sink.Exceptions;
         }
 
         public void Dispose()
         {
-            Global.ResetForTests();
-            if (Manager.State != ManagerState.Stopped)
-                Manager.Shutdown(ShutdownReason.Normal);
-            Lifetime.Cancel();
-            Lifetime.Dispose();
+            if (Global.Instance == null)
+                Host.Shutdown();
+            else
+                Global.Instance.Shutdown();
         }
     }
 
@@ -199,11 +228,11 @@ internal static class BehaviourTests
         handler.Enable();
         Check(handler.SubscriptionTokens.Count == 0, "The hook ran before Global existed.");
 
-        var global = Global.SetInstance(fixture.Manager, false);
+        fixture.BindGlobal();
         ManualNotificationScheduler.StepFrame();
         Check(handler.SubscriptionTokens.Count == 0, "The hook ran before Global was ready.");
 
-        global.SetReady();
+        fixture.Ready();
         fixture.Manager.Publish(First);
         Check(handler.Calls == 1, "The behaviour did not subscribe after Global became ready.");
     }
@@ -215,13 +244,13 @@ internal static class BehaviourTests
 
         handler.Enable();
         handler.Disable();
-        var global = Global.SetInstance(fixture.Manager, false);
+        fixture.BindGlobal();
         ManualNotificationScheduler.StepFrame();
-        global.SetReady();
+        fixture.Ready();
         fixture.Manager.Publish(First);
 
         Check(handler.Calls == 0 && handler.SubscriptionTokens.Count == 0, "A disabled waiting behaviour subscribed late.");
-        Check(Global.LoggedExceptions.Count == 0, "Normal owner cancellation was reported as an error.");
+        Check(fixture.Reported().Count == 0, "Normal owner cancellation was reported as an error.");
     }
 
     private static void DisableRemovesSubscriptions()
@@ -244,7 +273,7 @@ internal static class BehaviourTests
         handler.Enable();
         handler.Disable();
         handler.Enable();
-        Global.Instance.SetReady();
+        fixture.Ready();
         fixture.Manager.Publish(First);
 
         Check(handler.SubscriptionTokens.Count == 1, "A stale readiness continuation invoked the subscription hook.");
@@ -291,7 +320,8 @@ internal static class BehaviourTests
         fixture.Manager.Publish(First);
 
         Check(handler.Calls == 0, "A partially registered hook was not rolled back.");
-        Check(Global.LoggedExceptions.Count == 1 && ReferenceEquals(Global.LoggedExceptions[0], expected),
+        var reported = fixture.Reported();
+        Check(reported.Count == 1 && ReferenceEquals(reported[0], expected),
             "The hook failure was not reported exactly once with the original exception.");
     }
 
@@ -306,7 +336,7 @@ internal static class BehaviourTests
         fixture.Manager.Publish(First);
 
         Check(handler.Calls == 0, "A throwing cleanup callback prevented partial subscriptions from being removed.");
-        Check(Global.LoggedExceptions.Count == 1, "The failure must be reported exactly once.");
+        Check(fixture.Reported().Count == 1, "The failure must be reported exactly once.");
     }
 
     private static void GlobalShutdownWhileWaiting()
@@ -315,11 +345,11 @@ internal static class BehaviourTests
         var handler = new UnityEngine.GameObject().Attach(new TestHandler());
 
         handler.Enable();
+        // Global 종료는 호스트의 매니저도 함께 종료하므로 Publish 대신 훅 호출 기록으로 구독 여부를 확인한다.
         Global.Instance.Shutdown();
-        fixture.Manager.Publish(First);
 
         Check(handler.Calls == 0 && handler.SubscriptionTokens.Count == 0, "A behaviour subscribed while Global was shutting down.");
-        Check(Global.LoggedExceptions.Count == 0, "Global shutdown cancellation was reported as an error.");
+        Check(fixture.Reported().Count == 0, "Global shutdown cancellation was reported as an error.");
     }
 
     private static void ExpectedCancellationReportsCleanupFailure()
@@ -330,8 +360,11 @@ internal static class BehaviourTests
 
         handler.Enable();
 
-        Check(Global.LoggedExceptions.Count == 1, "The cleanup failure must be reported exactly once.");
-        var reported = Global.LoggedExceptions[0] as AggregateException;
+        var delivered = fixture.Reported();
+        Check(delivered.Count == 1 && ReferenceEquals(delivered[0], cleanupFailure), "The cleanup failure must be reported exactly once.");
+        // ErrorReporter는 sink에 내부 예외별로 전달하므로 원래 집계는 콘솔에 한 번 쓴 예외로 확인한다.
+        Check(UnityEngine.Debug.Errors.Count == 1, "The console must receive the failure exactly once.");
+        var reported = UnityEngine.Debug.Errors[0] as AggregateException;
         Check(reported != null, "The cancellation callback failure must retain its cancellation aggregate.");
 
         var failures = reported.Flatten().InnerExceptions;
@@ -349,7 +382,8 @@ internal static class BehaviourTests
         fixture.Manager.Publish(First);
 
         Check(handler.Calls == 1, "The old failed generation canceled the re-enabled subscription.");
-        Check(Global.LoggedExceptions.Count == 1 && ReferenceEquals(Global.LoggedExceptions[0], expected),
+        var reported = fixture.Reported();
+        Check(reported.Count == 1 && ReferenceEquals(reported[0], expected),
             "The old generation failure was not reported exactly once.");
 
         handler.Disable();
@@ -367,7 +401,9 @@ internal static class BehaviourTests
         fixture.Manager.Publish(First);
 
         Check(handler.Calls == 0, "An unexpectedly canceled hook retained its partial subscription.");
-        Check(Global.LoggedExceptions.Count == 1 && Global.LoggedExceptions[0] is OperationCanceledException cancellation &&
+        // 결함 후보: 실제 ErrorReporter.Report는 OperationCanceledException을 모두 버리므로 예기치 않은 훅 취소가 보고되지 않아 이 검사는 실패한다.
+        var reported = fixture.Reported();
+        Check(reported.Count == 1 && reported[0] is OperationCanceledException cancellation &&
             cancellation.CancellationToken == source.Token,
             "Unexpected hook cancellation was not reported exactly once with its original token.");
     }
