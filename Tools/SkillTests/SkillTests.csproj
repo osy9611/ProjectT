@@ -4,7 +4,7 @@
     <NoWarn>$(NoWarn);CS0169;CS0414;CS0649</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Stubs.cs;Program.cs" />
+    <Compile Include="Stubs.cs;Program.cs;P0P1Tests.cs;P2Tests.cs;P3Tests.cs;P4Tests.cs;M1M2Tests.cs;M3M4Tests.cs;M5M6Tests.cs" />
     <Compile Include="$(ProductScript)..\Automation\Enum\DesignEnum.cs" />
     <Compile Include="$(ProductScript)SkillAdapter\SkillDefinitions.cs;$(ProductScript)SkillAdapter\Action_Melee.cs;$(ProductScript)SkillAdapter\Action_Normal.cs;$(ProductScript)SkillAdapter\Action_Range.cs" />
     <!-- AbilitySystem은 asmdef 없이 테스트 어셈블리에 함께 컴파일되므로 InternalsVisibleTo가 필요 없다. -->
