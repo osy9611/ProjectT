@@ -99,7 +99,7 @@ namespace ProjectT.Sample.TurnBattle
         // 풀에서 반납된 인스턴스를 다시 받으면 목록의 이전 항목을 지우고 새 스폰으로 넣는다.
         public TurnUnit SpawnUnit(TurnUnitSpec spec, Vector3 position)
         {
-            var obj = Global.Pool.Get(template);
+            var obj = Global.Pool.Get(template, null, Global.Resource.AppScope);
             obj.transform.position = position;
             var unit = obj.GetComponent<TurnUnit>();
             unit.Setup(spec);

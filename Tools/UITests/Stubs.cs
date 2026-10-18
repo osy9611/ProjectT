@@ -89,8 +89,8 @@ namespace ProjectT
     {
         public Func<UnityEngine.GameObject> Create = () => new();
         public readonly List<UnityEngine.GameObject> Returned = new();
-        public UnityEngine.GameObject Get(string path,UnityEngine.Transform parent=null) { var go=Create();go.transform.SetParent(parent,false);return go; }
-        public UniTask<UnityEngine.GameObject> GetAsync(string path,UnityEngine.Transform parent=null,CancellationToken cancelToken=default) { cancelToken.ThrowIfCancellationRequested();return UniTask.FromResult(Get(path,parent)); }
+        public UnityEngine.GameObject Get(string path,UnityEngine.Transform parent,object scope) { var go=Create();go.transform.SetParent(parent,false);return go; }
+        public UniTask<UnityEngine.GameObject> GetAsync(string path,UnityEngine.Transform parent,object scope,CancellationToken cancelToken=default) { cancelToken.ThrowIfCancellationRequested();return UniTask.FromResult(Get(path,parent,scope)); }
         public bool Return(UnityEngine.GameObject go) { Returned.Add(go);return true; }
     }
     public class FakeInput

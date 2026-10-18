@@ -20,50 +20,39 @@ namespace ProjectT
         }
 
         private readonly Dictionary<ResourceScope, ScopePools> scopes = new Dictionary<ResourceScope, ScopePools>();
-        // 경로로 로드한 원본도 PoolManager 종료 시 풀 인스턴스와 함께 반환되도록 ResourceManager.AppScope 대신 전용 Scope를 사용한다.
-        private ResourceScope appScope;
 
         protected override UniTask OnInitializeAsync(CancellationToken token)
         {
             CreateRootObject("PoolManager");
-            appScope = Global.Resource.CreateScope();
             return UniTask.CompletedTask;
         }
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            try
-            {
-                Clear();
-            }
-            finally
-            {
-                appScope?.Dispose();
-                appScope = null;
-            }
+            Clear();
         }
 
-        public void CreatePool(GameObject original, int count = 5, ResourceScope scope = null)
+        public void CreatePool(GameObject original, int count, ResourceScope scope)
         {
             GetOrCreatePoolInternal(original, count, scope);
         }
 
-        public GameObject Get(GameObject original, Transform parent = null, ResourceScope scope = null)
+        public GameObject Get(GameObject original, Transform parent, ResourceScope scope)
         {
             return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
         }
 
-        public GameObject Get(string path, Transform parent = null, ResourceScope scope = null)
+        public GameObject Get(string path, Transform parent, ResourceScope scope)
         {
-            scope = scope ?? appScope;
+            scope = Global.Resource.ResolveScope(scope);
             ThrowIfScopeClosedInternal(scope);
             var original = Global.Resource.LoadAndGet<GameObject>(path, scope: scope);
             return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
         }
 
-        public async UniTask<GameObject> GetAsync(string path, Transform parent = null, ResourceScope scope = null, CancellationToken cancelToken = default)
+        public async UniTask<GameObject> GetAsync(string path, Transform parent, ResourceScope scope, CancellationToken cancelToken = default)
         {
-            scope = scope ?? appScope;
+            scope = Global.Resource.ResolveScope(scope);
             ThrowIfScopeClosedInternal(scope);
             var original = await Global.Resource.LoadAndGetAsync<GameObject>(path, cancelToken: cancelToken, scope: scope);
             return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
@@ -155,7 +144,7 @@ namespace ProjectT
                 throw new ArgumentNullException(nameof(original));
 
             // 해제되었거나 ResourceManager가 관리하지 않는 Scope로는 대여를 시작하지 않는다.
-            scope = Global.Resource.ResolveScope(scope ?? appScope);
+            scope = Global.Resource.ResolveScope(scope);
             ThrowIfScopeClosedInternal(scope);
 
             scopes.TryGetValue(scope, out var entry);

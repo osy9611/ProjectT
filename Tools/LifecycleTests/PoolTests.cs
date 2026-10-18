@@ -87,7 +87,7 @@ static partial class Program
 
         protected override void OnInitialize()
         {
-            Instance = Global.Pool.Get("pooled", scope: ResourceScope);
+            Instance = Global.Pool.Get("pooled", null, ResourceScope);
         }
 
         protected override void OnFinalize()
@@ -260,12 +260,12 @@ static partial class Program
             var manager = StartPools(out var host, out _);
             var first = new GameObject("Prefab");
             var second = new GameObject("Prefab");
-            var a = manager.Get(first);
-            var b = manager.Get(second);
+            var a = manager.Get(first, null, Global.Resource.AppScope);
+            var b = manager.Get(second, null, Global.Resource.AppScope);
             a.name = "Renamed";
             manager.Return(a);
             manager.Return(b);
-            Check(ReferenceEquals(a, manager.Get(first)) && ReferenceEquals(b, manager.Get(second)), "Name-based ownership remains");
+            Check(ReferenceEquals(a, manager.Get(first, null, Global.Resource.AppScope)) && ReferenceEquals(b, manager.Get(second, null, Global.Resource.AppScope)), "Name-based ownership remains");
             host.Shutdown();
             return UniTask.CompletedTask;
         });
@@ -276,12 +276,12 @@ static partial class Program
             var prefab = new GameObject("Prefab");
             prefab.AddComponent<PoolComponent>();
             var parent = new GameObject("Parent").transform;
-            var obj = manager.Get(prefab, parent);
+            var obj = manager.Get(prefab, parent, Global.Resource.AppScope);
             var component = obj.GetComponent<PoolComponent>();
             Check(component.Gets == 1 && component.ParentAtGet == parent, "Get hook missing or parent late");
             manager.Return(obj);
             Check(component.Returns == 1 && !obj.activeSelf, "Return hook or deactivation missing");
-            manager.Get(prefab);
+            manager.Get(prefab, null, Global.Resource.AppScope);
             Check(component.Gets == 2, "Component not reused");
             host.Shutdown();
             return UniTask.CompletedTask;
@@ -346,9 +346,9 @@ static partial class Program
         {
             var manager = StartPools(out var host, out _);
             var prefab = new GameObject("Prefab");
-            var obj = manager.Get(prefab);
+            var obj = manager.Get(prefab, null, Global.Resource.AppScope);
             manager.Destroy(obj);
-            Check(UnityEngine.Object.Destroyed.Contains(obj) && !ReferenceEquals(obj, manager.Get(prefab)), "Destroy did not remove lease");
+            Check(UnityEngine.Object.Destroyed.Contains(obj) && !ReferenceEquals(obj, manager.Get(prefab, null, Global.Resource.AppScope)), "Destroy did not remove lease");
             host.Shutdown();
             return UniTask.CompletedTask;
         });
@@ -359,8 +359,8 @@ static partial class Program
             Addressables.Factory = () => new FakeOperation { IsDone = true, Result = new GameObject("Prefab") };
             var scopeA = resources.CreateScope();
             var scopeB = resources.CreateScope();
-            var a = manager.Get("asset", scope: scopeA);
-            var b = manager.Get("asset", scope: scopeB);
+            var a = manager.Get("asset", null, scopeA);
+            var b = manager.Get("asset", null, scopeB);
             scopeB.Dispose();
             Check(UnityEngine.Object.Destroyed.Contains(b) && !UnityEngine.Object.Destroyed.Contains(a) && Addressables.Operations[0].Releases == 0, "Scope cleanup crossed ownership");
             scopeA.Dispose();
@@ -382,7 +382,7 @@ static partial class Program
                 Check(Addressables.Operations[0].Releases == 0, "Resource released before pool cleanup");
                 cleaned = true;
             });
-            instance = manager.Get("asset", scope: scope);
+            instance = manager.Get("asset", null, scope);
             scope.Dispose();
             scope.Dispose();
             Check(cleaned && Addressables.Operations[0].Releases == 1 && manager.GetOriginal("Prefab") == null, "Scope retained ownership");
@@ -396,7 +396,7 @@ static partial class Program
             var manager = StartPools(out var host, out var resources);
             Addressables.Factory = () => new FakeOperation { Result = new GameObject("Prefab") };
             var scope = resources.CreateScope();
-            var loading = manager.GetAsync("asset", scope: scope);
+            var loading = manager.GetAsync("asset", null, scope);
             scope.Dispose();
             await Throws<OperationCanceledException>(async () => { await loading; });
             Addressables.Operations[0].Complete();
@@ -408,7 +408,7 @@ static partial class Program
         {
             var manager = StartPools(out var host, out _);
             var prefab = new GameObject("Prefab");
-            var instance = manager.Get(prefab);
+            var instance = manager.Get(prefab, null, Global.Resource.AppScope);
             var token = (CancellationToken)typeof(ManagerBase)
                 .GetProperty("LifetimeToken", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 .GetValue(manager);
@@ -416,7 +416,7 @@ static partial class Program
             token.Register(() =>
             {
                 Check(manager.Return(instance), "Object return was rejected during shutdown");
-                ThrowsSync<OperationCanceledException>(() => manager.Get(prefab)).GetAwaiter().GetResult();
+                ThrowsSync<OperationCanceledException>(() => manager.Get(prefab, null, Global.Resource.AppScope)).GetAwaiter().GetResult();
                 returned = true;
             });
             host.Shutdown();
@@ -427,7 +427,7 @@ static partial class Program
         await Run("pool: shutdown disposes cached objects", () =>
         {
             var manager = StartPools(out var host, out _);
-            var obj = manager.Get(new GameObject("Prefab"));
+            var obj = manager.Get(new GameObject("Prefab"), null, Global.Resource.AppScope);
             host.Shutdown();
             Check(UnityEngine.Object.Destroyed.Contains(obj), "Shutdown skipped object pool");
             return UniTask.CompletedTask;
@@ -479,7 +479,7 @@ static partial class Program
             await Throws<InvalidOperationException>(async () => { await manager.GetAsync("asset", null, scope); });
             Check(ScopeState(manager).Pools == pools && ScopeState(manager).OpenScopes == 0, "Rejected lease created a pool or scope registration");
             Check(Addressables.Operations.Count == 0, "Rejected lease started a resource load");
-            Check(manager.Get(prefab) != null && manager.Get(prefab, null, resources.CreateScope()) != null, "Closing one scope blocked other scopes");
+            Check(manager.Get(prefab, null, Global.Resource.AppScope) != null && manager.Get(prefab, null, resources.CreateScope()) != null, "Closing one scope blocked other scopes");
             Check(ScopeState(manager).ClosedScopes == 1, "Clear did not close the scope");
             scope.Dispose();
             Check(ScopeState(manager).ClosedScopes == 0, "Scope disposal kept the closed mark");

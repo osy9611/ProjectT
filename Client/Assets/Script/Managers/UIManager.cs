@@ -73,14 +73,14 @@ namespace ProjectT
 
         public T GetHud<T>(HudDefine.eHudType type, PivotInfo pivotInfo) where T : ComHudAgent
         {
-            return AttachHudInternal<T>(Global.Pool.Get(HudDefine.GetPath(type), uiContainer.HudRoot), pivotInfo);
+            return AttachHudInternal<T>(Global.Pool.Get(HudDefine.GetPath(type), uiContainer.HudRoot, Global.Resource.AppScope), pivotInfo);
         }
 
         public async UniTask<T> GetHudAsync<T>(HudDefine.eHudType type, PivotInfo pivotInfo, CancellationToken cancelToken = default) where T : ComHudAgent
         {
             using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancelToken))
             {
-                var obj = await Global.Pool.GetAsync(HudDefine.GetPath(type), uiContainer.HudRoot, cancelToken: linked.Token);
+                var obj = await Global.Pool.GetAsync(HudDefine.GetPath(type), uiContainer.HudRoot, Global.Resource.AppScope, linked.Token);
                 return AttachHudInternal<T>(obj, pivotInfo);
             }
         }

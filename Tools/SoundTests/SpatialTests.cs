@@ -50,7 +50,7 @@ internal static partial class Program
         Check(ManualFrameScheduler.PendingCount == 0, "Spatial playback created asynchronous frame work.");
 
         setup.manager.Clear();
-        Check(setup.manager.ActiveSpatialVoiceCount == 0 && setup.resources.ActiveScopeCount == 3, "Clear released the reusable spatial pool scope.");
+        Check(setup.manager.ActiveSpatialVoiceCount == 0 && setup.resources.ActiveScopeCount == 2, "Clear released the reusable spatial pool scope.");
         Check(setup.manager.PlayAt(new AudioClip("after-clear"), new Vector3()), "Spatial pool was not reusable after Clear.");
         Check(PooledSpatialSources(setup).Length == 2 && GameObject.CreatedCount == created, "Clear rebuilt or expanded the prewarmed spatial pool.");
     }
@@ -288,7 +288,7 @@ internal static partial class Program
         var otherScope = setup.resources.CreateScope();
         var otherOriginal = new GameObject("OtherPoolOriginal");
         setup.pool.CreatePool(otherOriginal, 1, otherScope);
-        var otherInstance = setup.pool.Get(otherOriginal, scope: otherScope);
+        var otherInstance = setup.pool.Get(otherOriginal, null, otherScope);
         Check(otherInstance.GetComponent<PooledObject>()?.Owner != null, "Unrelated production pool was not established.");
         setup.pool.Return(otherInstance);
 
@@ -296,7 +296,7 @@ internal static partial class Program
 
         Check(setup.pool.GetOriginal("SpatialSound") == null, "Sound pool survived its dedicated scope disposal.");
         Check(ReferenceEquals(setup.pool.GetOriginal("OtherPoolOriginal"), otherOriginal), "Sound scope disposal removed an unrelated pool.");
-        var reused = setup.pool.Get(otherOriginal, scope: otherScope);
+        var reused = setup.pool.Get(otherOriginal, null, otherScope);
         Check(ReferenceEquals(reused, otherInstance), "Unrelated pool was rebuilt instead of preserved.");
         setup.pool.Return(reused);
     }
@@ -343,7 +343,7 @@ internal static partial class Program
         Check(failed, "The original return callback failure was not preserved.");
         Check(setup.manager.ActiveSpatialVoiceCount == 0 && owner.ActiveCount == 1 && owner.InactiveCount == 1,
             "A failed return released the voice slot incorrectly or prevented the remaining voice from returning.");
-        Check(setup.resources.ScopeReleaseCount == releaseCount + 1 && setup.resources.ActiveScopeCount == 3,
+        Check(setup.resources.ScopeReleaseCount == releaseCount + 1 && setup.resources.ActiveScopeCount == 2,
             "A failed return prevented BGM scope release or disposed the reusable pool or scene scope.");
         Check(sources[0].clip == null && sources[0].gameObject.activeSelf, "A failed return did not keep the cleared voice borrowed.");
         Check(sources[1].clip == null && !sources[1].gameObject.activeSelf, "Cleanup retained a clip or active source.");
@@ -373,14 +373,14 @@ internal static partial class Program
         var scope = setup.resources.CreateScope();
         var original = new GameObject("CancellationPoolOriginal");
         setup.pool.CreatePool(original, 1, scope);
-        var instance = setup.pool.Get(original, scope: scope);
+        var instance = setup.pool.Get(original, null, scope);
         setup.lifetime.Cancel();
 
         Check(setup.pool.Return(instance), "Pool return was rejected after lifetime cancellation.");
         var rejected = false;
         try
         {
-            setup.pool.Get(original, scope: scope);
+            setup.pool.Get(original, null, scope);
         }
         catch (OperationCanceledException)
         {

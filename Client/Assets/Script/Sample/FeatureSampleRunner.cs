@@ -208,7 +208,7 @@ namespace ProjectT.Sample
         {
             // 활성 씬이 있으면 씬 Scope 풀에서 대여해, 씬 정지 시 풀 정리와 Actor 반납을 함께 확인한다.
             var scene = Global.Scene.CurrentScene;
-            var obj = Global.Pool.Get(actorPrefab, null, scene == null ? null : scene.ResourceScope);
+            var obj = Global.Pool.Get(actorPrefab, null, scene == null ? Global.Resource.AppScope : scene.ResourceScope);
             obj.transform.position = new Vector3(UnityEngine.Random.Range(-4f, 4f), 0f, UnityEngine.Random.Range(-2f, 2f));
             var component = obj.GetComponent<SampleActor>();
             component.Spawn();
