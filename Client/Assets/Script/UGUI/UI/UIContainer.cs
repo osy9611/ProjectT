@@ -188,6 +188,7 @@ namespace ProjectT.UGUI
             if (widget != null)
                 return widget;
 
+            // 동기 생성도 등록해야 OnEnter에서 들어온 같은 타입 비동기 요청이 이 결과에 합류하고, Remove·Clear가 등록 전에 생성을 취소할 수 있다.
             var creation = new PendingCreation(lifetimeToken);
             pending.Add(type, creation);
             try
