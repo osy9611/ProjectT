@@ -340,20 +340,6 @@ static partial class Program
         Check(GetBehaviors(agent).Count == 0 && status.Get(Atk) == 10f && status.Get(Def) == 10f, $"중첩 중 제거 후 수정자가 남았다 Atk={status.Get(Atk)} Def={status.Get(Def)}");
     }
 
-    static void InstantSkipsExecuteAfterRelease()
-    {
-        var status = NewStatus();
-        status.SetBase(MaxHp, 100f);
-        status.SetResource(Hp, 100f);
-        var agent = NewAgent(status);
-        status.OnResourceChanged += (resource, previous, current) => agent.ReleaseInternal();
-        var instant = Effect(1, EffectDurationPolicy.Instant, 0f, 0f, () => new ProjectT.Skill.Tests.TestBehavior(), power: 3f, execution: new FlatDamageExecution());
-
-        agent.ApplyEffect(instant, null);
-
-        CheckExecutes(1, 0, "반납 뒤 Instant 실행 콜백");
-    }
-
     static void PeriodlessDamageEffectIsInvalid()
     {
         CheckThrows<ArgumentException>(() => Effect(1, EffectDurationPolicy.Duration, 1f, 0f, null, power: 1f, execution: new FlatDamageExecution()), "주기 없는 지속 피해");
@@ -408,30 +394,6 @@ static partial class Program
         Check(!agent.HasTag(Stun) && string.Join(",", events) == "State.Stun:True,State.Stun:False", "중첩이 태그를 여러 번 부여했다: " + string.Join(",", events));
     }
 
-    static void ReleaseDuringStackModifierSwapLeavesNoModifier()
-    {
-        var status = NewStatus();
-        var effect = Effect(1, EffectDurationPolicy.Duration, 5f, 0f, null, modifiers: new[] { new EffectModifier(Atk, StatModOp.Add, 2f) }, stack: EffectStackPolicy.Stack, maxStack: 3);
-        var agent = NewAgent(status);
-        agent.ApplyEffect(effect, null);
-        bool released = false;
-        status.OnStatChanged += (type, previous, current) =>
-        {
-            if (released)
-                return;
-
-            released = true;
-            agent.ReleaseInternal();
-            status.ReleaseInternal();
-        };
-
-        agent.ApplyEffect(effect, null);
-
-        Check(released && status.Get(Atk) == 0f, $"정리된 Status에 수정자가 남았다: {status.Get(Atk)}");
-        status.SetBase(Atk, 10f);
-        CheckStat(status, Atk, 10f, "다음 스폰");
-    }
-
     static void ExpiryOrderIsListIndependent()
     {
         var first = TestEffect(1, 1f);
@@ -463,24 +425,22 @@ static partial class Program
         Check(results[0] == results[1] && results[0] == "1:Expired,2:Expired/True/3", "순서에 따라 결과가 다르거나 재적용이 새 적용이 아니다: " + string.Join(" vs ", results));
     }
 
-    static void ReleaseDuringExpiryCallbacksEndsPendingAsReleased()
+    static void FailedExpiryCallbackLeavesPendingForRelease()
     {
-        var chained = TestEffect(3, 1f);
         var agent = NewAgent();
         ProjectT.Skill.Tests.TestBehavior.RemoveHook = (behavior, reason) =>
         {
             if (behavior.EffectId == 1 && reason == EffectRemoveReason.Expired)
-                agent.ReleaseInternal();
-            else if (behavior.EffectId == 2 && reason == EffectRemoveReason.Expired)
-                agent.ApplyEffect(chained, null);
+                throw new InvalidOperationException("remove");
         };
         agent.ApplyEffect(TestEffect(1, 1f), null);
         agent.ApplyEffect(TestEffect(2, 1f), null);
 
-        agent.TickInternal(1f);
+        CheckThrows<InvalidOperationException>(() => agent.TickInternal(1f), "만료 제거 콜백 실패");
+        agent.ReleaseInternal();
 
         string reasons = string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons);
-        Check(reasons == "Expired,Released" && EffectCount(agent) == 0 && ProjectT.Skill.Tests.TestBehavior.Applies == 2, $"남은 만료 효과의 사유 {reasons}, 효과 {EffectCount(agent)}, 적용 {ProjectT.Skill.Tests.TestBehavior.Applies}");
+        Check(reasons == "Expired,Released" && EffectCount(agent) == 0, $"남은 만료 효과의 사유 {reasons}, 효과 {EffectCount(agent)}");
     }
 
     static void RemoveDuringTickKeepsLoop()

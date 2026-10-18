@@ -223,23 +223,6 @@ static partial class Program
         Check(EffectCount(agent) == 0, "만료 후 효과가 남았다");
     }
 
-    static void ReleaseDuringApplyRemovesOnce()
-    {
-        var agent = NewAgent();
-        var events = new List<string>();
-        agent.OnEffectApplied += (handle, definition) => events.Add("applied");
-        agent.OnEffectRemoved += (handle, definition, reason) => events.Add("removed");
-        ProjectT.Skill.Tests.TestBehavior.ApplyHook = () => agent.ReleaseInternal();
-
-        var handle = agent.ApplyEffect(TestEffect(1, 1f, 0.5f), null);
-
-        Check(EffectCount(agent) == 0, "정리 후 효과가 등록되었다");
-        Check(ProjectT.Skill.Tests.TestBehavior.Removes == 1, $"제거 횟수 기대 1, 실제 {ProjectT.Skill.Tests.TestBehavior.Removes}");
-        Check(ProjectT.Skill.Tests.TestBehavior.Reasons[0] == EffectRemoveReason.Released, "OnApply 중 정리된 효과의 사유가 Released가 아니다");
-        CheckExecutes(1, 0, "정리된 효과의 첫 실행");
-        Check(handle.Id == 0 && events.Count == 0, $"등록되지 않은 효과가 핸들 {handle.Id}이나 이벤트 {events.Count}개를 냈다");
-    }
-
     static void TicksToleratesDivisionError()
     {
         var cases = new (float Duration, float Period, int Ticks)[] { (0.9f, 0.3f, 3), (1.3f, 0.1f, 13), (1.8f, 0.6f, 3), (1.0f, 0.3f, 3), (0.25f, 0.1f, 2) };
@@ -315,29 +298,6 @@ static partial class Program
         Check(ReferenceEquals(GetBehaviors(agent)[0].Source, source), "source가 저장되지 않았다");
     }
 
-    static void ReleaseDuringTickKeepsLoop()
-    {
-        var agent = NewAgent();
-        agent.ApplyEffect(TestEffect(1, 1f, 0.25f), null);
-        agent.ApplyEffect(TestEffect(2, 0.25f), null);
-        ProjectT.Skill.Tests.TestBehavior.ExecuteHook = _ => agent.ReleaseInternal();
-
-        agent.TickInternal(0.25f);
-        Check(ProjectT.Skill.Tests.TestBehavior.Removes == 2, $"제거 횟수 기대 2, 실제 {ProjectT.Skill.Tests.TestBehavior.Removes}");
-        Check(EffectCount(agent) == 0, "효과가 남았다");
-
-        agent.OpenInternal();
-        agent.GiveSkill(Skill(10));
-        agent.GiveSkill(Skill(11));
-        agent.ActivateSkill(10);
-        agent.ActivateSkill(11);
-        ProjectT.Skill.Tests.TestSkillAction.UpdateHook = _ => agent.ReleaseInternal();
-
-        agent.TickInternal(0.1f);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 1, $"갱신 횟수 기대 1, 실제 {ProjectT.Skill.Tests.TestSkillAction.Updates}");
-        Check(GetActions(agent).Count == 0 && GetActiveActions(agent).Count == 0, "스킬이 남았다");
-    }
-
     static void RegistrationDuringReleaseThrows()
     {
         var second = TestEffect(2, 1f);
@@ -348,24 +308,6 @@ static partial class Program
         CheckThrows<InvalidOperationException>(() => agent.ReleaseInternal(), "정리 중 ApplyEffect");
 
         Check(EffectCount(agent) == 0, "정리 중 등록한 효과가 남았다");
-    }
-
-    static void ReleaseDuringCancelActiveKeepsLoop()
-    {
-        var agent = NewAgent();
-        agent.GiveSkill(Skill(10));
-        agent.GiveSkill(Skill(11));
-        agent.ActivateSkill(10);
-        agent.ActivateSkill(11);
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-        };
-
-        agent.CancelActiveSkillsInternal();
-
-        Check(GetActions(agent).Count == 0 && GetActiveActions(agent).Count == 0, "정리 후 스킬이 남았다");
     }
 
     static void ConverterMapsTableRows()

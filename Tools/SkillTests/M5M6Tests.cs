@@ -83,23 +83,6 @@ static partial class Program
         Check(GetBehaviors(self).TrueForAll(behavior => ReferenceEquals(behavior.Source, action.Owner)), "자신 효과의 출처가 소유자가 아니다");
     }
 
-    static void ApplyEffectsStopsWhenTargetReleased()
-    {
-        var owner = NewAgent();
-        var target = NewAgent();
-        owner.GiveSkill(Skill(10, effects: new[] { TestEffect(1, 1f), TestEffect(2, 1f) }));
-        ProjectT.Skill.Tests.TestBehavior.ApplyHook = () =>
-        {
-            ProjectT.Skill.Tests.TestBehavior.ApplyHook = null;
-            target.ReleaseInternal();
-            target.OpenInternal();
-        };
-
-        ((ProjectT.Skill.Tests.TestSkillAction)GetAction(owner, 10)).ApplyEffectsTo(target);
-
-        Check(ProjectT.Skill.Tests.TestBehavior.Applies == 1 && EffectCount(target) == 0, $"반납 뒤 남은 효과가 다시 스폰된 대상에 걸렸다. 적용 {ProjectT.Skill.Tests.TestBehavior.Applies}, 효과 {EffectCount(target)}");
-    }
-
     static void InsufficientCostBlocksActivation()
     {
         var status = ManaStatus(3f);
@@ -163,43 +146,6 @@ static partial class Program
         CheckThrows<ArgumentException>(() => Skill(10, costs: new[] { new SkillCost(default, 1f) }), "default 비용 자원");
         CheckThrows<ArgumentOutOfRangeException>(() => Skill(10, costs: new[] { new SkillCost(Mp, -1f) }), "음수 비용");
         Check(Skill(10, costs: new[] { new SkillCost(Mp, 0f) }).Costs.Count == 1, "0 비용이 거부되었다");
-    }
-
-    static void ReleaseDuringActivationSkipsRemainingCosts()
-    {
-        var status = ManaStatus(10f);
-        status.SetResource(Hp, 10f);
-        var agent = NewAgent(status);
-        var events = RecordSkillEvents(agent);
-        bool respawning = false;
-        void Respawn()
-        {
-            respawning = true;
-            agent.ReleaseInternal();
-            status.ReleaseInternal();
-            agent.OpenInternal();
-            status.SetBase(MaxHp, 10f);
-            status.SetBase(MaxMp, 10f);
-            status.SetResource(Hp, 10f);
-            status.SetResource(Mp, 10f);
-        }
-
-        var costs = new[] { new SkillCost(Mp, 2f), new SkillCost(Hp, 3f) };
-        agent.GiveSkill(Skill(10, costs: costs));
-        ProjectT.Skill.Tests.TestSkillAction.ActivateHook = Respawn;
-        agent.ActivateSkill(10);
-        Check(status.GetResource(Mp) == 10f && status.GetResource(Hp) == 10f && events.Count == 0, $"Activate 중 반납: Mp {status.GetResource(Mp)}, Hp {status.GetResource(Hp)}, 이벤트 {string.Join(",", events)}");
-
-        ProjectT.Skill.Tests.TestSkillAction.ActivateHook = null;
-        respawning = false;
-        status.OnResourceChanged += (resource, previous, current) =>
-        {
-            if (!respawning && resource == Mp)
-                Respawn();
-        };
-        agent.GiveSkill(Skill(10, costs: costs));
-        agent.ActivateSkill(10);
-        Check(status.GetResource(Mp) == 10f && status.GetResource(Hp) == 10f && events.Count == 0, $"비용 알림 중 반납: Mp {status.GetResource(Mp)}, Hp {status.GetResource(Hp)}, 이벤트 {string.Join(",", events)}");
     }
 
     static void SkillEventsFollowActivationAndEnd()
@@ -304,23 +250,6 @@ static partial class Program
         agent.ActivateSkill(10);
 
         Check(string.Join(",", events) == "activated:10,ended:10:True" && !GetAction(agent, 10).IsActive, "발동 알림 중 태그 취소: " + string.Join(",", events));
-    }
-
-    static void ReleaseInActivatedHandlerDropsDeferredEnd()
-    {
-        AddSkill(1, SkillType.Normal, 0f);
-        var agent = NewAgent();
-        var events = RecordSkillEvents(agent);
-        agent.GiveSkill(SkillDefinitions.GetSkill(1));
-        agent.OnSkillActivated += _ =>
-        {
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-        };
-
-        agent.ActivateSkill(1);
-
-        Check(string.Join(",", events) == "activated:1", "반납 뒤 미룬 종료가 알려졌다: " + string.Join(",", events));
     }
 
     static void ReactivationInActivatedHandlerIsIgnoredForEndedSkill()
@@ -499,24 +428,6 @@ static partial class Program
         Check(GetActions(second).Count == 0 && ReferenceEquals(shared.Owner, firstOwner) && ReferenceEquals(GetAction(first, 10), shared), "거부된 GiveSkill이 상태를 바꿨다");
     }
 
-    static void ApplyEffectsStopsWhenOwnerReleased()
-    {
-        var owner = NewAgent();
-        var target = NewAgent();
-        owner.GiveSkill(Skill(10, effects: new[] { TestEffect(1, 1f), TestEffect(2, 1f) }));
-        var action = (ProjectT.Skill.Tests.TestSkillAction)GetAction(owner, 10);
-        ProjectT.Skill.Tests.TestBehavior.ApplyHook = () =>
-        {
-            ProjectT.Skill.Tests.TestBehavior.ApplyHook = null;
-            owner.ReleaseInternal();
-            owner.OpenInternal();
-        };
-
-        action.ApplyEffectsTo(target);
-
-        Check(ProjectT.Skill.Tests.TestBehavior.Applies == 1 && string.Join(",", GetEffectIds(target)) == "1", $"반납된 시전자를 출처로 남은 효과를 걸었다. 적용 {ProjectT.Skill.Tests.TestBehavior.Applies}, 효과 {string.Join(",", GetEffectIds(target))}");
-    }
-
     static void AdapterMapsFactoriesAndEffects()
     {
         AddBuff(5, BuffType.AddATK, 1f);
@@ -550,18 +461,80 @@ static partial class Program
         ProjectT.Skill.Tests.ReactivateOnEndAction.OnEndHook = null;
     }
 
-    static void ReleaseInsideCanActivateDoesNotActivate()
+    static void ReleaseDuringAgentCallIsRejected()
     {
         var agent = NewAgent();
-        agent.GiveSkill(Skill(10, factory: () => new ProjectT.Skill.Tests.ReleasingCanActivateAction()));
-        var events = new List<string>();
-        agent.OnSkillActivated += definition => events.Add($"act:{definition.Id}");
-        var action = GetAction(agent, 10);
-        ProjectT.Skill.Tests.ReleasingCanActivateAction.CanActivateHook = () => agent.ReleaseInternal();
+        var target = NewAgent();
+        var rejected = new List<string>();
+        void Release(string name)
+        {
+            try
+            {
+                agent.ReleaseInternal();
+            }
+            catch (InvalidOperationException)
+            {
+                rejected.Add(name);
+            }
+        }
 
+        agent.GiveSkill(Skill(10, effects: new[] { TestEffect(2, 1f) }));
+        agent.GiveSkill(Skill(11, factory: () => new ProjectT.Skill.Tests.ReleasingCanActivateAction()));
+        var action = (ProjectT.Skill.Tests.TestSkillAction)GetAction(agent, 10);
+        agent.OnSkillActivated += definition => Release($"activated:{definition.Id}");
+        ProjectT.Skill.Tests.ReleasingCanActivateAction.CanActivateHook = () => Release("can activate");
+        ProjectT.Skill.Tests.TestSkillAction.ActivateHook = () => Release("activate");
+        ProjectT.Skill.Tests.TestSkillAction.UpdateHook = _ => Release("update");
+        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () => Release("cancel");
+        ProjectT.Skill.Tests.TestBehavior.ApplyHook = () => Release("apply");
+        ProjectT.Skill.Tests.TestBehavior.ExecuteHook = _ => Release("execute");
+        ProjectT.Skill.Tests.TestBehavior.RemoveHook = (behavior, reason) => Release("remove");
+
+        agent.ActivateSkill(11);
         agent.ActivateSkill(10);
+        var handle = agent.ApplyEffect(TestEffect(1, 5f, 1f), null);
+        agent.TickInternal(1f);
+        agent.CancelSkill(10);
+        agent.RemoveEffect(handle);
+        ProjectT.Skill.Tests.TestBehavior.ApplyHook = () => Release("target apply");
+        action.ApplyEffectsTo(target);
 
-        Check(events.Count == 0 && GetActiveActions(agent).Count == 0, $"발동 조건 판정 중 반납된 스킬이 발동되었다: {string.Join(",", events)}, 활성 {action.IsActive}");
+        string expected = "can activate,activated:11,activate,activated:10,apply,execute,execute,update,cancel,remove,target apply";
+        Check(string.Join(",", rejected) == expected, $"거부된 정리: {string.Join(",", rejected)}");
         ProjectT.Skill.Tests.ReleasingCanActivateAction.CanActivateHook = null;
+        ProjectT.Skill.Tests.TestBehavior.RemoveHook = null;
+        ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
+        agent.ReleaseInternal();
+        CheckThrows<InvalidOperationException>(() => agent.ApplyEffect(TestEffect(3, 1f), null), "호출이 끝난 뒤 정리된 Agent에 적용");
+    }
+
+    static void ReleaseDuringStatusNotificationIsRejected()
+    {
+        var status = NewStatus();
+        var rejected = new List<string>();
+        void Release(string name)
+        {
+            try
+            {
+                status.ReleaseInternal();
+            }
+            catch (InvalidOperationException)
+            {
+                rejected.Add(name);
+            }
+        }
+
+        status.OnStatChanged += (stat, previous, current) => Release($"stat:{stat.Name}");
+        status.OnResourceChanged += (resource, previous, current) => Release($"res:{resource.Name}");
+        var source = new object();
+
+        status.SetBase(Atk, 12f);
+        status.AddModifier(MaxHp, StatModOp.Add, 2f, source);
+        status.SetResource(Hp, 5f);
+        status.RemoveModifiers(source);
+
+        Check(string.Join(",", rejected) == $"stat:{Atk.Name},stat:{MaxHp.Name},res:{Hp.Name},stat:{MaxHp.Name}", $"거부된 정리: {string.Join(",", rejected)}");
+        status.ReleaseInternal();
+        Check(status.GetResource(Hp) == 0f && status.Get(Atk) == 0f, "알림이 끝난 뒤 정리가 값을 비우지 않았다");
     }
 }

@@ -249,29 +249,6 @@ static partial class Program
         Check(execution.Calls.Count == 1 && ownerStatus.GetResource(Hp) == 10f, $"NaN 피해가 HP를 바꿨다: {ownerStatus.GetResource(Hp)}");
     }
 
-    static void ReleaseAndRespawnDuringTickStopsOldTick()
-    {
-        var respawned = TestEffect(2, 0f);
-        var agent = NewAgent();
-        agent.ApplyEffect(TestEffect(1, 1f, 0.5f), null);
-        ProjectT.Skill.Tests.TestBehavior.ExecuteHook = behavior =>
-        {
-            if (behavior.EffectId != 1)
-                return;
-
-            ProjectT.Skill.Tests.TestBehavior.ExecuteHook = null;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            agent.ApplyEffect(respawned, null);
-        };
-
-        agent.TickInternal(0.5f);
-
-        Check(EffectCount(agent) == 1, "새 스폰의 효과가 이전 Tick에서 판정되었다");
-        agent.TickInternal(0.1f);
-        Check(EffectCount(agent) == 0, "새 스폰의 효과가 다음 Tick에 만료되지 않았다");
-    }
-
     static void DotReducesHpEachTick()
     {
         var status = NewStatus();

@@ -44,7 +44,7 @@ namespace ProjectT.Skill
         private Dictionary<int, ActiveEffect> activeEffectById = new Dictionary<int, ActiveEffect>();
         // 콜백에서 효과가 제거·추가되어도 Tick 시작 시점의 효과만 순회하도록 쓰는 재사용 목록이다.
         private List<ActiveEffect> ticking = new List<ActiveEffect>();
-        // 만료가 확정되어 목록에서 뗐지만 아직 제거 처리 전인 효과다. 다른 효과의 제거 콜백에서 정리되면 ReleaseAll이 끝낸다.
+        // 만료가 확정되어 목록에서 뗐지만 아직 제거 처리 전인 효과다. 다른 효과의 제거 콜백이 실패해 남으면 ReleaseAll이 끝낸다.
         private List<ActiveEffect> expiring = new List<ActiveEffect>();
 
         public EffectController(IAbilityOwner owner, SkillAgent agent)
@@ -75,29 +75,11 @@ namespace ProjectT.Skill
             active.Behavior?.InitInternal(owner, source, definition);
 
             // 적용이 실패하면 등록되지 않도록 성공한 뒤에 목록에 넣는다. 이미 건 수정자와 태그는 정리에서 비운다.
-            int releases = agent.ReleaseCount;
             AddModifiersInternal(active);
             foreach (SkillTag tag in definition.GrantedTags)
-            {
-                // 앞선 알림이나 태그의 취소 콜백에서 Actor가 반납되면 정리된 Agent에 남은 태그를 걸어 알리지 않는다.
-                if (agent.IsReleasedSinceInternal(releases))
-                    break;
-
                 agent.AddTagInternal(tag);
-            }
 
             active.Behavior?.OnApply();
-            // 적용 중 Actor가 반납되면 이미 정리가 끝났으므로 등록하지 않고 다른 효과와 같이 Released로 되돌린다.
-            if (agent.IsReleasedSinceInternal(releases))
-            {
-                if (!instant)
-                {
-                    active.Behavior?.OnRemove(EffectRemoveReason.Released);
-                    RevertInternal(active, releases);
-                }
-
-                return default;
-            }
 
             // Instant는 등록하지 않으므로 핸들, 제거 콜백, 적용·제거 이벤트가 없다.
             if (instant)
@@ -139,8 +121,7 @@ namespace ProjectT.Skill
                 ticking[i].Elapsed += deltaTime;
 
             List<ActiveEffect> expired = null;
-            int releases = agent.ReleaseCount;
-            for (int i = 0; i < ticking.Count && !agent.IsReleasedSinceInternal(releases); i++)
+            for (int i = 0; i < ticking.Count; i++)
             {
                 ActiveEffect active = ticking[i];
                 if (AdvanceInternal(active))
@@ -230,7 +211,6 @@ namespace ProjectT.Skill
         private void ExecuteInternal(ActiveEffect active)
         {
             EffectDefinition definition = active.Definition;
-            int releases = agent.ReleaseCount;
             if (definition.DamageExecution != null)
             {
                 Status target = owner.Status;
@@ -241,8 +221,8 @@ namespace ProjectT.Skill
                     target.SetResource(definition.DamageResource, target.GetResource(definition.DamageResource) - damage);
             }
 
-            // 피해 알림에서 이 효과가 제거되거나 Actor가 반납되었으면(등록되지 않는 Instant 포함) 실행 콜백을 호출하지 않는다.
-            if (!active.IsRemoved && !agent.IsReleasedSinceInternal(releases))
+            // 피해 알림에서 이 효과가 제거되었으면 실행 콜백을 호출하지 않는다.
+            if (!active.IsRemoved)
                 active.Behavior?.OnExecute();
         }
 
@@ -313,25 +293,16 @@ namespace ProjectT.Skill
         // 적용의 역순으로 동작 콜백, 태그, 수정자 순서로 되돌린 뒤 알린다.
         private void EndInternal(ActiveEffect active, EffectRemoveReason reason)
         {
-            int releases = agent.ReleaseCount;
             active.Behavior?.OnRemove(reason);
-            RevertInternal(active, releases);
+            RevertInternal(active);
             agent.NotifyEffectRemovedInternal(active.Handle, active.Definition, reason);
         }
 
-        // releases는 적용이나 제거를 시작할 때의 정리 횟수다.
-        private void RevertInternal(ActiveEffect active, int releases)
+        private void RevertInternal(ActiveEffect active)
         {
             EffectDefinition definition = active.Definition;
             foreach (SkillTag tag in definition.GrantedTags)
-            {
-                // 그 사이 Actor가 반납되면 정리가 카운트를 비웠고, 같은 호출에서 다시 스폰되면 남은 카운트는 새 스폰의 것이므로 회수하지 않는다.
-                // 수정자는 효과별 출처로 떼므로 새 스폰의 수정자에 영향이 없다.
-                if (agent.IsReleasedSinceInternal(releases))
-                    break;
-
                 agent.RemoveTagInternal(tag);
-            }
 
             if (definition.Modifiers.Count > 0)
                 owner.Status.RemoveModifiers(active);

@@ -69,8 +69,7 @@ namespace ProjectT.Skill
         public void OnUpdate(float deletaTime)
         {
             int count = activeActions.Count;
-            int releases = agent.ReleaseCount;
-            for (int i = 0; i < count && !agent.IsReleasedSinceInternal(releases); i++)
+            for (int i = 0; i < count; i++)
             {
                 var action = activeActions[i];
                 if (action.IsActive)
@@ -100,8 +99,7 @@ namespace ProjectT.Skill
         public void CancelActiveSkills()
         {
             int count = activeActions.Count;
-            int releases = agent.ReleaseCount;
-            for (int i = 0; i < count && !agent.IsReleasedSinceInternal(releases); i++)
+            for (int i = 0; i < count; i++)
             {
                 var action = activeActions[i];
                 if (action.State == SkillActionState.Active)
@@ -112,8 +110,7 @@ namespace ProjectT.Skill
         public void CancelSkillsByTag(SkillTag tag)
         {
             int count = activeActions.Count;
-            int releases = agent.ReleaseCount;
-            for (int i = 0; i < count && !agent.IsReleasedSinceInternal(releases); i++)
+            for (int i = 0; i < count; i++)
             {
                 var action = activeActions[i];
                 if (action.State == SkillActionState.Active && ContainsInternal(action.Spec.Definition.CancelledByTags, tag))

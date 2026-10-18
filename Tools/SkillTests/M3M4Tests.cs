@@ -140,32 +140,6 @@ static partial class Program
         Check(ProjectT.Skill.Tests.TestSkillAction.Cancels == 2 && GetAction(agent, 12).IsActive && ProjectT.Skill.Tests.TestSkillAction.Updates == 1, "취소 태그가 없는 스킬이 Activate 중 태그 획득으로 취소되었다");
     }
 
-    static void ReleaseDuringTagCancelLeavesNoTags()
-    {
-        var agent = NewAgent();
-        agent.GiveSkill(Skill(10, cancelledBy: new[] { TagA }));
-        agent.ActivateSkill(10);
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-        };
-        int events = 0;
-        agent.OnTagChanged += (tag, active) => events++;
-        var effect = Effect(1, EffectDurationPolicy.Duration, 1f, 0f, () => new ProjectT.Skill.Tests.TestBehavior(), tags: new[] { TagA, TagB });
-
-        var handle = agent.ApplyEffect(effect, null);
-
-        Check(handle.Id == 0 && EffectCount(agent) == 0 && ((IDictionary)GetField(agent, "tagCounts")).Count == 0, "정리 뒤 효과나 태그 카운트가 남았다");
-        Check(events == 0 && string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons) == "Released", $"태그 이벤트 기대 0, 실제 {events}, 사유 {string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons)}");
-
-        agent.OpenInternal();
-        agent.ApplyEffect(effect, null);
-        Check(agent.HasTag(TagA) && agent.HasTag(TagB) && events == 2, "정리 후 다시 얻은 태그가 적용되지 않았다");
-        agent.TickInternal(1f);
-        Check(!agent.HasTag(TagA) && !agent.HasTag(TagB) && events == 4, "다시 얻은 태그가 해제되지 않았다");
-    }
-
     static void AdapterSkillsUseStunTag()
     {
         AddSkill(1, SkillType.Normal, 0f);
@@ -179,130 +153,6 @@ static partial class Program
         }
 
         Check(Stun.Name == "State.Stun" && SkillTag.Register("State.Stun") == Stun && SkillDefinitions.GetEffect(4).GrantedTags[0] == SkillDefinitions.GetSkill(1).BlockedTags[0], "스킬과 효과가 같은 스턴 태그를 쓰지 않는다");
-    }
-
-    static void RespawnDuringTagCancelKeepsNewTag()
-    {
-        var agent = NewAgent();
-        agent.GiveSkill(Skill(10, cancelledBy: new[] { TagA }));
-        agent.ActivateSkill(10);
-        var respawned = Effect(2, EffectDurationPolicy.Duration, 1f, 0f, null, tags: new[] { TagA });
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            agent.ApplyEffect(respawned, null);
-        };
-        var events = new List<string>();
-        agent.OnTagChanged += (tag, active) => events.Add($"{tag.Name}:{active}");
-
-        var handle = agent.ApplyEffect(Effect(1, EffectDurationPolicy.Duration, 5f, 0f, null, tags: new[] { TagA }), null);
-
-        Check(string.Join(",", events) == "Test.A:True", "태그 이벤트: " + string.Join(",", events));
-        Check(handle.Id == 0 && EffectCount(agent) == 1 && agent.HasTag(TagA) && TagCount(agent, TagA) == 1, $"새 스폰의 태그: HasTag {agent.HasTag(TagA)}, 카운트 {TagCount(agent, TagA)}, 효과 {EffectCount(agent)}");
-        agent.TickInternal(1f);
-        Check(!agent.HasTag(TagA) && string.Join(",", events) == "Test.A:True,Test.A:False", "새 스폰의 효과 만료 뒤: " + string.Join(",", events));
-    }
-
-    static void RespawnDuringMultiTagCancelKeepsLaterTag()
-    {
-        var agent = NewAgent();
-        agent.GiveSkill(Skill(10, cancelledBy: new[] { TagA }));
-        agent.ActivateSkill(10);
-        var respawned = Effect(2, EffectDurationPolicy.Duration, 1f, 0f, null, tags: new[] { TagB });
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            agent.ApplyEffect(respawned, null);
-        };
-        var events = new List<string>();
-        agent.OnTagChanged += (tag, active) => events.Add($"{tag.Name}:{active}");
-
-        agent.ApplyEffect(Effect(1, EffectDurationPolicy.Duration, 5f, 0f, () => new ProjectT.Skill.Tests.TestBehavior(), tags: new[] { TagA, TagB }), null);
-
-        Check(EffectCount(agent) == 1 && !agent.HasTag(TagA) && agent.HasTag(TagB) && TagCount(agent, TagB) == 1, $"새 스폰의 태그: A {agent.HasTag(TagA)}, B {agent.HasTag(TagB)}, B 카운트 {TagCount(agent, TagB)}");
-        Check(string.Join(",", events) == "Test.B:True" && string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons) == "Released", $"태그 이벤트 {string.Join(",", events)}, 사유 {string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons)}");
-        agent.TickInternal(1f);
-        Check(!agent.HasTag(TagB) && string.Join(",", events) == "Test.B:True,Test.B:False", "새 스폰의 효과 만료 뒤: " + string.Join(",", events));
-    }
-
-    static void RespawnDuringTagRemovalKeepsLaterTag()
-    {
-        var agent = NewAgent();
-        var handle = agent.ApplyEffect(Effect(1, EffectDurationPolicy.Duration, 5f, 0f, null, tags: new[] { TagA, TagB }), null);
-        var respawned = Effect(2, EffectDurationPolicy.Duration, 1f, 0f, null, tags: new[] { TagB });
-        bool respawn = true;
-        agent.OnTagChanged += (tag, active) =>
-        {
-            if (!respawn || tag != TagA || active)
-                return;
-
-            respawn = false;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            agent.ApplyEffect(respawned, null);
-        };
-
-        agent.RemoveEffect(handle);
-
-        Check(EffectCount(agent) == 1 && !agent.HasTag(TagA) && agent.HasTag(TagB) && TagCount(agent, TagB) == 1, $"새 스폰의 태그: A {agent.HasTag(TagA)}, B {agent.HasTag(TagB)}, B 카운트 {TagCount(agent, TagB)}");
-        agent.TickInternal(1f);
-        Check(!agent.HasTag(TagB) && EffectCount(agent) == 0, "새 스폰의 효과가 만료되며 태그를 해제하지 않았다");
-    }
-
-    static void RespawnDuringCancelByTagKeepsNewSkills()
-    {
-        var agent = NewAgent();
-        GiveAndActivate(agent, Skill(10, cancelledBy: new[] { TagA }), Skill(11, cancelledBy: new[] { TagA }));
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            GiveAndActivate(agent, Skill(10, cancelledBy: new[] { TagA }), Skill(11, cancelledBy: new[] { TagA }));
-        };
-
-        agent.ApplyEffect(Effect(1, EffectDurationPolicy.Duration, 5f, 0f, null, tags: new[] { TagA }), null);
-
-        Check(GetAction(agent, 10).IsActive && GetAction(agent, 11).IsActive && GetActiveActions(agent).Count == 2, "새 스폰의 스킬이 취소되었다");
-    }
-
-    static void RespawnDuringUpdateSkipsNewSkills()
-    {
-        var agent = NewAgent();
-        GiveAndActivate(agent, Skill(10), Skill(11));
-        ProjectT.Skill.Tests.TestSkillAction.UpdateHook = _ =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.UpdateHook = null;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            GiveAndActivate(agent, Skill(10), Skill(11));
-        };
-
-        agent.TickInternal(0.1f);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 1 && GetActiveActions(agent).Count == 2, $"이전 갱신이 새 스폰의 스킬을 실행했다 Updates={ProjectT.Skill.Tests.TestSkillAction.Updates}");
-        agent.TickInternal(0.1f);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 3, $"새 스폰의 스킬이 다음 갱신에서 실행되지 않았다 Updates={ProjectT.Skill.Tests.TestSkillAction.Updates}");
-    }
-
-    static void RespawnDuringCancelActiveKeepsNewSkills()
-    {
-        var agent = NewAgent();
-        GiveAndActivate(agent, Skill(10), Skill(11));
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-            agent.OpenInternal();
-            GiveAndActivate(agent, Skill(10), Skill(11));
-        };
-
-        agent.CancelActiveSkillsInternal();
-
-        Check(GetAction(agent, 10).IsActive && GetAction(agent, 11).IsActive && GetActiveActions(agent).Count == 2, "새 스폰의 스킬이 취소되었다");
     }
 
     static void TagRegisterRejectsEmptyName()
@@ -515,44 +365,6 @@ static partial class Program
         Check(SkillDefinitions.GetEffect(2).DamageResource == Hp && SkillDefinitions.GetEffect(3).DamageResource == default, "도트의 피해 자원이 Hp가 아니거나 피해 없는 효과에 자원이 있다");
         var ids = new[] { MaxHp, Atk, Def, MoveSpeed, CooldownReduction, Hp };
         Check(string.Join(",", Array.ConvertAll(ids, id => id.Name)) == "MaxHp,Atk,Def,MoveSpeed,CooldownReduction,Hp" && new HashSet<StatId>(ids).Count == ids.Length, "어댑터 스탯 이름이 다르거나 겹친다");
-    }
-
-    static void ReleaseDuringStatNotificationStopsOldNotifications()
-    {
-        var status = NewStatus();
-        var source = new object();
-        status.AddModifier(MaxHp, StatModOp.Add, 5f, source);
-        status.AddModifier(Atk, StatModOp.Add, 5f, source);
-        status.SetResource(Hp, 15f);
-        var events = new List<string>();
-        bool released = false;
-        status.OnStatChanged += (stat, previous, current) =>
-        {
-            events.Add($"stat:{stat.Name}");
-            if (released)
-                return;
-
-            released = true;
-            status.ReleaseInternal();
-        };
-        status.OnResourceChanged += (resource, previous, current) => events.Add($"res:{resource.Name}");
-
-        status.RemoveModifiers(source);
-
-        Check(events.Count == 1, "반납 뒤에도 이전 값 알림이 나갔다: " + string.Join(",", events));
-    }
-
-    static void ReleaseDuringRecalculateStopsResourceNotification()
-    {
-        var status = NewStatus();
-        status.SetResource(Hp, 10f);
-        var events = new List<string>();
-        status.OnStatChanged += (stat, previous, current) => status.ReleaseInternal();
-        status.OnResourceChanged += (resource, previous, current) => events.Add($"res:{resource.Name}");
-
-        status.SetBase(MaxHp, 5f);
-
-        Check(events.Count == 0, "반납 뒤에도 자원 알림이 나갔다: " + string.Join(",", events));
     }
 
     static void UnregisteredStatsAreRejected()

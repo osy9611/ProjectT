@@ -73,22 +73,14 @@ namespace ProjectT.Skill
         //스킬 발동 요청. 발동을 알려야 하면 true를 반환한다.
         internal bool TryActivateInternal()
         {
-            // CanActivate의 부작용으로 반납·비활성화되는 경우도 잡도록 판정 전에 기록한다.
-            int releases = agent.ReleaseCount;
+            // CanActivate의 부작용으로 비활성화되는 경우도 잡도록 판정 전에 기록한다.
             int deactivations = agent.DeactivationCount;
             if (!CanActivate())
                 return false;
 
             State = SkillActionState.Activating;
             Activate(); //실제 발동(애니메이션 판정 등)
-            // Activate에서 Actor가 반납되면 다음 스폰의 자원을 차감하지 않도록 Commit하지 않는다.
-            if (agent.IsReleasedSinceInternal(releases))
-                return false;
-
             Commit();   //쿨타임 적용, 자원 차감 등
-            // Commit 콜백에서 Actor가 반납되면 정리된 스킬이므로 발동을 알리지 않는다.
-            if (agent.IsReleasedSinceInternal(releases))
-                return false;
 
             // 발동 중인 스킬은 태그 획득·비활성화 취소에서 빠지므로, 이미 가졌거나 Activate 중에 얻은 취소 태그와 Activate 중 비활성화는 여기서 처리한다.
             // 이렇게 취소된 스킬은 발동하지 않은 것으로 보고 발동·종료 이벤트를 모두 내지 않는다.
@@ -110,13 +102,12 @@ namespace ProjectT.Skill
             if (!ended)
                 State = SkillActionState.Active;
 
-            int releases = agent.ReleaseCount;
             agent.NotifySkillActivatedInternal(Spec.Definition);
             if (ended)
+            {
                 State = SkillActionState.Idle;
-            // 발동 알림에서 Actor가 반납되면 미룬 종료를 새 구독자에게 보내지 않는다.
-            if (ended && !agent.IsReleasedSinceInternal(releases))
                 agent.NotifySkillEndedInternal(Spec.Definition, pendingEndReason);
+            }
         }
 
         // 비용이 있으면 소유자의 Status가 있어야 하고, 정의되지 않은 자원은 GetResource가 예외로 드러낸다.
@@ -135,9 +126,7 @@ namespace ProjectT.Skill
             Status status = Owner.Status;
             Spec.StartCooldownInternal(stat == default || status == null ? 0f : status.Get(stat));
             IReadOnlyList<SkillCost> costs = Spec.Definition.Costs;
-            int releases = agent.ReleaseCount;
-            // 자원 알림에서 Actor가 반납되면 남은 비용을 다음 스폰에서 차감하지 않는다.
-            for (int i = 0; i < costs.Count && !agent.IsReleasedSinceInternal(releases); i++)
+            for (int i = 0; i < costs.Count; i++)
                 status.SetResource(costs[i].Resource, status.GetResource(costs[i].Resource) - costs[i].Amount);
         }
 
@@ -145,10 +134,9 @@ namespace ProjectT.Skill
         protected void ApplyEffects(SkillAgent target)
         {
             IReadOnlyList<EffectDefinition> effects = Spec.Definition.Effects;
-            int releases = target.ReleaseCount;
-            int ownerReleases = agent.ReleaseCount;
-            // 앞선 효과의 콜백에서 대상이 반납되면 닫힌 Agent나 다시 스폰된 대상에, 시전자가 반납되면 반납된 출처로 남은 효과를 걸지 않는다.
-            for (int i = 0; i < effects.Count && !target.IsReleasedSinceInternal(releases) && !agent.IsReleasedSinceInternal(ownerReleases); i++)
+            // 발동 밖에서 불려도 앞선 효과의 콜백에서 시전자가 반납되지 않도록 시전자의 호출로 둔다.
+            using var scope = agent.EnterCallInternal();
+            for (int i = 0; i < effects.Count; i++)
                 target.ApplyEffect(effects[i], Owner);
         }
 
@@ -195,15 +183,12 @@ namespace ProjectT.Skill
             if (!IsActive)
                 return;
 
+            using var scope = agent.EnterCallInternal();
             bool wasActivating = State == SkillActionState.Activating;
             State = SkillActionState.Ending;
-            int releases = agent.ReleaseCount;
             OnEnd(reason);
             if (!wasActivating)
                 State = SkillActionState.Idle;
-            // OnEnd에서 Actor가 반납되면 정리된 스킬의 종료를 새 구독자에게 보내지 않는다.
-            if (agent.IsReleasedSinceInternal(releases))
-                return;
 
             if (wasActivating)
                 pendingEndReason = reason;

@@ -52,12 +52,29 @@ namespace ProjectT.Stat
             }
         }
 
-        // 스탯은 처음 쓸 때 만든다. 정리해도 지우지 않으므로 알림 중 정리되거나 새 스탯이 추가되어도 앞쪽 순서가 유지된다.
+        // 스탯은 처음 쓸 때 만든다. 정리해도 지우지 않으므로 알림 중 새 스탯이 추가되어도 앞쪽 순서가 유지된다.
         private readonly Dictionary<StatId, StatEntry> statById = new Dictionary<StatId, StatEntry>();
         private readonly List<StatEntry> stats = new List<StatEntry>();
         // 자원 정의는 오브젝트 단위 설정이라 정리해도 유지한다. 뒤에만 추가되므로 알림 중 새로 정의되어도 앞쪽 순서가 유지된다.
         private readonly List<Resource> resources = new List<Resource>();
-        private int releaseCount;
+        // 알림에서 Actor가 반납되면 남은 알림이 정리된 값이나 다음 스폰의 구독자를 다루므로 알림 중에는 정리를 거부한다.
+        private int callDepth;
+
+        private readonly struct CallScope : IDisposable
+        {
+            private readonly Status status;
+
+            public CallScope(Status status)
+            {
+                this.status = status;
+                status.callDepth++;
+            }
+
+            public void Dispose()
+            {
+                status.callDepth--;
+            }
+        }
 
         // 핸들러가 Status를 다시 호출하면 이후 알림의 인자가 현재 값과 다를 수 있으므로 핸들러는 Get·GetResource로 현재 값을 읽는다.
         public event Action<StatId, float, float> OnStatChanged;
@@ -67,6 +84,8 @@ namespace ProjectT.Stat
         internal Status()
         {
         }
+
+        internal bool IsInCall => callDepth > 0;
 
         public float Get(StatId stat) => statById.TryGetValue(stat, out StatEntry entry) ? entry.CurrentValue : 0f;
 
@@ -112,6 +131,7 @@ namespace ProjectT.Stat
                 return;
 
             entry.Value = current;
+            using var scope = new CallScope(this);
             OnResourceChanged?.Invoke(resource, previous, current);
         }
 
@@ -137,21 +157,23 @@ namespace ProjectT.Stat
             Span<float> previousResources = stackalloc float[resources.Count];
             Span<float> currentResources = stackalloc float[resources.Count];
             ClampResourcesInternal(previousResources, currentResources);
-            int releases = releaseCount;
-            for (int i = 0; i < count && !IsReleasedSinceInternal(releases); i++)
+            using var scope = new CallScope(this);
+            for (int i = 0; i < count; i++)
             {
                 StatEntry entry = stats[i];
                 if (entry.CurrentValue != previous[i])
                     OnStatChanged?.Invoke(entry.Id, previous[i], entry.CurrentValue);
             }
 
-            NotifyResourcesInternal(previousResources, currentResources, releases);
+            NotifyResourcesInternal(previousResources, currentResources);
         }
 
         // 구독자는 Disable에서 이미 해제했으므로 정리는 알림 없이 값을 비운다.
         internal void ReleaseInternal()
         {
-            releaseCount++;
+            if (IsInCall)
+                throw new InvalidOperationException("[Status] Cannot release during a status notification.");
+
             foreach (StatEntry entry in stats)
             {
                 entry.BaseValue = 0f;
@@ -161,12 +183,6 @@ namespace ProjectT.Stat
 
             foreach (Resource resource in resources)
                 resource.Value = 0f;
-        }
-
-        // 알림 전에 저장한 releaseCount로 판정한다. 핸들러에서 반납되면(같은 호출에서 재스폰 포함) 저장해 둔 이전 스폰의 값을 새 구독자에게 보내지 않도록 멈춘다.
-        private bool IsReleasedSinceInternal(int releases)
-        {
-            return releases != releaseCount;
         }
 
         private StatEntry GetOrAddEntryInternal(StatId stat)
@@ -203,9 +219,9 @@ namespace ProjectT.Stat
             Span<float> previousResources = stackalloc float[resources.Count];
             Span<float> currentResources = stackalloc float[resources.Count];
             ClampResourcesInternal(previousResources, currentResources);
-            int releases = releaseCount;
+            using var scope = new CallScope(this);
             OnStatChanged?.Invoke(entry.Id, previous, current);
-            NotifyResourcesInternal(previousResources, currentResources, releases);
+            NotifyResourcesInternal(previousResources, currentResources);
         }
 
         // 상한 스탯이 자원보다 작아지면 자원을 줄인다. 스탯 핸들러가 실패해도 자원이 상한을 넘지 않도록 알리기 전에 줄인다.
@@ -221,9 +237,9 @@ namespace ProjectT.Stat
             }
         }
 
-        private void NotifyResourcesInternal(Span<float> previous, Span<float> current, int releases)
+        private void NotifyResourcesInternal(Span<float> previous, Span<float> current)
         {
-            for (int i = 0; i < previous.Length && !IsReleasedSinceInternal(releases); i++)
+            for (int i = 0; i < previous.Length; i++)
             {
                 if (current[i] != previous[i])
                     OnResourceChanged?.Invoke(resources[i].Id, previous[i], current[i]);

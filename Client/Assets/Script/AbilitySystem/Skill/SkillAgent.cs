@@ -9,7 +9,8 @@ namespace ProjectT.Skill
         // 겹친 효과 중 하나가 먼저 끝나도 태그가 유지되도록 부여 횟수를 센다. 가진 태그만 남긴다.
         private readonly Dictionary<SkillTag, int> tagCounts = new Dictionary<SkillTag, int>();
         private bool isOpen;
-        private int releaseCount;
+        // 콜백에서 Actor가 반납되면 진행 중인 순회가 정리된 상태나 다음 스폰의 상태를 다루므로 호출 중에는 정리를 거부한다.
+        private int callDepth;
         // 발동 중인 스킬은 비활성화 순회에서 빠지므로 발동 경로가 Activate 중 비활성화되었는지 판단하는 횟수다.
         private int deactivationCount;
 
@@ -21,8 +22,24 @@ namespace ProjectT.Skill
         public event Action<SkillDefinition> OnSkillActivated;
         public event Action<SkillDefinition, SkillEndReason> OnSkillEnded;
 
-        internal int ReleaseCount => releaseCount;
         internal int DeactivationCount => deactivationCount;
+        internal bool IsInCall => callDepth > 0;
+
+        internal readonly struct CallScope : IDisposable
+        {
+            private readonly SkillAgent agent;
+
+            public CallScope(SkillAgent agent)
+            {
+                this.agent = agent;
+                agent.callDepth++;
+            }
+
+            public void Dispose()
+            {
+                agent.callDepth--;
+            }
+        }
 
         internal SkillAgent(IAbilityOwner owner)
         {
@@ -44,11 +61,13 @@ namespace ProjectT.Skill
             if (!isOpen)
                 return;
 
+            using var scope = EnterCallInternal();
             actionController.ActivateSkill(skillId);
         }
 
         public void CancelSkill(int skillId)
         {
+            using var scope = EnterCallInternal();
             actionController.CancelSkill(skillId);
         }
 
@@ -57,11 +76,13 @@ namespace ProjectT.Skill
             if (!isOpen)
                 throw new InvalidOperationException($"[SkillAgent] Registration is closed. EffectID {definition.Id}");
 
+            using var scope = EnterCallInternal();
             return effectController.Apply(definition, source);
         }
 
         public void RemoveEffect(EffectHandle handle)
         {
+            using var scope = EnterCallInternal();
             effectController.Remove(handle);
         }
 
@@ -82,11 +103,10 @@ namespace ProjectT.Skill
             return false;
         }
 
-        // 콜백 전에 저장한 ReleaseCount로 판정한다. 콜백에서 Actor가 반납되면(같은 호출에서 재스폰 포함) 정리가 상태를 비우고 재스폰이 새 상태를 채우므로,
-        // 이전 스폰의 상태를 다루던 루프는 이 판정으로 멈춘다.
-        internal bool IsReleasedSinceInternal(int releases)
+        // 발동 밖(애니메이션 이벤트 등)에서 불리는 End·Cancel·ApplyEffects도 호출 중으로 보도록 스킬 액션이 함께 쓴다.
+        internal CallScope EnterCallInternal()
         {
-            return releases != releaseCount;
+            return new CallScope(this);
         }
 
         internal void AddTagInternal(SkillTag tag)
@@ -97,23 +117,13 @@ namespace ProjectT.Skill
                 return;
 
             // 취소 콜백도 태그를 보도록 카운트를 올린 뒤 취소하고, 구독자에게는 취소까지 끝난 뒤 알린다.
-            int releases = releaseCount;
             actionController.CancelSkillsByTag(tag);
-
-            // 취소 콜백에서 Actor가 반납되면 정리가 카운트를 비우고 짝이 되는 해제 알림도 없으므로 알리지 않는다.
-            // 같은 호출에서 다시 스폰되어 이 태그를 얻었으면 그 획득이 이미 알렸으므로 태그 보유 여부로 판단하지 않는다.
-            if (IsReleasedSinceInternal(releases))
-                return;
-
             OnTagChanged?.Invoke(tag, true);
         }
 
         internal void RemoveTagInternal(SkillTag tag)
         {
-            // 정리 중 제거 콜백에서 다시 정리되면 카운트가 먼저 비워진 뒤 바깥 정리가 남은 효과의 태그를 회수한다.
-            if (!tagCounts.TryGetValue(tag, out int count))
-                return;
-
+            int count = tagCounts[tag];
             if (count > 1)
             {
                 tagCounts[tag] = count - 1;
@@ -151,21 +161,26 @@ namespace ProjectT.Skill
 
         internal void TickInternal(float deltaTime)
         {
+            using var scope = EnterCallInternal();
             effectController.Tick(deltaTime);
             actionController.OnUpdate(deltaTime);
         }
 
         internal void CancelActiveSkillsInternal()
         {
+            using var scope = EnterCallInternal();
             deactivationCount++;
             actionController.CancelActiveSkills();
         }
 
         internal void ReleaseInternal()
         {
+            if (IsInCall)
+                throw new InvalidOperationException("[SkillAgent] Cannot release during a skill or effect call.");
+
+            using var scope = EnterCallInternal();
             // 정리 콜백(OnRemove, Cancel)에서 등록하면 다음 스폰으로 넘어가거나 조용히 버려지므로 정리 전에 닫는다.
             isOpen = false;
-            releaseCount++;
             effectController.ReleaseAll();
             actionController.ReleaseAll();
             // 실패한 적용이 남긴 태그도 다음 스폰으로 넘기지 않는다. 구독자는 Disable에서 이미 해제했으므로 알리지 않는다.

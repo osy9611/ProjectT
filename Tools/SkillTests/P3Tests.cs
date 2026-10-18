@@ -194,31 +194,6 @@ static partial class Program
         Check(!agent.HasTag(Stun) && events == 2, $"정리 후 스턴 획득·해제 이벤트 기대 2, 실제 {events}");
     }
 
-    static void ReleaseDuringStunCancelLeavesNoState()
-    {
-        AddBuff(1, BuffType.Strun, 1f);
-        var agent = NewAgent();
-        agent.GiveSkill(StunSkill(10));
-        agent.ActivateSkill(10);
-        ProjectT.Skill.Tests.TestSkillAction.CancelHook = () =>
-        {
-            ProjectT.Skill.Tests.TestSkillAction.CancelHook = null;
-            agent.ReleaseInternal();
-        };
-        int events = 0;
-        agent.OnTagChanged += (tag, active) => events++;
-
-        agent.ApplyEffect(SkillDefinitions.GetEffect(1), null);
-        Check(!agent.HasTag(Stun) && EffectCount(agent) == 0, "정리 후 스턴이 남았다");
-        Check(events == 0, $"정리된 스턴의 태그 이벤트 기대 0, 실제 {events}");
-
-        agent.OpenInternal();
-        agent.ApplyEffect(SkillDefinitions.GetEffect(1), null);
-        Check(agent.HasTag(Stun), "정리 후 다시 얻은 스턴이 적용되지 않았다");
-        agent.TickInternal(1f);
-        Check(!agent.HasTag(Stun), "다시 얻은 스턴이 해제되지 않았다");
-    }
-
     static void SelfStunDuringActivateCancelsSkill()
     {
         AddBuff(1, BuffType.Strun, 5f);
