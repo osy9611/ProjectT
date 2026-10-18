@@ -408,6 +408,34 @@ internal static partial class Program
         Check(setup.manager.ActiveSpatialVoiceCount == 1, "Stale ownership count was not repaired before reacquiring.");
     }
 
+    private static void DeferredPoolClearRecovery()
+    {
+        var setup = Setup(1);
+        Check(setup.manager.PlayAt(new AudioClip("deferred-old"), new Vector3()), "Initial spatial playback was rejected.");
+        var previous = ActiveSpatialSource(setup.manager);
+        var pooled = previous.GetComponent<PooledObject>();
+        AudioSource replacement = null;
+        try
+        {
+            setup.pool.Clear();
+            Check(previous != null && pooled != null && pooled.Owner == null && !previous.gameObject.activeSelf,
+                "Deferred destruction did not leave a non-null inactive orphaned lease.");
+            Check(setup.manager.ActiveSpatialVoiceCount == 1, "Test did not retain the orphaned lease before repair.");
+            Check(setup.manager.PlayAt(new AudioClip("deferred-new"), new Vector3()), "Same-frame playback failed while stale objects awaited Destroy.");
+            replacement = ActiveSpatialSource(setup.manager);
+            Check(setup.manager.ActiveSpatialVoiceCount == 1 && !ReferenceEquals(previous, replacement),
+                "Same-frame playback did not repair the orphaned lease.");
+        }
+        finally
+        {
+            UnityEngine.Object.FlushDeferredDestroy();
+        }
+
+        Check(previous == null && replacement != null && setup.manager.ActiveSpatialVoiceCount == 1
+            && ReferenceEquals(replacement, ActiveSpatialSource(setup.manager)),
+            "Late destruction of the old pool affected the replacement voice.");
+    }
+
     private static void SpatialShutdownDestroyOrder()
     {
         var setup = Setup(2);

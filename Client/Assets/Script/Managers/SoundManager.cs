@@ -15,20 +15,6 @@ namespace ProjectT
         UI
     }
 
-    public readonly struct SpatialSoundHandle
-    {
-        internal readonly long ManagerId;
-        internal readonly int Slot;
-        internal readonly long Generation;
-
-        internal SpatialSoundHandle(long managerId, int slot, long generation)
-        {
-            ManagerId = managerId;
-            Slot = slot;
-            Generation = generation;
-        }
-    }
-
     public class SoundManager : ManagerBase
     {
         private struct SpatialSound
@@ -37,17 +23,12 @@ namespace ProjectT
             public AudioSource Source;
             public PooledObject PooledObject;
             public bool InUse;
-            public bool AutoRelease;
-            public bool Paused;
-            public bool Finished;
-            public long Generation;
             public float Volume;
             public int StartFrame;
         }
 
         private const float SpatialVoiceCheckInterval = 0.1f;
         private const float MaxPitch = 3f;
-        private static long nextSpatialManagerId;
         private static readonly int SoundTypeCount = Enum.GetNames(typeof(eSound)).Length;
 
         private ResourceScope bgmScope;
@@ -60,7 +41,6 @@ namespace ProjectT
         private readonly bool[] categoryMuted = new bool[SoundTypeCount];
         private readonly float[] fadeGains = new float[SoundTypeCount];
         private readonly SpatialSound[] spatialSounds;
-        private readonly long spatialManagerId = Interlocked.Increment(ref nextSpatialManagerId);
 
         private float masterVolume = 1f;
         private bool masterMuted;
@@ -166,19 +146,9 @@ namespace ProjectT
                 if (!voice.InUse || voice.StartFrame == Time.frameCount)
                     continue;
 
-                if (!IsSpatialVoiceUsableInternal(i))
+                if (!IsSpatialVoiceUsableInternal(i) || IsSpatialPlaybackEndedInternal(i))
                     ReturnSpatialInternal(i);
-                else if (!voice.Paused && !voice.Finished && IsSpatialPlaybackEndedInternal(i))
-                    FinishSpatialVoiceInternal(i);
             }
-        }
-
-        private void FinishSpatialVoiceInternal(int index)
-        {
-            if (spatialSounds[index].AutoRelease)
-                ReturnSpatialInternal(index);
-            else
-                spatialSounds[index].Finished = true;
         }
 
         protected internal override void OnAppPause(bool paused)
@@ -188,47 +158,37 @@ namespace ProjectT
 
         public bool PlayAt(string path, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f)
         {
-            return SpawnAt(path, position, minDistance, maxDistance, volume, pitch).Generation != 0;
-        }
-
-        public bool PlayAt(AudioClip clip, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f)
-        {
-            return SpawnAt(clip, position, minDistance, maxDistance, volume, pitch).Generation != 0;
-        }
-
-        public SpatialSoundHandle SpawnAt(string path, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f, bool loop = false, bool autoRelease = true)
-        {
             if (!CanAcceptWorkInternal())
-                return default;
+                return false;
 
             ValidateSpatialInternal(position, minDistance, maxDistance, pitch);
             volume = ToVolumeInternal(volume);
             ReleaseSpatialVoicesBeforePlaybackInternal();
             if (ActiveSpatialVoiceCount >= spatialSounds.Length)
-                return default;
+                return false;
 
             AudioClip clip = LoadClipInternal(path, eSound.FX);
-            return SpawnSpatialInternal(clip, position, minDistance, maxDistance, volume, pitch, loop, autoRelease);
+            return SpawnSpatialInternal(clip, position, minDistance, maxDistance, volume, pitch);
         }
 
-        public SpatialSoundHandle SpawnAt(AudioClip clip, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f, bool loop = false, bool autoRelease = true)
+        public bool PlayAt(AudioClip clip, Vector3 position, float minDistance = 1f, float maxDistance = 30f, float volume = 1f, float pitch = 1f)
         {
             if (!CanAcceptWorkInternal())
-                return default;
+                return false;
 
             ValidateSpatialInternal(position, minDistance, maxDistance, pitch);
             volume = ToVolumeInternal(volume);
             if (clip == null)
-                return default;
+                return false;
 
             ReleaseSpatialVoicesBeforePlaybackInternal();
-            return SpawnSpatialInternal(clip, position, minDistance, maxDistance, volume, pitch, loop, autoRelease);
+            return SpawnSpatialInternal(clip, position, minDistance, maxDistance, volume, pitch);
         }
 
-        private SpatialSoundHandle SpawnSpatialInternal(AudioClip clip, Vector3 position, float minDistance, float maxDistance, float volume, float pitch, bool loop, bool autoRelease)
+        private bool SpawnSpatialInternal(AudioClip clip, Vector3 position, float minDistance, float maxDistance, float volume, float pitch)
         {
             if (!CanAcceptWorkInternal() || clip == null || clip.loadState == AudioDataLoadState.Failed)
-                return default;
+                return false;
 
             int index = -1;
             for (int i = 0; i < spatialSounds.Length; ++i)
@@ -241,7 +201,7 @@ namespace ProjectT
             }
 
             if (index < 0)
-                return default;
+                return false;
 
             GameObject instance = Global.Pool.Get(spatialOriginal, RootObject, spatialPoolScope);
             AudioSource source = instance.GetComponent<AudioSource>();
@@ -249,18 +209,14 @@ namespace ProjectT
             source.minDistance = minDistance;
             source.maxDistance = maxDistance;
             source.pitch = pitch;
-            source.loop = loop;
             source.clip = clip;
 
-            long generation = spatialSounds[index].Generation + 1;
             spatialSounds[index] = new SpatialSound
             {
                 Instance = instance,
                 Source = source,
                 PooledObject = instance.GetComponent<PooledObject>(),
                 InUse = true,
-                AutoRelease = autoRelease,
-                Generation = generation,
                 Volume = volume,
                 StartFrame = Time.frameCount
             };
@@ -268,7 +224,7 @@ namespace ProjectT
             ActiveSpatialVoiceCount++;
             ApplySpatialVolumeInternal(index);
             source.Play();
-            return new SpatialSoundHandle(spatialManagerId, index, generation);
+            return true;
         }
 
         private void ReleaseSpatialVoicesBeforePlaybackInternal()
@@ -307,124 +263,12 @@ namespace ProjectT
 
         private bool IsSpatialPlaybackEndedInternal(int index)
         {
-            ref SpatialSound voice = ref spatialSounds[index];
-            if (appPaused || AudioListener.pause || voice.StartFrame == Time.frameCount)
-                return false;
-
-            AudioDataLoadState loadState = voice.Source.clip.loadState;
+            AudioSource source = spatialSounds[index].Source;
+            AudioDataLoadState loadState = source.clip.loadState;
             if (loadState == AudioDataLoadState.Loading || loadState == AudioDataLoadState.Unloaded)
                 return false;
 
-            return !voice.Source.isPlaying;
-        }
-
-        private bool IsSpatialHandleCurrentInternal(SpatialSoundHandle handle)
-        {
-            return State == ManagerState.Ready && handle.ManagerId == spatialManagerId
-                && handle.Generation != 0 && handle.Slot >= 0 && handle.Slot < spatialSounds.Length
-                && spatialSounds[handle.Slot].InUse && spatialSounds[handle.Slot].Generation == handle.Generation;
-        }
-
-        private bool TryGetSpatialSlotInternal(SpatialSoundHandle handle, out int index)
-        {
-            index = -1;
-            if (!IsSpatialHandleCurrentInternal(handle))
-                return false;
-
-            index = handle.Slot;
-            if (IsSpatialVoiceUsableInternal(index))
-                return true;
-
-            ReturnSpatialInternal(index);
-            index = -1;
-            return false;
-        }
-
-        public bool IsValid(SpatialSoundHandle handle)
-        {
-            return IsSpatialHandleCurrentInternal(handle) && IsSpatialVoiceUsableInternal(handle.Slot);
-        }
-
-        public bool Pause(SpatialSoundHandle handle)
-        {
-            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index))
-                return false;
-
-            ref SpatialSound voice = ref spatialSounds[index];
-            if (voice.Paused || voice.Finished)
-                return false;
-
-            if (IsSpatialPlaybackEndedInternal(index))
-            {
-                FinishSpatialVoiceInternal(index);
-                return false;
-            }
-
-            voice.Paused = true;
-            voice.Source.Pause();
-            return true;
-        }
-
-        public bool Resume(SpatialSoundHandle handle)
-        {
-            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index) || !spatialSounds[index].Paused)
-                return false;
-
-            ref SpatialSound voice = ref spatialSounds[index];
-            voice.Paused = false;
-            voice.StartFrame = Time.frameCount;
-            voice.Source.UnPause();
-            return true;
-        }
-
-        public bool SetLoop(SpatialSoundHandle handle, bool loop)
-        {
-            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index))
-                return false;
-
-            spatialSounds[index].Source.loop = loop;
-            return true;
-        }
-
-        public bool Stop(SpatialSoundHandle handle)
-        {
-            if (!TryGetSpatialSlotInternal(handle, out int index))
-                return false;
-
-            ref SpatialSound voice = ref spatialSounds[index];
-            if (voice.AutoRelease)
-                ReturnSpatialInternal(index);
-            else if (!voice.Finished)
-            {
-                voice.Paused = false;
-                voice.Finished = true;
-                voice.Source.Stop();
-            }
-
-            return true;
-        }
-
-        public bool Release(SpatialSoundHandle handle)
-        {
-            if (!TryGetSpatialSlotInternal(handle, out int index))
-                return false;
-
-            ReturnSpatialInternal(index);
-            return true;
-        }
-
-        public bool Restart(SpatialSoundHandle handle)
-        {
-            if (!CanAcceptWorkInternal() || !TryGetSpatialSlotInternal(handle, out int index))
-                return false;
-
-            ref SpatialSound voice = ref spatialSounds[index];
-            voice.Paused = false;
-            voice.Finished = false;
-            voice.StartFrame = Time.frameCount;
-            voice.Source.Stop();
-            voice.Source.Play();
-            return true;
+            return !source.isPlaying;
         }
 
         private static void ValidateSpatialInternal(Vector3 position, float minDistance, float maxDistance, float pitch)
@@ -457,7 +301,7 @@ namespace ProjectT
             if (!voice.InUse)
                 return;
 
-            spatialSounds[index] = new SpatialSound { Generation = voice.Generation };
+            spatialSounds[index] = default;
             ActiveSpatialVoiceCount--;
             if (ActiveSpatialVoiceCount == 0)
                 spatialVoiceCheckElapsed = 0f;
@@ -467,7 +311,6 @@ namespace ProjectT
                 voice.Source.Stop();
                 voice.Source.clip = null;
                 voice.Source.pitch = 1f;
-                voice.Source.loop = false;
                 voice.Source.volume = 0f;
             }
 

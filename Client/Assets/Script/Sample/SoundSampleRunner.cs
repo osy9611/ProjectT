@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ProjectT.Sample
 {
-    // SoundManager의 채널 재생·페이드, 3D 음원 핸들, 볼륨·뮤트를 확인한다. 씬 전환 시 BGM 유지와 3D 음원 정리는 Scene 패널과 함께 확인한다.
+    // SoundManager의 채널 재생·페이드, 3D 음원, 볼륨·뮤트를 확인한다. 씬 전환 시 BGM 유지와 3D 음원 정리는 Scene 패널과 함께 확인한다.
     public class SoundSampleRunner : MonoBehaviour
     {
         private const float Width = 330f;
@@ -12,10 +12,8 @@ namespace ProjectT.Sample
         private const string ToneBgmPath = "Assets/BundleRes/Sound/Sample/SampleBgm.wav";
         private const string BeepPath = "Assets/BundleRes/Sound/Sample/SampleBeep.wav";
         private const string ClickPath = "Assets/BundleRes/Sound/Sample/SampleClick.wav";
-        private const string LoopPath = "Assets/BundleRes/Sound/Sample/SampleLoop.wav";
         private const int BurstCount = 40;
 
-        private SpatialSoundHandle loopHandle;
         private bool ready;
 
         private void Awake()
@@ -80,30 +78,10 @@ namespace ProjectT.Sample
                 BurstInternal();
             GUILayout.EndHorizontal();
 
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Loop Spawn"))
-            {
-                sound.Release(loopHandle);
-                loopHandle = sound.SpawnAt(LoopPath, RandomPositionInternal(), loop: true, autoRelease: false);
-            }
-
-            if (GUILayout.Button("Pause"))
-                sound.Pause(loopHandle);
-
-            if (GUILayout.Button("Resume"))
-                sound.Resume(loopHandle);
-
-            if (GUILayout.Button("Stop"))
-                sound.Stop(loopHandle);
-
-            if (GUILayout.Button("Release"))
-                sound.Release(loopHandle);
-            GUILayout.EndHorizontal();
-
             DrawVolumeInternal(sound);
 
             GUILayout.Label($"BGM: {(sound.CurrentBgm == null ? "None" : sound.CurrentBgm.name)}");
-            GUILayout.Label($"3D voices: {sound.ActiveSpatialVoiceCount}/{sound.SpatialVoiceCapacity}, loop handle valid: {sound.IsValid(loopHandle)}");
+            GUILayout.Label($"3D voices: {sound.ActiveSpatialVoiceCount}/{sound.SpatialVoiceCapacity}");
             GUILayout.EndArea();
         }
 

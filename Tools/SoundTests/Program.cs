@@ -54,20 +54,8 @@ internal static partial class Program
         Run("A failed return stays borrowed until shutdown without stopping remaining sound cleanup", FailedReturnCompletesCleanup);
         Run("Canceled lifetime permits returns and rejects new pool gets", CanceledLifetimePoolPolicy);
         Run("External pool clear is detected and playback recovers", ExternalPoolClearRecovery);
+        Run("Deferred pool destruction is repaired by same-frame playback", DeferredPoolClearRecovery);
         Run("Shutdown destroys pooled copies before the sound template", SpatialShutdownDestroyOrder);
-        Run("Spawn path and clip handles follow default auto release", SpawnHandleAutoRelease);
-        Run("Retained completion and stop preserve capacity until restart or release", RetainedHandleLifecycle);
-        Run("Individual pause and resume preserve playback across global guards", HandlePauseResumeGuards);
-        Run("Pausing completed playback cannot retain an automatic voice", PauseCompletedHandle);
-        Run("Loop changes affect completion and source reuse resets the setting", HandleLoopPolicy);
-        Run("Released reused cleared and shutdown handles are stale", HandleInvalidation);
-        Run("Handles cannot control another sound manager", CrossManagerHandle);
-        Run("Handle validity checks do not mutate broken leases", HandleValidityIsPure);
-        Run("External pool clear recovers a handle slot in the same frame", HandleExternalPoolClear);
-        Run("Deferred pool destruction cannot retain or corrupt handle ownership", HandleDeferredPoolClear);
-        Run("Failed and lost clips clean up paused and retained voices", HandleBrokenClipCleanup);
-        Run("Canceled lifetime allows stop and release but blocks new handle work", HandleCanceledLifetime);
-        Run("Individual controls leave other voices and channel behavior intact", IndependentHandleControls);
         Run("BGM clips use the sound scope while other channels use the scene scope", ClipScopesFollowChannelLifetime);
         Run("A scene clip released during fade-out is not played", ReleasedSceneClipSkipsFadeIn);
         Run("Scene replacement cancels pending FX and UI fades with a shared live clip", SceneReplacementCancelsPendingFades);
@@ -221,7 +209,6 @@ internal static partial class Program
             && ReferenceEquals(SpatialVoiceField<GameObject>(voice, "Instance"), null)
             && ReferenceEquals(SpatialVoiceField<AudioSource>(voice, "Source"), null)
             && SpatialVoiceField<float>(voice, "Volume") == 0f, "Slot metadata was not cleared on return.");
-        Check(SpatialVoiceField<long>(voice, "Generation") > 0, "Return discarded the generation that rejects stale handles.");
     }
 
     public sealed class FailingReturn : MonoBehaviour, IPoolable
