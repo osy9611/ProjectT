@@ -19,6 +19,10 @@ namespace ProjectT
 
         protected override async UniTask OnInitializeAsync(CancellationToken token)
         {
+            // 실패한 작업은 예외로 호출자에게 전달되어 경계에서 한 번 보고되므로 작업마다 오류 로그를 남기는 기본 핸들러를 쓰지 않는다.
+            // Addressables는 첫 초기화 때 핸들러가 비어 있을 때만 기본 핸들러를 넣으므로 첫 Addressables 호출보다 먼저 채운다.
+            UnityEngine.ResourceManagement.ResourceManager.ExceptionHandler = (handle, error) => { };
+
             if (!useRemote)
                 return;
 
