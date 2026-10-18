@@ -8,9 +8,23 @@ namespace ProjectT.UGUI
     {
         private PivotInfo pivotInfo;
 
+        public void Release()
+        {
+            // UIManager가 먼저 종료되어 분리된 HUD는 루트 파괴와 풀 정리가 처리하므로 반납하지 않는다.
+            if (pivotInfo == null)
+                return;
+
+            Global.UI.ReturnHudInternal(this);
+        }
+
         internal void AttachInternal(PivotInfo pivotInfo)
         {
             this.pivotInfo = pivotInfo;
+        }
+
+        internal void DetachInternal()
+        {
+            pivotInfo = null;
         }
 
         internal void UpdatePositionInternal(Camera worldCamera, RectTransform root, Camera uiCamera)

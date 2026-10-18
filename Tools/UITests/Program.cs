@@ -298,7 +298,7 @@ static class Program
             Setup();var manager=new UIManager();await manager.Initialize();var a=await manager.CreateWidgetAsync<Probe>(Key);a.Show();
             Check(manager.TopWidget==a,"manager navigation");manager.Shutdown();Check(Probe.Leaves==1,"manager cleanup");
         });
-        await Run("HUD is placed under the HUD root, updated once per frame, and returned at scene clear",async()=> {
+        await Run("HUD is placed under the HUD root, updated once per frame, and only returned by its actor",async()=> {
             Setup();var manager=new UIManager();await manager.Initialize();
             Global.Pool.Create=()=> {var go=new GameObject("Hud");go.AddComponent<ComHudAgent>();return go;};
             var pivot=new ProjectT.Pivot.PivotInfo();
@@ -307,13 +307,12 @@ static class Program
             UnityEngine.Camera.main=new GameObject("Main").AddComponent<UnityEngine.Camera>();
             manager.OnUpdate(0);Check(hud.PositionUpdates==1,"hud was not updated");
             var other=await manager.GetHudAsync<ComHudAgent>(HudDefine.eHudType.Test,pivot);Check(other.PositionUpdates==1,"hud was not placed on attach");
-            manager.ReturnHud(hud);manager.OnUpdate(0);
-            Check(Global.Pool.Returned.Count==1&&hud.PositionUpdates==1&&other.PositionUpdates==2,"returned hud kept updating");
-            manager.ClearTransientWidgets();manager.OnUpdate(0);
-            Check(Global.Pool.Returned.Count==2&&other.PositionUpdates==2,"scene clear did not return huds");
-            manager.ReturnHud(other);Check(Global.Pool.Returned.Count==2,"hud returned twice after scene clear");
-            manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,pivot);manager.Shutdown();
-            Check(Global.Pool.Returned.Count==3,"shutdown did not return huds");
+            manager.ReturnHudInternal(hud);manager.OnUpdate(0);
+            Check(Global.Pool.Returned.Count==1&&hud.PositionUpdates==1&&hud.Pivot==null&&other.PositionUpdates==2,"returned hud kept updating");
+            await ExpectSync<InvalidOperationException>(()=>manager.ReturnHudInternal(hud));
+            Check(Global.Pool.Returned.Count==1,"untracked hud was returned");
+            manager.Shutdown();
+            Check(Global.Pool.Returned.Count==1&&other.Pivot==null,"shutdown returned huds instead of detaching them");
         });
         await Run("HUD prefab without the requested component is returned and rejected",async()=> {
             Setup();var manager=new UIManager();await manager.Initialize();
@@ -321,6 +320,22 @@ static class Program
             await ExpectSync<InvalidOperationException>(()=>manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,new ProjectT.Pivot.PivotInfo()));
             UnityEngine.Camera.main=new GameObject("Main").AddComponent<UnityEngine.Camera>();manager.OnUpdate(0);
             Check(Global.Pool.Returned.Count==1,"rejected hud was not returned");manager.Shutdown();Check(Global.Pool.Returned.Count==1,"rejected hud was tracked");
+        });
+        await Run("App scope actor keeps its HUD across scene clear and never returns another actor's HUD",async()=> {
+            Setup();var manager=new UIManager();await manager.Initialize();
+            int reused=0;
+            Global.Pool.Create=()=> {
+                if(reused<Global.Pool.Returned.Count) return Global.Pool.Returned[reused++];
+                var go=new GameObject("Hud");go.AddComponent<ComHudAgent>();return go;
+            };
+            UnityEngine.Camera.main=new GameObject("Main").AddComponent<UnityEngine.Camera>();
+            var appHud=manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,new ProjectT.Pivot.PivotInfo());
+            manager.ClearTransientWidgets();manager.OnUpdate(0);
+            Check(Global.Pool.Returned.Count==0&&appHud.PositionUpdates==2,"scene clear took the app scope actor's hud");
+            var otherHud=manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,new ProjectT.Pivot.PivotInfo());
+            Check(!ReferenceEquals(otherHud,appHud),"live hud was rented to another actor");
+            manager.ReturnHudInternal(appHud);manager.OnUpdate(0);
+            Check(Global.Pool.Returned.Count==1&&Global.Pool.Returned[0]==appHud.gameObject&&otherHud.PositionUpdates==2,"returning the app scope hud affected another actor's hud");
         });
     }
 }

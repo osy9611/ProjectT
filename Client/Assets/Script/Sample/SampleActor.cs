@@ -83,10 +83,9 @@ namespace ProjectT.Sample
         protected override void OnRelease()
         {
             FeatureSampleRunner.Write($"Actor{Id} OnRelease");
-
-            // 종료 중에는 UIManager가 먼저 멈추면서 HUD를 이미 반납했으므로 Ready일 때만 돌려준다.
-            if (Global.TryGetReady<UIManager>(out var ui))
-                ui.ReturnHud(hud);
+            // OnEnter가 HUD를 대여하기 전에 실패해도 반납 경로가 이 훅을 호출한다.
+            if (hud != null)
+                hud.Release();
 
             hud = null;
             MoveDirection = Vector2.zero;

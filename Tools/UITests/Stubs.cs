@@ -51,6 +51,7 @@ namespace ProjectT.UGUI
         public ProjectT.Pivot.PivotInfo Pivot;
         public int PositionUpdates;
         internal void AttachInternal(ProjectT.Pivot.PivotInfo pivotInfo) { Pivot = pivotInfo; }
+        internal void DetachInternal() { Pivot = null; }
         internal void UpdatePositionInternal(UnityEngine.Camera worldCamera, UnityEngine.RectTransform root, UnityEngine.Camera uiCamera) { PositionUpdates++; }
     }
     public static class HudDefine { public enum eHudType { Test } public static string GetPath(eHudType type)=>"Hud"; }

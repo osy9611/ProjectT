@@ -26,8 +26,10 @@ namespace ProjectT
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            // HUD는 UIManager 루트 아래에 있으므로 루트와 함께 파괴되기 전에 풀로 돌려보낸다.
-            ReturnAllHudsInternal();
+            // 종료 순서상 Actor는 UIManager보다 늦게 반납되므로 HUD를 분리만 한다. 인스턴스는 루트 파괴와 풀 정리가 처리한다.
+            foreach (var hud in huds)
+                hud.DetachInternal();
+            huds.Clear();
             uiContainer?.Shutdown();
             uiContainer = null;
         }
@@ -63,10 +65,9 @@ namespace ProjectT
             uiContainer.RemoveWidget(type);
         }
 
-        // 씬 전환 경계에서 SceneManager가 호출한다. 씬 오브젝트를 따라가던 HUD는 모두 반납하고, UI는 System UI만 남긴다.
+        // 씬 전환 경계에서 SceneManager가 호출한다. UI는 System UI만 남긴다. HUD는 Actor가 반납하므로 건드리지 않는다.
         public void ClearTransientWidgets()
         {
-            ReturnAllHudsInternal();
             uiContainer.ClearTransientWidgets();
         }
 
@@ -84,12 +85,12 @@ namespace ProjectT
             }
         }
 
-        public void ReturnHud(ComHudAgent hud)
+        internal void ReturnHudInternal(ComHudAgent hud)
         {
-            // 씬 전환에서 UIManager가 먼저 일괄 반납한 HUD를 뒤이은 풀 정리의 Actor 반납 경로가 다시 반납하므로 추적 중인 HUD만 반납한다.
             if (!huds.Remove(hud))
-                return;
+                throw new InvalidOperationException("HUD is not attached to UIManager.");
 
+            hud.DetachInternal();
             Global.Pool.Return(hud.gameObject);
         }
 
@@ -127,15 +128,6 @@ namespace ProjectT
             var uiCamera = uiContainer.UICamera;
             for (int i = 0; i < huds.Count; ++i)
                 huds[i].UpdatePositionInternal(worldCamera, root, uiCamera);
-        }
-
-        private void ReturnAllHudsInternal()
-        {
-            var returning = huds.ToArray();
-            huds.Clear();
-
-            foreach (var hud in returning)
-                Global.Pool.Return(hud.gameObject);
         }
     }
 }
