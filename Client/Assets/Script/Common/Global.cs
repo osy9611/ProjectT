@@ -77,15 +77,6 @@ namespace ProjectT
             catch (OperationCanceledException) when (host.State == ManagerState.Stopping || host.State == ManagerState.Stopped)
             {
             }
-            finally
-            {
-                // 초기화 실패로 호스트가 스스로 종료한 경우만 여기서 보고한다. 그 외 종료 오류는 Shutdown에서 보고한다.
-                if (host.State == ManagerState.Failed)
-                {
-                    foreach (var error in host.ShutdownErrors)
-                        LogException(error);
-                }
-            }
         }
 
         public static async UniTask WhenReadyAsync(CancellationToken cancellationToken = default)
@@ -153,13 +144,11 @@ namespace ProjectT
                 return;
             try
             {
-                // 초기화 실패로 이미 Failed인 호스트의 종료 오류는 InitializeAsync에서 보고했다.
-                if (host.State != ManagerState.Failed)
-                {
-                    host.Shutdown(reason);
-                    foreach (var error in host.ShutdownErrors)
-                        LogException(error);
-                }
+                host.Shutdown(reason);
+            }
+            catch (Exception error)
+            {
+                LogException(error);
             }
             finally
             {

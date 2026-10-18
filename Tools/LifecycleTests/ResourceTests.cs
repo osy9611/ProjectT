@@ -24,12 +24,12 @@ static partial class Program
             var resource = StartResources(out var host);
             await resource.LoadSceneAsync("Exit", UnityEngine.SceneManagement.LoadSceneMode.Single);
             host.Shutdown(ShutdownReason.ApplicationExit);
-            Check(Addressables.UnloadOperations.Count == 0 && host.ShutdownErrors.Count == 0, "Application exit unloaded the last scene");
+            Check(Addressables.UnloadOperations.Count == 0, "Application exit unloaded the last scene");
 
             resource = StartResources(out host);
             await resource.LoadSceneAsync("Normal", UnityEngine.SceneManagement.LoadSceneMode.Single);
             host.Shutdown();
-            Check(Addressables.UnloadOperations.Count == 1 && host.ShutdownErrors.Count == 0, "Normal shutdown skipped scene unload");
+            Check(Addressables.UnloadOperations.Count == 1, "Normal shutdown skipped scene unload");
         });
         await Run("sprites: reuse per atlas and destroy after last owner before atlas release", () =>
         {

@@ -11,7 +11,6 @@ namespace ProjectT
         private readonly List<ManagerBase> managers = new List<ManagerBase>();
 
         private int startedCount;
-        private List<Exception> shutdownErrors;
 
         // Shutdown에서 lifetime을 Dispose한 뒤에도 늦게 끝난 초기화가 취소 여부를 확인할 수 있도록 토큰을 따로 보관한다.
         private readonly CancellationToken lifetimeToken;
@@ -21,9 +20,6 @@ namespace ProjectT
         private bool isInitializationStarted;
         
         public ManagerState State { get; private set; } = ManagerState.Created;
-        
-        public Exception InitializationError { get; private set; }
-        public IReadOnlyList<Exception> ShutdownErrors => (IReadOnlyList<Exception>)shutdownErrors ?? Array.Empty<Exception>();
 
         public UniTask WhenReady => ready.Task;
 
@@ -99,9 +95,17 @@ namespace ProjectT
                     return;
                 }
 
-                InitializationError = error;
+                var errors = StopManagersInternal(ShutdownReason.InitializationFailure);
+                State = ManagerState.Failed;
+                // 정리 오류는 초기화 오류와 함께 ready로 전달해 Global의 초기화 경계에서 한 번에 보고한다.
+                if (errors != null)
+                {
+                    errors.Insert(0, error);
+                    error = new AggregateException(errors);
+                }
 
-                ShutdownInternal(ShutdownReason.InitializationFailure);
+                ready.TrySetException(error);
+                lifetime.Dispose();
             }
         }
 
@@ -110,32 +114,26 @@ namespace ProjectT
             if (reason == ShutdownReason.InitializationFailure)
                 throw new ArgumentException("InitializationFailure is reserved for the host.", nameof(reason));
 
-            ShutdownInternal(reason);
-        }
-
-        private void ShutdownInternal(ShutdownReason reason)
-        {
             if (State == ManagerState.Stopping || State == ManagerState.Stopped || State == ManagerState.Failed)
                 return;
 
+            var errors = StopManagersInternal(reason);
+            State = ManagerState.Stopped;
+            ready.TrySetCanceled();
+            lifetime.Dispose();
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        private List<Exception> StopManagersInternal(ShutdownReason reason)
+        {
             State = ManagerState.Stopping;
-            ErrorCollector.Run(ref shutdownErrors, lifetime, source => source.Cancel());
+            List<Exception> errors = null;
+            ErrorCollector.Run(ref errors, lifetime, source => source.Cancel());
 
             for (int i = startedCount - 1; i >= 0; --i)
-                ErrorCollector.Run(ref shutdownErrors, managers[i], manager => manager.Shutdown(reason));
+                ErrorCollector.Run(ref errors, managers[i], manager => manager.Shutdown(reason));
 
-            if (reason == ShutdownReason.InitializationFailure)
-            {
-                State = ManagerState.Failed;
-                ready.TrySetException(InitializationError);
-            }
-            else
-            {
-                State = ManagerState.Stopped;
-                ready.TrySetCanceled();
-            }
-
-            lifetime.Dispose();
+            return errors;
         }
 
         public void Update(float dt)

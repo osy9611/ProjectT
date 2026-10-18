@@ -387,7 +387,6 @@ static partial class Program
             scope.Dispose();
             Check(cleaned && Addressables.Operations[0].Releases == 1 && manager.GetOriginal("Prefab") == null, "Scope retained ownership");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown repeated disposed scope cleanup");
             return UniTask.CompletedTask;
         });
 
@@ -420,7 +419,7 @@ static partial class Program
                 returned = true;
             });
             host.Shutdown();
-            Check(returned && host.ShutdownErrors.Count == 0, "Shutdown return failed or repeated");
+            Check(returned, "Shutdown return failed or repeated");
             return UniTask.CompletedTask;
         });
 
@@ -460,7 +459,7 @@ static partial class Program
             manager.ClearScope(scope);
             Check(item.Returns == 1, "Scope disposal repeated cleanup");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0 && kept.Returns == 1, "Shutdown repeated cleared scope or skipped another scope");
+            Check(kept.Returns == 1, "Shutdown repeated cleared scope or skipped another scope");
             return UniTask.CompletedTask;
         });
 
@@ -486,7 +485,7 @@ static partial class Program
             var other = resources.CreateScope();
             manager.ClearScope(other);
             host.Shutdown();
-            Check(ScopeState(manager).ClosedScopes == 0 && host.ShutdownErrors.Count == 0, "Pool shutdown kept a closed mark");
+            Check(ScopeState(manager).ClosedScopes == 0, "Pool shutdown kept a closed mark");
         });
 
         await Run("pool: lease from a scope during its own clear is rejected and leaves nothing", async () =>
@@ -505,7 +504,6 @@ static partial class Program
             Check(ScopeState(manager).Pools == 0 && ScopeState(manager).OpenScopes == 0, "Lease during clear left a pool or registration");
             scope.Dispose();
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown failed after a rejected lease");
         });
 
         await Run("pool: invalid cached item is discarded instead of reused", () =>

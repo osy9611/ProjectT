@@ -153,7 +153,7 @@ static partial class Program
             };
             await host.InitializeAsync();
             global.Shutdown();
-            Check(checkedShutdown && host.ShutdownErrors.Count == 0, "Shutdown access contract failed");
+            Check(checkedShutdown, "Shutdown access contract failed");
             await ThrowsSync<InvalidOperationException>(() => host.GetReadyManager<ResourceManager>());
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<ResourceManager>());
         });
@@ -228,7 +228,7 @@ static partial class Program
             Check(a.Name == b.Name && Global.GetManager<Probe<B>>() == b, "Type registry mismatch.");
             host.Shutdown(); host.Shutdown();
             Check(string.Join(",", trace) == "start:A,start:B,stop:B:Normal,stop:A:Normal", "Incorrect lifecycle order.");
-            Check(a.Stops == 1 && b.Stops == 1 && host.ShutdownErrors.Count == 0, "Repeated/failed cleanup.");
+            Check(a.Stops == 1 && b.Stops == 1, "Repeated/failed cleanup.");
             Check(UnityEngine.Object.Destroyed.Count == 2 && UnityEngine.Object.Destroyed.All(o => o is GameObject), "Wrong destruction target.");
             Check(!a.Owned.activeSelf && a.RootObject == null, "Root remains usable.");
         });
@@ -238,8 +238,8 @@ static partial class Program
             var a = new Probe<A>(trace, "A"); var b = new Probe<B>(trace, "B") { FailStart = true }; var c = new Probe<C>(trace, "C");
             host.Register(a); host.Register(b); host.Register(c);
             await Throws<InvalidOperationException>(() => host.InitializeAsync());
-            await Throws<InvalidOperationException>(() => host.WhenReady);
-            Check(host.State == ManagerState.Failed && host.InitializationError.Message == "start:B", "Failure lost.");
+            var failure = await Capture(() => host.WhenReady);
+            Check(host.State == ManagerState.Failed && failure is InvalidOperationException && failure.Message == "start:B", "Failure lost.");
             Check(a.Stops == 1 && b.Stops == 1 && c.Starts == 0 && c.Stops == 0, "Rollback scope incorrect.");
             Check(b.RootObject == null && UnityEngine.Object.Destroyed.Contains(b.Owned), "Partial root leaked.");
         });
@@ -247,9 +247,22 @@ static partial class Program
         {
             var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(new(), "A"); var b = new Probe<B>(new(), "B") { FailStop = true };
-            host.Register(a); host.Register(b); await host.InitializeAsync(); host.Shutdown();
-            Check(a.Stops == 1 && b.Stops == 1 && host.ShutdownErrors.Count == 1, "Cleanup exception not isolated.");
+            host.Register(a); host.Register(b); await host.InitializeAsync();
+            var failure = await Capture(() => { host.Shutdown(); return UniTask.CompletedTask; });
+            Check(a.Stops == 1 && b.Stops == 1 && failure is AggregateException { InnerExceptions.Count: 1 } aggregate &&
+                aggregate.InnerExceptions[0].Message == "stop:B", "Cleanup exception not isolated.");
             Check(b.RootObject == null && host.State == ManagerState.Stopped, "Finally cleanup failed.");
+        });
+        await Run("initialization failure delivers cleanup errors after the initialization error", async () =>
+        {
+            var host = new ManagerHost(); Global.BindForTests(host);
+            var a = new Probe<A>(new(), "A") { FailStop = true }; var b = new Probe<B>(new(), "B") { FailStart = true };
+            host.Register(a); host.Register(b);
+            var failure = await Capture(() => host.InitializeAsync());
+            Check(failure is AggregateException { InnerExceptions.Count: 2 } aggregate && aggregate.InnerExceptions[0].Message == "start:B" &&
+                aggregate.InnerExceptions[1].Message == "stop:A", "Cleanup errors were not delivered with the initialization error.");
+            host.Shutdown();
+            Check(host.State == ManagerState.Failed && a.Stops == 1, "Shutdown after failure repeated cleanup.");
         });
         await Run("shutdown during await cancels readiness and prevents late Ready", async () =>
         {
@@ -269,14 +282,15 @@ static partial class Program
             host.Register(a); var init = host.InitializeAsync(); host.Shutdown();
             await Throws<OperationCanceledException>(() => init);
             await Throws<OperationCanceledException>(() => host.WhenReady);
-            Check(host.State == ManagerState.Stopped && host.InitializationError == null && a.Stops == 1, "Cancellation treated as startup failure.");
+            Check(host.State == ManagerState.Stopped && a.Stops == 1, "Cancellation treated as startup failure.");
         });
         await Run("throwing cancellation subscriber does not stop cleanup", async () =>
         {
             var host = new ManagerHost(); Global.BindForTests(host); var a = new Probe<A>(new(), "A");
             a.StartAction = () => a.Token.Register(() => throw new Exception("cancel"));
-            host.Register(a); await host.InitializeAsync(); host.Shutdown();
-            Check(a.Stops == 1 && host.ShutdownErrors.Count == 1, "Cancellation exception broke shutdown.");
+            host.Register(a); await host.InitializeAsync();
+            var failure = await Capture(() => { host.Shutdown(); return UniTask.CompletedTask; });
+            Check(a.Stops == 1 && failure is AggregateException { InnerExceptions.Count: 1 }, "Cancellation exception broke shutdown.");
         });
         await Run("duplicate registration and mutation after startup rejected", async () =>
         {

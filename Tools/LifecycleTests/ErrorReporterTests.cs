@@ -296,12 +296,15 @@ static partial class Program
                 globals.Add(failedGlobal);
                 failedHost.Register(new Probe<A>(new(), "failed stop") { FailStop = true });
                 failedHost.Register(new Probe<B>(new(), "failed start") { FailStart = true });
-                await Throws<InvalidOperationException>(() => failedGlobal.InitializeForTests());
+                failedGlobal.InitializeForTests().Forget(Global.LogException);
                 failedGlobal.Shutdown();
                 // Global.Shutdown releases its sinks after the final flush.
                 ErrorReporter.SetSinks(sink);
                 ErrorReporter.Flush();
-                Check(sink.Events.FindAll(error => error.Exception?.Message == "stop:failed stop").Count == 1, "Initialization failure cleanup reported twice or missed");
+                var failed = sink.Events.FindAll(error => error.Exception?.Message is "start:failed start" or "stop:failed stop");
+                Check(failed.Count == 2 && failed[0].Exception.Message == "start:failed start" && failed[0].Id == failed[1].Id,
+                    "Initialization failure and its cleanup were not reported once as one event");
+                Check(Debug.Errors.Count == 1 && Debug.Errors[0] is AggregateException, "Initialization failure was not written to the console once");
 
                 var gate = new UniTaskCompletionSource();
                 var stoppedHost = new ManagerHost();
@@ -316,6 +319,21 @@ static partial class Program
                 await pending;
                 ErrorReporter.Flush();
                 Check(sink.Events.FindAll(error => error.Exception?.Message == "stop:stopped stop").Count == 1, "Shutdown cleanup reported twice or missed");
+
+                sink.Events.Clear();
+                Debug.Errors.Clear();
+                var normalHost = new ManagerHost();
+                var normalGlobal = Global.BindForTests(normalHost);
+                globals.Add(normalGlobal);
+                normalHost.Register(new Probe<A>(new(), "normal first") { FailStop = true });
+                normalHost.Register(new Probe<B>(new(), "normal second") { FailStop = true });
+                await normalGlobal.InitializeForTests();
+                normalGlobal.Shutdown();
+                ErrorReporter.SetSinks(sink);
+                ErrorReporter.Flush();
+                Check(sink.Events.Count == 2 && sink.Events[0].Exception.Message == "stop:normal second" && sink.Events[0].Id == sink.Events[1].Id,
+                    "Normal shutdown cleanup errors were not reported as one event in reverse order");
+                Check(Debug.Errors.Count == 1 && Debug.Errors[0] is AggregateException, "Normal shutdown cleanup was not written to the console once");
             }
             finally
             {

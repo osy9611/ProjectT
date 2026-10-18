@@ -499,7 +499,6 @@ static partial class Program
             Check(scope.Token.IsCancellationRequested && previous.Item.Returns == 1, "Scope disposal returned the cleaned pool again");
             Check(PoolScene<B>.Last.Item.Returns == 0 && PoolScene<B>.Last.Item.gameObject.activeSelf, "Next scene pool affected");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown repeated scene pool cleanup");
         });
 
         await Run("scenes: additive unload returns only its scene pool objects at stop before scope disposal", async () =>
@@ -517,7 +516,6 @@ static partial class Program
             await Finish(closing);
             Check(scope.Token.IsCancellationRequested && additive.Item.Returns == 1, "Scope disposal returned the cleaned pool again");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown repeated scene pool cleanup");
         });
 
         await Run("scenes: failed single and additive entry return scene pool objects once", async () =>
@@ -535,7 +533,6 @@ static partial class Program
             Check(IsReturnedAtStop(PoolScene<B>.Last) && PoolScene<B>.Last.ResourceScope.Token.IsCancellationRequested, "Failed additive entry kept or repeated its pool cleanup");
             Check(PoolScene<A>.Last.Item.Returns == 0, "Primary scene pool affected");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown repeated scene pool cleanup");
         });
 
         await Run("scenes: manager shutdown returns scene pool objects while the pool manager is ready", async () =>
@@ -549,7 +546,6 @@ static partial class Program
             host.Shutdown();
             Check(IsReturnedAtStop(PoolScene<A>.Last) && IsReturnedAtStop(PoolScene<B>.Last), "Shutdown skipped or repeated scene pool cleanup");
             Check(states.Count == 2 && states.TrueForAll(state => state == ManagerState.Ready), "Scene pools were left to pool manager shutdown");
-            Check(host.ShutdownErrors.Count == 0, "Shutdown scene pool cleanup failed");
         });
 
         await Run("scenes: stop failure and scene pool cleanup failure both reach the close boundary", async () =>
@@ -573,7 +569,6 @@ static partial class Program
             await Finish(manager.TransitionAsync<PoolScene<B>>("B", LoadSceneMode.Single));
             Check(primary.Item.Returns == 1 && primary.ResourceScope.Token.IsCancellationRequested, "Retry returned the failed scene pool again");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown repeated scene pool cleanup");
         });
     }
 }

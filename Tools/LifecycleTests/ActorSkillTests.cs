@@ -478,6 +478,7 @@ static partial class Program
                 Check(TraceOf(placed) == "init,enter,enable,disable,release" && !IsRegistered(placed.Input), "Unload destruction did not disable and release the placed actor once");
                 unload.Complete();
                 await Finish(closing);
+                Addressables.UnloadFactory = null;
                 Check(scope.Token.IsCancellationRequested && placed.Releases == 1, "Scope disposal released the placed actor again");
                 host.Shutdown();
             });
@@ -503,7 +504,6 @@ static partial class Program
             await Finish(manager.TransitionAsync<FlowScene<B>>("B", LoadSceneMode.Single));
             Check(scope.Token.IsCancellationRequested && ScopeState(Global.Pool).ClosedScopes == 0, "Closed scene scope was not released after the retry");
             host.Shutdown();
-            Check(host.ShutdownErrors.Count == 0, "Shutdown failed after a rejected scene lease");
         });
 
         await Run("pool: object return callback failure propagates unchanged and keeps the object borrowed", () =>
