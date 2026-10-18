@@ -4,52 +4,26 @@ using System.Threading;
 
 namespace ProjectT
 {
-    /// <remarks>Use public APIs on the Unity main thread. Owner tokens may be canceled from worker threads.</remarks>
+    /// <remarks>Use public APIs on the Unity main thread. Owner tokens may be canceled from any thread; canceled subscriptions stop receiving immediately and are removed on the next Subscribe or Publish of the same id.</remarks>
     public class NotificationManager : ManagerBase
     {
-        private sealed class Subscription
+        private readonly struct Subscription
         {
-            public readonly NotificationManager Owner;
-            public readonly NotificationId Id;
             public readonly Action Listener;
             public readonly CancellationToken OwnerToken;
-            public bool IsOwnerCanceled;
-            public bool HasCancellationRegistration;
-            public CancellationTokenRegistration CancellationRegistration;
 
-            public Subscription(NotificationManager owner, NotificationId id, Action listener, CancellationToken ownerToken)
+            public Subscription(Action listener, CancellationToken ownerToken)
             {
-                Owner = owner;
-                Id = id;
                 Listener = listener;
                 OwnerToken = ownerToken;
             }
         }
 
-        private readonly object syncRoot = new object();
         private readonly Dictionary<NotificationId, List<Subscription>> subscriptions = new Dictionary<NotificationId, List<Subscription>>();
 
         protected override void OnShutdown(ShutdownReason reason)
         {
-            List<CancellationTokenRegistration> registrations = null;
-
-            lock (syncRoot)
-            {
-                foreach (var pair in subscriptions)
-                {
-                    var listeners = pair.Value;
-                    for (int i = 0; i < listeners.Count; ++i)
-                    {
-                        var subscription = listeners[i];
-                        subscription.IsOwnerCanceled = true;
-                        AddCancellationRegistrationInternal(subscription, ref registrations);
-                    }
-                }
-
-                subscriptions.Clear();
-            }
-
-            DisposeRegistrationsInternal(registrations);
+            subscriptions.Clear();
         }
 
         public void Subscribe(NotificationId id, Action listener, CancellationToken ownerToken)
@@ -60,65 +34,22 @@ namespace ProjectT
                 throw new ArgumentNullException(nameof(listener));
 
             ThrowIfWorkUnavailableInternal();
+            ownerToken.ThrowIfCancellationRequested();
 
-            List<CancellationTokenRegistration> registrations = null;
-
-            try
+            if (!subscriptions.TryGetValue(id, out var listeners))
             {
-                lock (syncRoot)
-                {
-                    ThrowIfWorkUnavailableInternal();
-
-                    subscriptions.TryGetValue(id, out var listeners);
-
-                    int expiredIndex = -1;
-                    for (int i = 0; listeners != null && i < listeners.Count; ++i)
-                    {
-                        var existing = listeners[i];
-                        if (existing.Listener != listener)
-                            continue;
-
-                        if (!existing.IsOwnerCanceled && !existing.OwnerToken.IsCancellationRequested)
-                            return;
-
-                        expiredIndex = i;
-                        break;
-                    }
-
-                    ownerToken.ThrowIfCancellationRequested();
-
-                    if (expiredIndex >= 0)
-                    {
-                        var existing = listeners[expiredIndex];
-                        existing.IsOwnerCanceled = true;
-                        listeners.RemoveAt(expiredIndex);
-                        AddCancellationRegistrationInternal(existing, ref registrations);
-                    }
-
-                    if (listeners == null)
-                    {
-                        listeners = new List<Subscription>();
-                        subscriptions.Add(id, listeners);
-                    }
-
-                    var subscription = new Subscription(this, id, listener, ownerToken);
-                    listeners.Add(subscription);
-
-                    if (ownerToken.CanBeCanceled)
-                    {
-                        var registration = ownerToken.Register(OnSubscriptionCanceledInternal, subscription);
-                        subscription.CancellationRegistration = registration;
-                        subscription.HasCancellationRegistration = true;
-
-                        if (subscription.IsOwnerCanceled)
-                            AddCancellationRegistrationInternal(subscription, ref registrations);
-                    }
-                }
+                listeners = new List<Subscription>();
+                subscriptions.Add(id, listeners);
             }
-            finally
+
+            RemoveCanceledInternal(listeners);
+            for (int i = 0; i < listeners.Count; ++i)
             {
-                DisposeRegistrationsInternal(registrations);
+                if (listeners[i].Listener == listener)
+                    return;
             }
+
+            listeners.Add(new Subscription(listener, ownerToken));
         }
 
         public void Publish(NotificationId id)
@@ -127,91 +58,25 @@ namespace ProjectT
 
             ThrowIfWorkUnavailableInternal();
 
-            Subscription[] snapshot;
-            lock (syncRoot)
-            {
-                if (!CanAcceptWorkInternal() || !subscriptions.TryGetValue(id, out var listeners) || listeners.Count == 0)
-                    return;
+            if (!subscriptions.TryGetValue(id, out var listeners))
+                return;
 
-                snapshot = listeners.ToArray();
-            }
-
+            RemoveCanceledInternal(listeners);
+            var snapshot = listeners.ToArray();
             for (int i = 0; i < snapshot.Length; ++i)
             {
-                var subscription = snapshot[i];
-                lock (syncRoot)
-                {
-                    if (!CanAcceptWorkInternal())
-                        return;
-                    if (subscription.IsOwnerCanceled || subscription.OwnerToken.IsCancellationRequested)
-                        continue;
-                }
+                if (!CanAcceptWorkInternal())
+                    return;
+                if (snapshot[i].OwnerToken.IsCancellationRequested)
+                    continue;
 
-                subscription.Listener();
+                snapshot[i].Listener();
             }
         }
 
-        private static void OnSubscriptionCanceledInternal(object state)
+        private static void RemoveCanceledInternal(List<Subscription> listeners)
         {
-            var subscription = (Subscription)state;
-            subscription.Owner.CancelSubscriptionInternal(subscription);
-        }
-
-        private void CancelSubscriptionInternal(Subscription subscription)
-        {
-            CancellationTokenRegistration registration = default;
-            bool shouldDisposeRegistration = false;
-
-            lock (syncRoot)
-            {
-                subscription.IsOwnerCanceled = true;
-
-                if (subscriptions.TryGetValue(subscription.Id, out var listeners))
-                {
-                    listeners.Remove(subscription);
-                    if (listeners.Count == 0)
-                        subscriptions.Remove(subscription.Id);
-                }
-
-                shouldDisposeRegistration = TryTakeCancellationRegistrationInternal(subscription, out registration);
-            }
-
-            if (shouldDisposeRegistration)
-                registration.Dispose();
-        }
-
-        private static bool TryTakeCancellationRegistrationInternal(Subscription subscription, out CancellationTokenRegistration registration)
-        {
-            if (!subscription.HasCancellationRegistration)
-            {
-                registration = default;
-                return false;
-            }
-
-            registration = subscription.CancellationRegistration;
-            subscription.HasCancellationRegistration = false;
-            return true;
-        }
-
-        private void AddCancellationRegistrationInternal(Subscription subscription, ref List<CancellationTokenRegistration> registrations)
-        {
-            if (!subscription.HasCancellationRegistration)
-                return;
-
-            if (registrations == null)
-                registrations = new List<CancellationTokenRegistration>();
-
-            registrations.Add(subscription.CancellationRegistration);
-            subscription.HasCancellationRegistration = false;
-        }
-
-        private static void DisposeRegistrationsInternal(List<CancellationTokenRegistration> registrations)
-        {
-            if (registrations == null)
-                return;
-
-            for (int i = 0; i < registrations.Count; ++i)
-                registrations[i].Dispose();
+            listeners.RemoveAll(subscription => subscription.OwnerToken.IsCancellationRequested);
         }
 
         private static void ValidateIdInternal(NotificationId id)

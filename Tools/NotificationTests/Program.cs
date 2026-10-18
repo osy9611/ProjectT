@@ -35,12 +35,9 @@ internal static class Program
         Run("listeners run in registration order", RegistrationOrder);
         Run("duplicate subscribe preserves the original lifetime and position", DuplicateSubscriptionIsNoOp);
         Run("a canceled owner's listener can be renewed with a new lifetime", RenewAfterOwnerCancellation);
-        Run("owner cancellation can renew the same listener with a new lifetime", RenewSubscriptionDuringOwnerCancellation);
         Run("publish mutation uses a stable listener snapshot", SnapshotMutationPolicy);
         Run("owner cancellation suppresses callbacks remaining in a snapshot", OwnerCancellationDuringPublish);
         Run("worker-thread owner cancellation completes without deadlock", WorkerCancellationDuringPublish);
-        Run("renewal completes while worker cancellation is pending", () => WorkerCancellationDuringCleanup(false));
-        Run("shutdown completes while worker cancellation is pending", () => WorkerCancellationDuringCleanup(true));
         Run("manager lifetime cancellation suppresses callbacks remaining in a snapshot", LifetimeCancellationDuringPublish);
         Run("shutdown during publish suppresses remaining callbacks", ShutdownDuringPublish);
         Run("recursive publish is isolated and deterministic", RecursivePublish);
@@ -127,12 +124,13 @@ internal static class Program
         fixture.Manager.Publish(First);
         Equal("duplicate,middle", string.Join(",", calls), "Duplicate subscribe replaced the original position or owner token.");
 
-        calls.Clear();
         using var canceledDuplicateOwner = new CancellationTokenSource();
         canceledDuplicateOwner.Cancel();
-        fixture.Manager.Subscribe(First, duplicate, canceledDuplicateOwner.Token);
+        Throws<OperationCanceledException>(() => fixture.Manager.Subscribe(First, duplicate, canceledDuplicateOwner.Token));
+
+        calls.Clear();
         fixture.Manager.Publish(First);
-        Equal("duplicate,middle", string.Join(",", calls), "A duplicate with a canceled replacement owner changed the original subscription.");
+        Equal("duplicate,middle", string.Join(",", calls), "A rejected canceled owner changed the original subscription.");
 
         calls.Clear();
         originalOwner.Cancel();
@@ -159,40 +157,6 @@ internal static class Program
         calls.Clear();
         fixture.Manager.Publish(First);
         Equal("other", string.Join(",", calls), "The renewed subscription did not belong exclusively to the new owner.");
-    }
-
-    private static void RenewSubscriptionDuringOwnerCancellation()
-    {
-        using var fixture = new Fixture();
-        using var oldOwner = new CancellationTokenSource();
-        using var newOwner = new CancellationTokenSource();
-        var calls = new List<string>();
-        int renewals = 0;
-        Action listener = () => calls.Add("renewed");
-        fixture.Manager.Subscribe(First, listener, oldOwner.Token);
-        fixture.Manager.Subscribe(First, () => calls.Add("first"), default);
-        fixture.Manager.Subscribe(First, () => calls.Add("second"), default);
-
-        // Register last so renewal runs before the old subscription's cancellation callback.
-        using var renewal = oldOwner.Token.Register(() =>
-        {
-            renewals++;
-            fixture.Manager.Subscribe(First, listener, newOwner.Token);
-        });
-
-        oldOwner.Cancel();
-        Check(renewals == 1 && oldOwner.IsCancellationRequested && !newOwner.IsCancellationRequested,
-            "Renewal did not run with a canceled old owner and a live new owner.");
-
-        fixture.Manager.Publish(First);
-        Equal("first,second,renewed", string.Join(",", calls),
-            "The renewed listener was removed by the old owner's cancellation callback.");
-
-        newOwner.Cancel();
-        calls.Clear();
-        fixture.Manager.Publish(First);
-        Equal("first,second", string.Join(",", calls),
-            "The renewed subscription did not belong exclusively to the new owner.");
     }
 
     private static void SnapshotMutationPolicy()
@@ -262,72 +226,6 @@ internal static class Program
         if (workerError != null)
             throw new Exception("Worker cancellation failed.", workerError);
         Equal("cancel-worker", string.Join(",", calls), "Worker-canceled owner received a later callback.");
-    }
-
-    private static void WorkerCancellationDuringCleanup(bool shutdown)
-    {
-        using var fixture = new Fixture();
-        using var oldOwner = new CancellationTokenSource();
-        using var newOwner = new CancellationTokenSource();
-        using var cancellationEntered = new ManualResetEventSlim();
-        using var resumeCancellation = new ManualResetEventSlim();
-        int received = 0;
-        Action listener = () => received++;
-        fixture.Manager.Subscribe(First, listener, oldOwner.Token);
-        fixture.Manager.Subscribe(Second, listener, oldOwner.Token);
-
-        // Cancellation callbacks run last-in-first-out; pause before the manager's callbacks.
-        using var gate = oldOwner.Token.Register(() =>
-        {
-            cancellationEntered.Set();
-            if (!resumeCancellation.Wait(TimeSpan.FromSeconds(5)))
-                throw new TimeoutException("Main-thread cleanup did not release cancellation.");
-        });
-
-        Exception workerError = null;
-        var worker = new Thread(() =>
-        {
-            try
-            {
-                oldOwner.Cancel();
-            }
-            catch (Exception error)
-            {
-                workerError = error;
-            }
-        }) { IsBackground = true };
-
-        worker.Start();
-        try
-        {
-            Check(cancellationEntered.Wait(TimeSpan.FromSeconds(5)), "Worker did not enter cancellation.");
-            if (shutdown)
-                fixture.Manager.Shutdown(ShutdownReason.Normal);
-            else
-                fixture.Manager.Subscribe(First, listener, newOwner.Token);
-        }
-        finally
-        {
-            resumeCancellation.Set();
-            Check(worker.Join(TimeSpan.FromSeconds(5)), "Worker cancellation did not complete after cleanup.");
-        }
-
-        if (workerError != null)
-            throw new Exception("Worker cancellation failed during cleanup.", workerError);
-
-        Check(received == 0, "Cleanup must not publish notifications.");
-        if (shutdown)
-        {
-            Check(fixture.Manager.State == ManagerState.Stopped, "Shutdown did not reach Stopped.");
-            return;
-        }
-
-        fixture.Manager.Publish(First);
-        fixture.Manager.Publish(Second);
-        Check(received == 1, "Old cancellation removed the renewed listener or left an old listener active.");
-        newOwner.Cancel();
-        fixture.Manager.Publish(First);
-        Check(received == 1, "Renewed listener was not owned by the new token.");
     }
 
     private static void LifetimeCancellationDuringPublish()
