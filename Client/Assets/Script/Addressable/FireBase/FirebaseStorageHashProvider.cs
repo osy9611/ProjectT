@@ -1,6 +1,4 @@
 using Firebase;
-using Firebase.Extensions;
-using Firebase.Storage;
 
 using System;
 using System.ComponentModel;
@@ -18,42 +16,22 @@ namespace ProjectT.Addressable
     [DisplayName("Firebase Hash Provider")]
     public class FirebaseStorageHashProvider : ResourceProviderBase
     {
-        private ProvideHandle provideHandle;
-
         public override void Provide(ProvideHandle provideHandle)
-        {
-            this.provideHandle = provideHandle;
-            LoadManifest();
-        }
-
-        private void LoadManifest()
         {
             Debug.Log("Loading Firebase catalog hash.");
 
-            var reference =
-                FirebaseStorage.DefaultInstance.GetReferenceFromUrl(provideHandle.Location.InternalId);
-
-            reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
+            FirebaseAddressablesManager.ResolveDownloadUrl(provideHandle, provideHandle.Location.InternalId, url =>
             {
-                if (task.IsCanceled || task.IsFaulted)
+                Debug.Log("Resolved Firebase catalog hash download URL.");
+
+                var catalogLoc =
+                    new ResourceLocationBase(url, url, typeof(TextDataProvider).FullName, typeof(string));
+
+                provideHandle.ResourceManager.ProvideResource<string>(catalogLoc).Completed += handle =>
                 {
-                    provideHandle.Complete((string)null, false, task.Exception);
-                }
-                else
-                {
-                    string url = task.Result.ToString();
-                    Debug.Log("Resolved Firebase catalog hash download URL.");
-
-
-                    var catalogLoc =
-                        new ResourceLocationBase(url, url, typeof(TextDataProvider).FullName, typeof(string));
-
-                    provideHandle.ResourceManager.ProvideResource<string>(catalogLoc).Completed += handle =>
-                    {
-                        Debug.Log("Got hash for catalog: " + handle.Result);
-                        provideHandle.Complete(handle.Result, true, null);
-                    };
-                }
+                    Debug.Log("Got hash for catalog: " + handle.Result);
+                    provideHandle.Complete(handle.Result, true, null);
+                };
             });
         }
     }

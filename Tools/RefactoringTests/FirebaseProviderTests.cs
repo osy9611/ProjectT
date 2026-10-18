@@ -39,6 +39,35 @@ internal static partial class FirebaseCacheTests
             return Describe(request);
         });
 
+        Run("Hash·Json 프로바이더는 동시에 받은 요청을 각자의 결과로 완료한다", () =>
+        {
+            var firstHash = Provide<FirebaseStorageHashProvider>("gs://bucket/first.hash", typeof(string));
+            var secondHash = Provide<FirebaseStorageHashProvider>("gs://bucket/second.hash", typeof(string));
+            var firstCatalog = Provide<FirebaseStorageJsonAssetProvider>("gs://bucket/first.json", typeof(ContentCatalogData));
+            var secondCatalog = Provide<FirebaseStorageJsonAssetProvider>("gs://bucket/second.json", typeof(ContentCatalogData));
+            FirebaseBoundary.ResolvePending();
+            var catalogs = new Dictionary<string, ContentCatalogData>();
+            foreach (var inner in FirebaseBoundary.Provided)
+            {
+                if (inner.Type == typeof(string))
+                {
+                    inner.Complete(inner.Location.InternalId);
+                }
+                else
+                {
+                    catalogs[inner.Location.InternalId] = new ContentCatalogData();
+                    inner.Complete(catalogs[inner.Location.InternalId]);
+                }
+            }
+            string trace = "firstHash=" + Describe(firstHash) + " secondHash=" + Describe(secondHash) + " firstCatalog=" + Describe(firstCatalog) + " secondCatalog=" + Describe(secondCatalog);
+
+            Check(firstHash.CompleteCount == 1 && (string)firstHash.Result == "https://storage.test/bucket/first.hash", "앞선 Hash 요청이 자기 결과로 완료된다 (" + trace + ")");
+            Check(secondHash.CompleteCount == 1 && (string)secondHash.Result == "https://storage.test/bucket/second.hash", "뒤의 Hash 요청이 자기 결과로 완료된다 (" + trace + ")");
+            Check(firstCatalog.CompleteCount == 1 && catalogs.TryGetValue("https://storage.test/bucket/first.json", out var first) && firstCatalog.Result == first, "앞선 Json 요청이 자기 결과로 완료된다 (" + trace + ")");
+            Check(secondCatalog.CompleteCount == 1 && catalogs.TryGetValue("https://storage.test/bucket/second.json", out var second) && secondCatalog.Result == second, "뒤의 Json 요청이 자기 결과로 완료된다 (" + trace + ")");
+            return trace;
+        });
+
         Run("Json 프로바이더는 gs://가 아닌 주소를 기본 프로바이더로 넘긴다", () =>
         {
             var request = Provide<FirebaseStorageJsonAssetProvider>("local/catalog.json", typeof(ContentCatalogData));

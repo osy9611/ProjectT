@@ -1,6 +1,4 @@
 using Firebase;
-using Firebase.Extensions;
-using Firebase.Storage;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -19,8 +17,6 @@ namespace ProjectT.Addressable
     [DisplayName("Firebase Json Asset Provider")]
     public class FirebaseStorageJsonAssetProvider : JsonAssetProvider
     {
-        private ProvideHandle provideHandle;
-
         /// <summary>
         /// Unfortunately we have to override this because the method CanProvide is only called once and when the InternalId
         /// changes this Provider is still selected for non-Firebase Json data. We just call into base when that happens
@@ -36,43 +32,25 @@ namespace ProjectT.Addressable
                 return;
             }
 
-            this.provideHandle = provideHandle;
-            LoadManifest();
-        }
-
-        private void LoadManifest()
-        {
-            var locationPath = UnityEngine.AddressableAssets.Addressables.ResourceManager.TransformInternalId(provideHandle.Location);
             Debug.Log("Loading Firebase catalog.");
 
-            var reference = FirebaseStorage.DefaultInstance.GetReferenceFromUrl(locationPath);
-
-            reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
+            FirebaseAddressablesManager.ResolveDownloadUrl(provideHandle, url, downloadUrl =>
             {
-                if (task.IsCanceled || task.IsFaulted)
+                Debug.Log("Resolved Firebase catalog download URL.");
+
+                var catalogLoc = new ResourceLocationBase(downloadUrl, downloadUrl, typeof(JsonAssetProvider).FullName, typeof(IResourceLocator));
+
+                if (provideHandle.Location.ResourceType == typeof(ContentCatalogData))
                 {
-                    provideHandle.Complete<object>(null, false, task.Exception);
+                    provideHandle.ResourceManager.ProvideResource<ContentCatalogData>(catalogLoc).Completed += handle =>
+                    {
+                        provideHandle.Complete(handle.Result, true, null);
+                    };
                 }
                 else
                 {
-                    string url = task.Result.ToString();
-                    Debug.Log("Resolved Firebase catalog download URL.");
-
-                    var catalogLoc = new ResourceLocationBase(url, url, typeof(JsonAssetProvider).FullName, typeof(IResourceLocator));
-
-
-                    if (provideHandle.Location.ResourceType == typeof(ContentCatalogData))
-                    {
-                        provideHandle.ResourceManager.ProvideResource<ContentCatalogData>(catalogLoc).Completed += handle =>
-                        {
-                            provideHandle.Complete(handle.Result, true, null);
-                        };
-                    }
-                    else
-                    {
-                        provideHandle.Complete<object>(null, false,
-                            new NotSupportedException($"Firebase JSON provider cannot load {provideHandle.Location.ResourceType}."));
-                    }
+                    provideHandle.Complete<object>(null, false,
+                        new NotSupportedException($"Firebase JSON provider cannot load {provideHandle.Location.ResourceType}."));
                 }
             });
         }

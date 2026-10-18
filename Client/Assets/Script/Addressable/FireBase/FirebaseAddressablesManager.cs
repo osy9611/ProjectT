@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace ProjectT.Addressable
 {
@@ -19,6 +20,21 @@ namespace ProjectT.Addressable
         public static bool IsFirebaseStorageLocation(string internalId)
         {
             return internalId.StartsWith("gs://");
+        }
+
+        // 프로바이더가 gs:// 주소를 다운로드 URL로 바꾼 뒤 메인 스레드에서 이어서 로드한다. 주소를 받지 못하면 요청을 그 예외로 실패시킨다.
+        internal static void ResolveDownloadUrl(ProvideHandle provideHandle, string storageUrl, Action<string> resolved)
+        {
+            FirebaseStorage.DefaultInstance.GetReferenceFromUrl(storageUrl).GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCanceled || task.IsFaulted)
+                {
+                    provideHandle.Complete<object>(null, false, task.Exception);
+                    return;
+                }
+
+                resolved(task.Result.ToString());
+            });
         }
 
         // 카탈로그와 번들이 gs:// 위치를 사용하므로 첫 Addressables 로드 이전에 프로바이더와 URL 변환을 등록하고 Firebase 의존성을 확인해야 한다.

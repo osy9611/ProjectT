@@ -1,6 +1,3 @@
-using Firebase.Extensions;
-using Firebase.Storage;
-
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -42,31 +39,15 @@ namespace ProjectT.Addressable
 
         public override void Provide(ProvideHandle provideHandle)
         {
-            string path = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
-            if (FirebaseAddressablesManager.IsFirebaseStorageLocation(path) == false)
+            string firebaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
+            if (FirebaseAddressablesManager.IsFirebaseStorageLocation(firebaseUrl) == false)
             {
                 base.Provide(provideHandle);
                 return;
             }
 
-            LoadResource(provideHandle);
-        }
-
-        private void LoadResource(ProvideHandle provideHandle)
-        {
-            string firebaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
-
-            var reference = FirebaseStorage.DefaultInstance.GetReferenceFromUrl(firebaseUrl);
-
-            reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
+            FirebaseAddressablesManager.ResolveDownloadUrl(provideHandle, firebaseUrl, url =>
             {
-                if (task.IsCanceled || task.IsFaulted)
-                {
-                    provideHandle.Complete<IAssetBundleResource>(null, false, task.Exception);
-                    return;
-                }
-
-                string url = task.Result.ToString();
                 FirebaseAddressablesCache.SetInternalIdToStorageUrlMapping(firebaseUrl, url);
                 IResourceLocation[] dependencies = provideHandle.Location.Dependencies?.ToArray() ?? Array.Empty<IResourceLocation>();
                 var bundleLoc = new ResourceLocationBase(url, url, GetType().FullName,
