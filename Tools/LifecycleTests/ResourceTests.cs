@@ -50,15 +50,14 @@ static partial class Program
             return UniTask.CompletedTask;
         });
 
-        await Run("sprites: app ownership survives scene reset and local source stays separate", () =>
+        await Run("sprites: app ownership survives scene reset while scene sprite is destroyed", () =>
         {
             var resource = StartResources(out var host);
             Addressables.Factory = () => new FakeOperation { Result = new UnityEngine.U2D.SpriteAtlas(), IsDone = true };
-            UnityEngine.Resources.Factory = (_, _) => new UnityEngine.U2D.SpriteAtlas();
             var remote = resource.GetSprite("atlas", "icon", scope: resource.AppScope);
-            var local = resource.GetSprite("atlas", "icon", source: ProjectT.Addressable.ResourceSource.Resources);
+            var scene = resource.GetSprite("scene-atlas", "icon");
             resource.ReleaseAll();
-            Check(!ReferenceEquals(remote, local) && UnityEngine.Object.Destroyed.Contains(local) && !UnityEngine.Object.Destroyed.Contains(remote), "Source or lifetime isolation failed");
+            Check(UnityEngine.Object.Destroyed.Contains(scene) && !UnityEngine.Object.Destroyed.Contains(remote), "Lifetime isolation failed");
             Check(ReferenceEquals(remote, resource.GetSprite("atlas", "icon", scope: resource.AppScope)), "App cache lost");
             host.Shutdown();
             Check(UnityEngine.Object.Destroyed.Contains(remote), "App sprite leaked");
@@ -119,76 +118,16 @@ static partial class Program
             host.Shutdown();
         });
 
-        await Run("preload: local pending load canceled by scope cannot repopulate cache", async () =>
+        await Run("resources: throwing load does not leave pending cache entry", () =>
         {
             var resource = StartResources(out var host);
-            var preload = resource.PreloadAsync<Asset>("local", source: ProjectT.Addressable.ResourceSource.Resources);
-            resource.ReleaseAll();
-            await Throws<OperationCanceledException>(() => preload);
-            UnityEngine.Resources.Requests[0].Complete();
-            resource.LoadAndGet<Asset>("local", source: ProjectT.Addressable.ResourceSource.Resources);
-            Check(UnityEngine.Resources.Loads == 1, "Late preload repopulated cache");
-            host.Shutdown();
-        });
-
-        await Run("resources: sync local request joins async and native completion is still drained", async () =>
-        {
-            var resource = StartResources(out var host);
-            var shared = new Asset();
-            UnityEngine.Resources.Factory = (_, _) => shared;
-            var waiting = resource.LoadAndGetAsync<Asset>("local", source: ProjectT.Addressable.ResourceSource.Resources);
-            Check(ReferenceEquals(shared, resource.LoadAndGet<Asset>("local", source: ProjectT.Addressable.ResourceSource.Resources)), "Sync result changed");
-            Check(ReferenceEquals(shared, await waiting), "Async waiter not settled");
-            resource.ReleaseAll();
-            var cleanup = resource.UnloadUnusedAssetsAsync();
-            Check(!cleanup.Status.IsCompleted() && UnityEngine.Resources.Sweeps == 0, "Late native load bypassed drain");
-            UnityEngine.Resources.Requests[0].Complete();
-            await Finish(cleanup);
-            host.Shutdown();
-        });
-
-        await Run("resources: throwing local load does not leave pending cache entry", () =>
-        {
-            var resource = StartResources(out var host);
-            UnityEngine.Resources.Factory = (_, _) => throw new InvalidOperationException("Load");
-            try { resource.LoadAndGet<Asset>("local", source: ProjectT.Addressable.ResourceSource.Resources); throw new Exception("Load should fail"); }
+            Addressables.Factory = () => throw new InvalidOperationException("Load");
+            try { resource.LoadAndGet<Asset>("asset"); throw new Exception("Load should fail"); }
             catch (InvalidOperationException) { }
-            UnityEngine.Resources.Factory = (_, _) => new Asset();
-            Check(resource.LoadAndGet<Asset>("local", source: ProjectT.Addressable.ResourceSource.Resources) != null, "Retry failed");
+            Addressables.Factory = () => new FakeOperation { IsDone = true, Result = new Asset() };
+            Check(resource.LoadAndGet<Asset>("asset") != null, "Retry failed");
             host.Shutdown();
             return UniTask.CompletedTask;
-        });
-
-        await Run("resources: backend keys are separate and local missing load can retry", () =>
-        {
-            var resource = StartResources(out var host);
-            var remote = resource.LoadAndGet<Asset>("same");
-            var local = resource.LoadAndGet<Asset>("same", source: ProjectT.Addressable.ResourceSource.Resources);
-            Check(!ReferenceEquals(remote, local) && Addressables.Operations.Count == 1, "Backend cache collision");
-            UnityEngine.Resources.Factory = (_, _) => null;
-            try { resource.LoadAndGet<Asset>("missing", source: ProjectT.Addressable.ResourceSource.Resources); throw new Exception("Missing asset succeeded"); }
-            catch (InvalidOperationException) { }
-            UnityEngine.Resources.Factory = (_, _) => new Asset();
-            Check(resource.LoadAndGet<Asset>("missing", source: ProjectT.Addressable.ResourceSource.Resources) != null, "Failed entry cached");
-            host.Shutdown();
-            Check(Addressables.Operations[0].Releases == 1, "Addressables release changed");
-            return UniTask.CompletedTask;
-        });
-
-        await Run("resources: local async shares request and survives individual cancellation", async () =>
-        {
-            var resource = StartResources(out var host);
-            using var cancel = new CancellationTokenSource();
-            var first = resource.LoadAndGetAsync<Asset>("local", cancelToken: cancel.Token, source: ProjectT.Addressable.ResourceSource.Resources);
-            var second = resource.LoadAndGetAsync<Asset>("local", scope: resource.AppScope, source: ProjectT.Addressable.ResourceSource.Resources);
-            Check(UnityEngine.Resources.Requests.Count == 1, "Duplicate native request");
-            cancel.Cancel();
-            await Throws<OperationCanceledException>(async () => { await first; });
-            resource.ReleaseAll();
-            UnityEngine.Resources.Requests[0].Complete();
-            var asset = await second;
-            Check(ReferenceEquals(asset, resource.LoadAndGet<Asset>("local", scope: resource.AppScope, source: ProjectT.Addressable.ResourceSource.Resources)), "App resource lost");
-            host.Shutdown();
         });
 
         await Run("resources: concurrent requests share one pending handle", async () =>

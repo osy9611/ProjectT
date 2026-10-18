@@ -165,10 +165,10 @@ static partial class Program
         await Run("scenes: bootstrap binding retains local assets until first replacement", async () =>
         {
             var manager = StartScenes(out var host, out var resource);
-            var local = resource.LoadAndGet<UnityEngine.Object>("title", source: ProjectT.Addressable.ResourceSource.Resources);
+            var local = resource.LoadAndGet<UnityEngine.Object>("title");
             await Finish(manager.TransitionAsync<SceneProbe<A>>("", LoadSceneMode.Single));
             Check(Addressables.SceneOperations.Count == 0 && UnityEngine.Resources.Sweeps == 0, "Bootstrap loaded remote scene or swept assets");
-            Check(ReferenceEquals(local, resource.LoadAndGet<UnityEngine.Object>("title", source: ProjectT.Addressable.ResourceSource.Resources)), "Bootstrap ownership lost");
+            Check(ReferenceEquals(local, resource.LoadAndGet<UnityEngine.Object>("title")), "Bootstrap ownership lost");
             await Finish(manager.TransitionAsync<SceneProbe<B>>("B", LoadSceneMode.Single));
             Check(UnityEngine.Resources.Sweeps == 1, "Replacement did not sweep");
             host.Shutdown();
@@ -201,44 +201,26 @@ static partial class Program
             host.Shutdown();
         });
 
-        await Run("scenes: mixed resources released and sweep completed before next load", async () =>
+        await Run("scenes: scene resources released and sweep completed before next load", async () =>
         {
             var manager = StartScenes(out var host, out var resource);
             await Finish(manager.TransitionAsync<SceneProbe<A>>("A", LoadSceneMode.Single));
-            var old = resource.LoadAndGet<UnityEngine.Object>("local", source: ProjectT.Addressable.ResourceSource.Resources);
-            var common = resource.LoadAndGet<UnityEngine.Object>("common", scope: resource.AppScope, source: ProjectT.Addressable.ResourceSource.Resources);
-            var commonAddressable = resource.LoadAndGet<UnityEngine.Object>("common", scope: resource.AppScope);
+            var old = resource.LoadAndGet<UnityEngine.Object>("local");
+            var common = resource.LoadAndGet<UnityEngine.Object>("common", scope: resource.AppScope);
             var sweep = new UnityEngine.AsyncOperation();
             UnityEngine.Resources.Sweep = () =>
             {
-                Check(Addressables.Operations[0].Releases == 1, "Old asset retained at sweep");
+                Check(Addressables.Operations[0].Releases == 1 && Addressables.Operations[1].Releases == 1, "Old asset retained at sweep");
                 Check(!((UnityEngine.ResourceManagement.ResourceProviders.SceneInstance)Addressables.SceneOperations[0].Result).Scene.isLoaded, "Old scene retained at sweep");
                 return sweep;
             };
             var transition = manager.TransitionAsync<SceneProbe<B>>("B", LoadSceneMode.Single);
             FakeFrames.Pump();
             Check(Addressables.SceneOperations.Count == 1 && manager.IsTransitioning, "Next scene loaded before sweep completed");
-            Check(ReferenceEquals(common, resource.LoadAndGet<UnityEngine.Object>("common", scope: resource.AppScope, source: ProjectT.Addressable.ResourceSource.Resources)), "Common Resources asset lost");
-            Check(ReferenceEquals(commonAddressable, resource.LoadAndGet<UnityEngine.Object>("common", scope: resource.AppScope)), "Common Addressables asset lost");
-            Check(!ReferenceEquals(old, resource.LoadAndGet<UnityEngine.Object>("local", source: ProjectT.Addressable.ResourceSource.Resources)), "Old Resources cache retained");
+            Check(ReferenceEquals(common, resource.LoadAndGet<UnityEngine.Object>("common", scope: resource.AppScope)), "Common asset lost");
+            Check(!ReferenceEquals(old, resource.LoadAndGet<UnityEngine.Object>("local")), "Old scene cache retained");
             sweep.Complete();
             await Finish(transition);
-            host.Shutdown();
-        });
-
-        await Run("scenes: late Resources request settles before sweep and next scene", async () =>
-        {
-            var manager = StartScenes(out var host, out var resource);
-            await Finish(manager.TransitionAsync<SceneProbe<A>>("A", LoadSceneMode.Single));
-            var waiting = resource.LoadAndGetAsync<UnityEngine.Object>("late", source: ProjectT.Addressable.ResourceSource.Resources);
-            int sweeps = UnityEngine.Resources.Sweeps;
-            var transition = manager.TransitionAsync<SceneProbe<B>>("B", LoadSceneMode.Single);
-            FakeFrames.Pump();
-            await Throws<OperationCanceledException>(async () => { await waiting; });
-            Check(UnityEngine.Resources.Sweeps == sweeps && Addressables.SceneOperations.Count == 1, "Pending Resources operation bypassed cleanup barrier");
-            UnityEngine.Resources.Requests[0].Complete();
-            await Finish(transition);
-            Check(UnityEngine.Resources.Sweeps == sweeps + 1, "Sweep missing");
             host.Shutdown();
         });
 

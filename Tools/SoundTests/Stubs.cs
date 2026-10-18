@@ -338,17 +338,17 @@ namespace ProjectT
             return scope;
         }
 
-        public T LoadAndGet<T>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where T : class
+        public T LoadAndGet<T>(string path, ResourceScope scope = null) where T : class
         {
             LastLoadScope = ResolveScope(scope);
             LoadCount++;
             return resources.TryGetValue(path, out var resource) ? resource as T : null;
         }
 
-        public UniTask<T> LoadAndGetAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where T : class
+        public UniTask<T> LoadAndGetAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null) where T : class
         {
             cancelToken.ThrowIfCancellationRequested();
-            return UniTask.FromResult(LoadAndGet<T>(path, scope, source));
+            return UniTask.FromResult(LoadAndGet<T>(path, scope));
         }
 
         public void Shutdown()
@@ -391,14 +391,5 @@ namespace ProjectT
             manager = Sound as T;
             return manager != null && manager.State == ManagerState.Ready;
         }
-    }
-}
-
-namespace ProjectT.Addressable
-{
-    public enum ResourceSource
-    {
-        Addressables,
-        Resources
     }
 }

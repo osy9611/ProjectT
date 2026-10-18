@@ -15,36 +15,8 @@ namespace ProjectT
 {
     public class ResourceManager : ManagerBase
     {
-        private readonly struct ResourceKey : IEquatable<ResourceKey>
-        {
-            public readonly ResourceSource Source;
-            public readonly string Path;
-
-            public ResourceKey(ResourceSource source, string path)
-            {
-                Source = source;
-                Path = path;
-            }
-
-            public bool Equals(ResourceKey other)
-            {
-                return Source == other.Source && string.Equals(Path, other.Path, StringComparison.Ordinal);
-            }
-
-            public override bool Equals(object obj)
-            {
-                return obj is ResourceKey other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                return HashCode.Combine(Source, Path);
-            }
-        }
-
-        private readonly Dictionary<ResourceKey, ResourceBase> resources = new Dictionary<ResourceKey, ResourceBase>();
+        private readonly Dictionary<string, ResourceBase> resources = new Dictionary<string, ResourceBase>();
         private readonly HashSet<ResourceScope> scopes = new HashSet<ResourceScope>();
-        private readonly HashSet<ResourceRequest> pendingRequests = new HashSet<ResourceRequest>();
         private readonly HashSet<AsyncOperationHandle<SceneInstance>> loadedScenes = new HashSet<AsyncOperationHandle<SceneInstance>>();
         private readonly Dictionary<UnityScene, UniTaskCompletionSource> unloadingScenes = new Dictionary<UnityScene, UniTaskCompletionSource>();
         private ResourceScope sceneScope;
@@ -122,7 +94,7 @@ namespace ProjectT
 
             List<Exception> errors = null;
 
-            foreach (var pair in new List<KeyValuePair<ResourceKey, ResourceBase>>(resources))
+            foreach (var pair in new List<KeyValuePair<string, ResourceBase>>(resources))
             {
                 if (!pair.Value.Owners.Remove(scope) || pair.Value.Owners.Count > 0)
                     continue;
@@ -266,21 +238,21 @@ namespace ProjectT
         }
         #endregion
 
-        public T LoadAndGet<T>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public T LoadAndGet<T>(string path, ResourceScope scope = null)
         {
-            return LoadResource<Resource<T>>(path, scope, source).Asset;
+            return LoadResource<Resource<T>>(path, scope).Asset;
         }
 
-        public async UniTask<T> LoadAndGetAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public async UniTask<T> LoadAndGetAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null)
         {
-            var resource = await LoadResourceAsync<Resource<T>>(path, cancelToken, scope, source);
+            var resource = await LoadResourceAsync<Resource<T>>(path, cancelToken, scope);
             return resource.Asset;
         }
 
-        public TResource LoadResource<TResource>(string path, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : ResourceBase, new()
+        public TResource LoadResource<TResource>(string path, ResourceScope scope = null) where TResource : ResourceBase, new()
         {
             scope = ResolveScope(scope);
-            var resource = GetResource<TResource>(path, scope, source, asynchronous: false);
+            var resource = GetResource<TResource>(path, scope);
 
             if (!resource.IsDone)
             {
@@ -301,11 +273,11 @@ namespace ProjectT
             return resource;
         }
 
-        public async UniTask<TResource> LoadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : ResourceBase, new()
+        public async UniTask<TResource> LoadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null) where TResource : ResourceBase, new()
         {
             cancelToken.ThrowIfCancellationRequested();
             scope = ResolveScope(scope);
-            var resource = GetResource<TResource>(path, scope, source, asynchronous: true);
+            var resource = GetResource<TResource>(path, scope);
 
             if (!resource.IsDone)
             {
@@ -326,65 +298,57 @@ namespace ProjectT
             return resource;
         }
 
-        public async UniTask PreloadAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public async UniTask PreloadAsync<T>(string path, CancellationToken cancelToken = default, ResourceScope scope = null)
         {
-            await LoadAndGetAsync<T>(path, cancelToken, scope, source);
+            await LoadAndGetAsync<T>(path, cancelToken, scope);
         }
 
-        public async UniTask PreloadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables) where TResource : ResourceBase, new()
+        public async UniTask PreloadResourceAsync<TResource>(string path, CancellationToken cancelToken = default, ResourceScope scope = null) where TResource : ResourceBase, new()
         {
-            await LoadResourceAsync<TResource>(path, cancelToken, scope, source);
+            await LoadResourceAsync<TResource>(path, cancelToken, scope);
         }
 
-        public Sprite GetSprite(string path, string name, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public Sprite GetSprite(string path, string name, ResourceScope scope = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Sprite name is empty.", nameof(name));
 
-            return LoadResource<SpriteAtlasResource>(path, scope, source).GetSprite(name);
+            return LoadResource<SpriteAtlasResource>(path, scope).GetSprite(name);
         }
 
-        public async UniTask<Sprite> GetSpriteAsync(string path, string name, CancellationToken cancelToken = default, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public async UniTask<Sprite> GetSpriteAsync(string path, string name, CancellationToken cancelToken = default, ResourceScope scope = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Sprite name is empty.", nameof(name));
 
-            var resource = await LoadResourceAsync<SpriteAtlasResource>(path, cancelToken, scope, source);
+            var resource = await LoadResourceAsync<SpriteAtlasResource>(path, cancelToken, scope);
             return resource.GetSprite(name);
         }
 
-        private TResource GetResource<TResource>(string path, ResourceScope scope, ResourceSource source, bool asynchronous) where TResource : ResourceBase, new()
+        private TResource GetResource<TResource>(string path, ResourceScope scope) where TResource : ResourceBase, new()
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Asset path is empty.", nameof(path));
 
-            if (source != ResourceSource.Addressables && source != ResourceSource.Resources)
-                throw new ArgumentOutOfRangeException(nameof(source));
-
-            var key = new ResourceKey(source, path);
-            if (resources.TryGetValue(key, out var resource))
+            if (resources.TryGetValue(path, out var resource))
             {
                 if (!(resource is TResource))
                     throw new InvalidOperationException($"{path} is managed by {resource.GetType().Name}, not {typeof(TResource).Name}.");
             }
             else
-                resource = CreateResource<TResource>(key, asynchronous);
+                resource = CreateResource<TResource>(path);
 
             resource.Owners.Add(scope);
 
             return (TResource)resource;
         }
 
-        private ResourceBase CreateResource<TResource>(ResourceKey key, bool asynchronous) where TResource : ResourceBase, new()
+        private ResourceBase CreateResource<TResource>(string path) where TResource : ResourceBase, new()
         {
             var resource = new TResource();
-            if (key.Source == ResourceSource.Resources && !typeof(UnityEngine.Object).IsAssignableFrom(resource.AssetType))
-                throw new ArgumentException("Resources requires a UnityEngine.Object type.");
+            resource.Initialize(path, RemoveFailedResource);
 
-            resource.Initialize(key.Path, key.Source, asynchronous, RemoveFailedResource);
-            TrackPendingRequest(resource.Request);
-
-            resources.Add(key, resource);
+            resources.Add(path, resource);
 
             try
             {
@@ -398,37 +362,14 @@ namespace ProjectT
             return resource;
         }
 
-        // 리소스가 먼저 반환되어도 Resources.LoadAsync는 계속 진행되므로 UnloadUnusedAssetsAsync가 기다릴 수 있게 요청 자체를 추적한다.
-        private void TrackPendingRequest(ResourceRequest request)
-        {
-            if (request == null || request.isDone)
-                return;
-
-            pendingRequests.Add(request);
-            request.completed += OnResourceCompleted;
-        }
-
         private void RemoveFailedResource(ResourceBase resource)
         {
-            var key = new ResourceKey(resource.Source, resource.Path);
-
-            if (resources.TryGetValue(key, out var current) && ReferenceEquals(current, resource))
-                resources.Remove(key);
-        }
-
-        private void OnResourceCompleted(AsyncOperation operation)
-        {
-            operation.completed -= OnResourceCompleted;
-            pendingRequests.Remove((ResourceRequest)operation);
+            if (resources.TryGetValue(resource.Path, out var current) && ReferenceEquals(current, resource))
+                resources.Remove(resource.Path);
         }
 
         internal async UniTask UnloadUnusedAssetsAsync()
         {
-            while (pendingRequests.Count > 0)
-            {
-                await UniTask.Yield(cancellationToken: LifetimeToken);
-            }
-
             LifetimeToken.ThrowIfCancellationRequested();
 
             var operation = Resources.UnloadUnusedAssets();

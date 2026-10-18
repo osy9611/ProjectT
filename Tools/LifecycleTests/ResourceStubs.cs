@@ -246,46 +246,22 @@ namespace UnityEngine
     public class AsyncOperation
     {
         public bool isDone;
-        public event Action<AsyncOperation> completed;
 
         public void Complete()
         {
             isDone = true;
-            completed?.Invoke(this);
         }
-    }
-
-    public class ResourceRequest : AsyncOperation
-    {
-        public Object asset;
     }
 
     public static class Resources
     {
-        public static readonly List<ResourceRequest> Requests = new();
-        public static Func<string, Type, Object> Factory;
         public static Func<AsyncOperation> Sweep;
-        public static int Loads, Sweeps;
+        public static int Sweeps;
 
         public static void Reset()
         {
-            Requests.Clear();
-            Factory = (_, _) => new Object();
             Sweep = () => new AsyncOperation { isDone = true };
-            Loads = Sweeps = 0;
-        }
-
-        public static Object Load(string path, Type type)
-        {
-            Loads++;
-            return Factory(path, type);
-        }
-
-        public static ResourceRequest LoadAsync(string path, Type type)
-        {
-            var request = new ResourceRequest { asset = Factory(path, type) };
-            Requests.Add(request);
-            return request;
+            Sweeps = 0;
         }
 
         public static AsyncOperation UnloadUnusedAssets()

@@ -185,22 +185,7 @@ static partial class Program
             var resource = StartResources(out var host);
             var first = resource.LoadResource<CustomResource>("first");
             var second = resource.LoadResource<Resource<UnityEngine.Object>>("second");
-            Check(first.AssetType == second.AssetType && Addressables.Operations.Count == 2, "Asset type still controls resource class");
-            host.Shutdown();
-            return UniTask.CompletedTask;
-        });
-
-        await Run("resources: local specialized load shares raw data and clears on last scope", () =>
-        {
-            var resource = StartResources(out var host);
-            CustomResource.Created = CustomResource.Released = 0;
-            UnityEngine.Resources.Factory = (_, _) => new UnityEngine.Object();
-            var scope = resource.CreateScope();
-            var typed = resource.LoadResource<CustomResource>("local", scope: scope, source: ResourceSource.Resources);
-            var raw = resource.LoadAndGet<UnityEngine.Object>("local", scope: scope, source: ResourceSource.Resources);
-            Check(ReferenceEquals(typed.Asset, raw) && CustomResource.Created == 1, "Local resource not shared");
-            scope.Dispose();
-            Check(CustomResource.Released == 1 && Addressables.Operations.Count == 0, "Local release used wrong backend");
+            Check(Addressables.Operations.Count == 2 && ReferenceEquals(Addressables.Operations[0].Result, first.Asset) && ReferenceEquals(Addressables.Operations[1].Result, second.Asset), "Resource classes over one asset type did not load separately");
             host.Shutdown();
             return UniTask.CompletedTask;
         });

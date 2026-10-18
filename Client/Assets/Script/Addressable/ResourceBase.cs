@@ -2,18 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace ProjectT.Addressable
 {
-    public enum ResourceSource
-    {
-        Addressables,
-        Resources
-    }
-
     public abstract class ResourceBase
     {
         // Loading에서만 Ready·Failed·ReleasedBeforeReady로 넘어가고, Ready는 해제되면 Released가 된다.
@@ -34,24 +27,16 @@ namespace ProjectT.Addressable
         // Failed일 때만 값이 있다.
         private Exception error;
         public string Path { get; private set; }
-        public ResourceSource Source { get; private set; }
-        internal ResourceRequest Request { get; private set; }
-        public abstract Type AssetType { get; }
         private AsyncOperationHandle Handle { get; set; }
         internal HashSet<ResourceScope> Owners { get; } = new HashSet<ResourceScope>();
         public bool IsDone => state == State.Ready || state == State.Failed || state == State.Released;
         internal UniTask<bool> WhenReady => ready.Task;
 
-        internal void Initialize(string path, ResourceSource source, bool asynchronous, Action<ResourceBase> onFailed)
+        internal void Initialize(string path, Action<ResourceBase> onFailed)
         {
             Path = path;
-            Source = source;
             this.onFailed = onFailed;
-
-            if (source == ResourceSource.Addressables)
-                Handle = LoadAddressable(path);
-            else if (asynchronous)
-                Request = Resources.LoadAsync(path, AssetType);
+            Handle = LoadAddressable(path);
         }
 
         protected abstract AsyncOperationHandle LoadAddressable(string path);
@@ -84,59 +69,12 @@ namespace ProjectT.Addressable
 
         internal void WaitForCompletion()
         {
-            if (Source == ResourceSource.Resources)
-                CompleteResource(Resources.Load(Path, AssetType));
-            else
-            {
-                Handle.WaitForCompletion();
-                Complete(Handle);
-            }
-        }
-
-        private void CompleteResource(AsyncOperation operation)
-        {
-            CompleteResource(((ResourceRequest)operation).asset);
-        }
-
-        private void CompleteResource(UnityEngine.Object asset)
-        {
-            if (state != State.Loading)
-                return;
-
-            if (asset == null)
-            {
-                Fail(new InvalidOperationException($"Resources asset load failed: {Path}"));
-                return;
-            }
-
-            if (Request != null)
-                Request.completed -= CompleteResource;
-            Request = null;
-            SetResult(asset);
+            Handle.WaitForCompletion();
+            Complete(Handle);
         }
 
         internal void Observe()
         {
-            if (Source == ResourceSource.Resources)
-            {
-                // 완료 콜백이 등록 즉시 실행되면 Request가 비워지므로 지역 변수로 고정한다.
-                var request = Request;
-
-                // 동기 Resources 로드는 요청을 만들지 않으므로 관찰 시점에 바로 로드를 완료한다.
-                if (request == null)
-                {
-                    WaitForCompletion();
-                    return;
-                }
-
-                request.completed += CompleteResource;
-
-                if (request.isDone)
-                    CompleteResource(request);
-
-                return;
-            }
-
             Handle.Completed += Complete;
 
             if (Handle.IsDone)
@@ -202,10 +140,6 @@ namespace ProjectT.Addressable
         // 호출자가 상태를 먼저 바꾼 뒤 호출하므로, OnRelease 안에서 다시 해제를 요청해도 한 번만 실행된다.
         private void ReleaseHandleInternal()
         {
-            if (Request != null)
-                Request.completed -= CompleteResource;
-            Request = null;
-
             try
             {
                 OnRelease();
@@ -213,7 +147,7 @@ namespace ProjectT.Addressable
             finally
             {
                 resourceData = null;
-                if (Source == ResourceSource.Addressables && Handle.IsValid())
+                if (Handle.IsValid())
                 {
                     Handle.Completed -= Complete;
                     Addressables.Release(Handle);

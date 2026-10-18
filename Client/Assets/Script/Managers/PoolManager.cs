@@ -53,19 +53,19 @@ namespace ProjectT
             return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
         }
 
-        public GameObject Get(string path, Transform parent = null, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables)
+        public GameObject Get(string path, Transform parent = null, ResourceScope scope = null)
         {
             scope = scope ?? appScope;
             ThrowIfScopeClosedInternal(scope);
-            var original = Global.Resource.LoadAndGet<GameObject>(path, scope: scope, source: source);
+            var original = Global.Resource.LoadAndGet<GameObject>(path, scope: scope);
             return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
         }
 
-        public async UniTask<GameObject> GetAsync(string path, Transform parent = null, ResourceScope scope = null, ResourceSource source = ResourceSource.Addressables, CancellationToken cancelToken = default)
+        public async UniTask<GameObject> GetAsync(string path, Transform parent = null, ResourceScope scope = null, CancellationToken cancelToken = default)
         {
             scope = scope ?? appScope;
             ThrowIfScopeClosedInternal(scope);
-            var original = await Global.Resource.LoadAndGetAsync<GameObject>(path, cancelToken: cancelToken, scope: scope, source: source);
+            var original = await Global.Resource.LoadAndGetAsync<GameObject>(path, cancelToken: cancelToken, scope: scope);
             return GetOrCreatePoolInternal(original, 0, scope).Get(parent);
         }
 
