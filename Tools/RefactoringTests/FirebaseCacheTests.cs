@@ -73,7 +73,21 @@ internal static class FirebaseCacheTests
             return trace;
         });
 
-        Console.WriteLine(failures == 0 ? "ALL PASSED: 4 firebase cache scenarios" : "FAILED: " + failures + " firebase cache scenarios");
+        Run("URL 요청이 실패해도 오류 로그 없이 완료하고 주소를 gs://로 남긴다", () =>
+        {
+            FirebaseBoundary.AddBundle("failed", "gs://bucket/failed/a.bundle");
+            var prewarm = FirebaseAddressablesCache.PreWarmDependenciesAsync(new List<string> { "failed" }, CancellationToken.None);
+            FirebaseBoundary.Fetches[0].Source.SetException(new InvalidOperationException("url failed"));
+            FirebaseBoundary.RunMainThread();
+            string trace = "status=" + prewarm.Status + " errors=" + string.Join("|", UnityEngine.Debug.Errors);
+
+            Check(prewarm.Status == UniTaskStatus.Succeeded, "실패한 요청 뒤에도 완료된다 (" + trace + ")");
+            Check(UnityEngine.Debug.Errors.Count == 0, "번들 로드가 다시 해석하므로 오류 로그를 남기지 않는다 (" + trace + ")");
+            Check(Transform("gs://bucket/failed/a.bundle") == "gs://bucket/failed/a.bundle", "실패한 주소는 바꾸지 않는다");
+            return trace;
+        });
+
+        Console.WriteLine(failures == 0 ? "ALL PASSED: 5 firebase cache scenarios" : "FAILED: " + failures + " firebase cache scenarios");
         return failures == 0 ? 0 : 1;
     }
 

@@ -45,7 +45,6 @@ namespace ProjectT.Addressable
             {
                 if (task.IsCanceled || task.IsFaulted)
                 {
-                    Debug.LogError("Could not load hash: " + task.Exception);
                     provideHandle.Complete((string)null, false, task.Exception);
                 }
                 else

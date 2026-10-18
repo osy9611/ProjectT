@@ -74,7 +74,6 @@ namespace ProjectT.Addressable
             {
                 if (task.IsCanceled || task.IsFaulted)
                 {
-                    Debug.LogError($"Could not resolve Firebase bundle URL: {task.Exception}");
                     provideHandle.Complete(this, false, task.Exception);
                     return;
                 }

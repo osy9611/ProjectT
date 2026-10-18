@@ -59,7 +59,6 @@ namespace ProjectT.Addressable
             {
                 if (task.IsCanceled || task.IsFaulted)
                 {
-                    Debug.LogError("Could not load manifest: " + task.Exception);
                     provideHandle.Complete<object>(null, false, task.Exception);
                 }
                 else
@@ -79,12 +78,8 @@ namespace ProjectT.Addressable
                     }
                     else
                     {
-                        Debug.LogError("Could not convert type because function is private. Please add own type here");
-                        // provideHandle.ResourceManager.ProvideResource(catalogLoc, provideHandle.Location.ResourceType).Completed += handle =>
-                        // {
-                        //     provideHandle.Complete(handle.Result, true, null);
-                        // };
-                        provideHandle.Complete<object>(null, false, null);
+                        provideHandle.Complete<object>(null, false,
+                            new NotSupportedException($"Firebase JSON provider cannot load {provideHandle.Location.ResourceType}."));
                     }
                 }
             });

@@ -5,7 +5,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
-using UnityEngine;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.ResourceLocations;
 
@@ -115,15 +114,9 @@ namespace ProjectT.Addressable
         {
             reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
             {
-                if (task.IsCanceled || task.IsFaulted)
-                {
-                    Debug.LogError($"Could not get url for: {firebaseUrl}, {task.Exception}");
-                }
-                else
-                {
-                    string url = task.Result.ToString();
-                    SetInternalIdToStorageUrlMapping(firebaseUrl, url);
-                }
+                // 실패한 주소는 gs://로 남아 번들 프로바이더가 로드할 때 다시 해석하고, 그때의 실패가 로드 실패로 전달된다.
+                if (!task.IsCanceled && !task.IsFaulted)
+                    SetInternalIdToStorageUrlMapping(firebaseUrl, task.Result.ToString());
 
                 fetched();
             });
