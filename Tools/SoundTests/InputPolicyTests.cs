@@ -17,7 +17,9 @@ internal static partial class Program
             var played = oneShot.OneShots.Count;
             var loads = setup.resources.LoadCount;
             ExpectOutOfRange(() => setup.manager.Play(new AudioClip("2d"), eSound.FX, pitch), $"2D one-shot accepted pitch {pitch}.");
-            ExpectOutOfRange(() => setup.manager.PlayBgm(new AudioClip("bgm"), pitch), $"BGM accepted pitch {pitch}.");
+            ExpectOutOfRange(() => setup.manager.Play(new AudioClip("bgm"), eSound.Bgm, pitch), $"BGM accepted pitch {pitch}.");
+            ExpectOutOfRange(() => setup.manager.Play("A", eSound.FX, pitch), $"2D path accepted pitch {pitch}.");
+            ExpectOutOfRange(() => setup.manager.Play("A", eSound.Bgm, pitch), $"BGM path accepted pitch {pitch}.");
             ExpectOutOfRange(() => setup.manager.PlayFade("A", eSound.FX, 1f, pitch), $"Fade accepted pitch {pitch}.");
             ExpectOutOfRange(() => setup.manager.PlayAt(new AudioClip("3d"), new Vector3(), pitch: pitch), $"3D accepted pitch {pitch}.");
             Check(oneShot.OneShots.Count == played && bgm.clip == null, $"Pitch {pitch} played before it was rejected.");
