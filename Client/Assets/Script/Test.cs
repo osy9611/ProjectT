@@ -147,11 +147,7 @@ public class Test : MonoBehaviour
 
     public void GoTitle()
     {
-        Global.Scene.Transition<TitleScene>("TitleScene", LoadSceneMode.Single, result =>
-        {
-            if (result == eSceneTransitionResult.Success)
-                Global.LocalStorage.LoadAllData();
-        });
+        Global.Scene.Transition<TitleScene>("TitleScene", LoadSceneMode.Single, _ => { });
     }
 
     public void GoDownload()

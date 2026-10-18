@@ -26,7 +26,7 @@
 - IsReady, WhenReadyAsync, TryGetReady<T>()는 전체 매니저 준비 완료 기준을 유지한다. 업데이트도 전체 준비 완료 후 시작한다.
 - 종료에 필요한 의존성은 Global에서 직접 조회한다. 역순 종료 중 대상 매니저가 아직 Ready일 때만 접근 가능하며 새 리소스 로드·풀 대여는 취소 토큰으로 차단한다.
 - ManagerHost 생성자는 인자를 받지 않는다. ManagerBase는 CreateRootObject(name)에서 Global.Instance.transform을 부모로 지정하고 생성한 루트를 보관한다.
-- LoadData는 Global이 DataManager와 ClientLocalStorageManager 생성자에 전달한다. 두 생성자의 기본값은 false다.
+- LoadData는 Global이 DataManager 생성자에 전달한다. 생성자의 기본값은 false다.
 
 아래는 이전 단계의 검증 기록이다.
 

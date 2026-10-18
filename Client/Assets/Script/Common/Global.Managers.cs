@@ -20,8 +20,6 @@ namespace ProjectT
 
         public static InputManager Input { get => GetManager<InputManager>(); }
 
-        public static ClientLocalStorageManager LocalStorage { get => GetManager<ClientLocalStorageManager>(); }
-
         public static DesignTable.DataMgr Table => Data.Table;
 
         private void RegisterManagers(ManagerHost host)
@@ -31,7 +29,6 @@ namespace ProjectT
             host.Register(new PatchManager(UseRemoteResource));
             host.Register(new ResourceManager());
             host.Register(new NotificationManager());
-            host.Register(new ClientLocalStorageManager(LoadData));
             host.Register(new DataManager(LoadData));
             host.Register(new PoolManager());
             host.Register(new SceneManager());
