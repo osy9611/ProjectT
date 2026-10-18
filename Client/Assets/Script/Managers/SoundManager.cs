@@ -95,7 +95,7 @@ namespace ProjectT
         protected override void OnShutdown(ShutdownReason reason)
         {
             List<Exception> errors = null;
-            ErrorCollector.Run(ref errors, this, manager => manager.Clear());
+            ClearInternal(ref errors);
 
             ResourceScope scope = spatialPoolScope;
             spatialPoolScope = null;
@@ -289,10 +289,14 @@ namespace ProjectT
         public void StopAllSpatialSounds()
         {
             List<Exception> errors = null;
+            StopAllSpatialSoundsInternal(ref errors);
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        private void StopAllSpatialSoundsInternal(ref List<Exception> errors)
+        {
             for (int i = 0; i < spatialSounds.Length; ++i)
                 ErrorCollector.Run(ref errors, i, ReturnSpatialInternal);
-
-            ErrorCollector.ThrowIfAny(errors);
         }
 
         private void ReturnSpatialInternal(int index)
@@ -631,7 +635,13 @@ namespace ProjectT
         public void Clear()
         {
             List<Exception> errors = null;
-            ErrorCollector.Run(ref errors, this, manager => manager.StopAllSpatialSounds());
+            ClearInternal(ref errors);
+            ErrorCollector.ThrowIfAny(errors);
+        }
+
+        private void ClearInternal(ref List<Exception> errors)
+        {
+            StopAllSpatialSoundsInternal(ref errors);
 
             for (int i = 0; i < audioSources.Length; ++i)
                 ErrorCollector.Run(ref errors, i, ClearSourceInternal);
@@ -640,8 +650,6 @@ namespace ProjectT
             bgmScope = null;
             if (scope != null)
                 ErrorCollector.Run(ref errors, scope, target => target.Dispose());
-
-            ErrorCollector.ThrowIfAny(errors);
         }
 
         private void ClearSourceInternal(int index)

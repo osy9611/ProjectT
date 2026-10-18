@@ -335,12 +335,12 @@ internal static partial class Program
         }
         catch (AggregateException error)
         {
-            foreach (var cause in error.Flatten().InnerExceptions)
+            foreach (var cause in error.InnerExceptions)
                 if (ReferenceEquals(cause, callback.Failure))
                     failed = true;
         }
 
-        Check(failed, "The original return callback failure was not preserved.");
+        Check(failed, "The original return callback failure was not preserved directly in one aggregate.");
         Check(setup.manager.ActiveSpatialVoiceCount == 0 && owner.ActiveCount == 1 && owner.InactiveCount == 1,
             "A failed return released the voice slot incorrectly or prevented the remaining voice from returning.");
         Check(setup.resources.ScopeReleaseCount == releaseCount + 1 && setup.resources.ActiveScopeCount == 2,
