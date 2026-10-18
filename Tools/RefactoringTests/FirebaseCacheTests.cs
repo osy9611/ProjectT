@@ -110,7 +110,7 @@ internal static partial class FirebaseCacheTests
             Console.WriteLine("TRACE " + scenario());
             Console.WriteLine("PASS " + name);
         }
-        catch (InvalidOperationException error)
+        catch (Exception error)
         {
             failures++;
             Console.WriteLine("FAIL " + name + ": " + error.Message);

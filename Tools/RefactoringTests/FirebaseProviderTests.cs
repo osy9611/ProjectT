@@ -9,10 +9,6 @@ using UnityEngine.ResourceManagement.ResourceProviders;
 
 internal static partial class FirebaseCacheTests
 {
-    private sealed class FakeBundle : IAssetBundleResource
-    {
-    }
-
     private static void RunProviderScenarios()
     {
         Run("Hash 프로바이더는 받은 URL의 텍스트를 결과로 넘긴다", () =>
@@ -39,20 +35,43 @@ internal static partial class FirebaseCacheTests
             return Describe(request);
         });
 
-        Run("Hash·Json·AssetBundle 프로바이더는 내부 로드 실패를 원래 예외로 넘긴다", () =>
+        Run("Hash·Json 프로바이더는 내부 로드 실패를 원래 예외로 넘긴다", () =>
         {
             var hash = Provide<FirebaseStorageHashProvider>("gs://bucket/inner.hash", typeof(string));
             var catalog = Provide<FirebaseStorageJsonAssetProvider>("gs://bucket/inner.json", typeof(ContentCatalogData));
-            var bundle = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/inner.bundle", typeof(IAssetBundleResource));
             FirebaseBoundary.ResolvePending();
-            Check(FirebaseBoundary.Provided.Count == 3, "받은 URL로 내부 로드를 시작한다");
+            Check(FirebaseBoundary.Provided.Count == 2, "받은 URL로 내부 로드를 시작한다");
             foreach (var inner in FirebaseBoundary.Provided)
                 inner.Fail(new InvalidOperationException("inner load failed: " + inner.Location.InternalId));
-            string trace = "hash=" + Describe(hash) + " catalog=" + Describe(catalog) + " bundle=" + Describe(bundle);
+            string trace = "hash=" + Describe(hash) + " catalog=" + Describe(catalog);
 
             Check(hash.CompleteCount == 1 && !hash.Status && Carries(hash, "inner.hash"), "Hash 요청이 내부 오류로 실패한다 (" + trace + ")");
             Check(catalog.CompleteCount == 1 && !catalog.Status && Carries(catalog, "inner.json"), "Json 요청이 내부 오류로 실패한다 (" + trace + ")");
-            Check(bundle.CompleteCount == 1 && !bundle.Status && Carries(bundle, "inner.bundle"), "AssetBundle 요청이 내부 오류로 실패한다 (" + trace + ")");
+            return trace;
+        });
+
+        Run("Hash·Json 프로바이더는 내부 로드가 끝나면 성공과 실패 모두 내부 핸들을 해제한다", () =>
+        {
+            Provide<FirebaseStorageHashProvider>("gs://bucket/released.hash", typeof(string));
+            Provide<FirebaseStorageHashProvider>("gs://bucket/released-failed.hash", typeof(string));
+            Provide<FirebaseStorageJsonAssetProvider>("gs://bucket/released.json", typeof(ContentCatalogData));
+            Provide<FirebaseStorageJsonAssetProvider>("gs://bucket/released-failed.json", typeof(ContentCatalogData));
+            FirebaseBoundary.ResolvePending();
+            Check(FirebaseBoundary.Provided.Count == 4, "받은 URL로 내부 로드를 시작한다");
+            Check(FirebaseBoundary.Provided.All(inner => !inner.Released()), "끝나기 전에는 해제하지 않는다");
+
+            foreach (var inner in FirebaseBoundary.Provided)
+            {
+                if (inner.Location.InternalId.Contains("failed"))
+                    inner.Fail(new InvalidOperationException("inner load failed"));
+                else if (inner.Type == typeof(string))
+                    inner.Complete("hash-value");
+                else
+                    inner.Complete(new ContentCatalogData());
+            }
+            string trace = string.Join(" ", FirebaseBoundary.Provided.Select(inner => inner.Location.InternalId + "=" + inner.Released()));
+
+            Check(FirebaseBoundary.Provided.All(inner => inner.Released()), "모든 내부 핸들을 해제한다 (" + trace + ")");
             return trace;
         });
 
@@ -132,26 +151,30 @@ internal static partial class FirebaseCacheTests
             return Describe(request);
         });
 
-        Run("AssetBundle 프로바이더는 받은 URL을 캐시하고 의존성을 유지한 번들을 넘긴다", () =>
+        Run("AssetBundle 프로바이더는 받은 URL을 캐시하고 원래 요청을 기본 프로바이더가 그 URL로 읽게 한다", () =>
         {
-            var dependency = new FirebaseBoundary.Location { InternalId = "gs://bucket/bundle/dep.bundle" };
-            var request = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/main.bundle", typeof(IAssetBundleResource), dependency);
+            var request = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/main.bundle", typeof(IAssetBundleResource));
+            Check(!request.BaseProvided, "URL을 받기 전에는 로드하지 않는다");
             FirebaseBoundary.ResolvePending();
             Check(Transform("gs://bucket/bundle/main.bundle") == "https://storage.test/bucket/bundle/main.bundle", "받은 URL로 주소를 바꾼다");
-            Check(FirebaseBoundary.Provided.Count == 1, "받은 URL로 내부 로드를 시작한다");
-            var inner = FirebaseBoundary.Provided[0];
-            Check(inner.Location.InternalId == "https://storage.test/bucket/bundle/main.bundle" && inner.Type == typeof(IAssetBundleResource), "내부 로드가 받은 URL의 번들을 읽는다");
-            Check(inner.Location.ProviderId == typeof(FirebaseStorageAssetBundleProvider).FullName, "내부 로드도 이 프로바이더를 거친다");
-            Check(inner.Location.Dependencies.Count == 1 && inner.Location.Dependencies[0] == dependency, "의존성을 그대로 넘긴다");
-            Check(inner.Location.Data == request.Location.Data && inner.Location.PrimaryKey == request.Location.PrimaryKey, "Data와 PrimaryKey를 유지한다");
-
-            var bundle = new FakeBundle();
-            inner.Complete(bundle);
-            Check(request.CompleteCount == 1 && request.Status && request.Result == bundle, "내부 결과로 성공한다 (" + Describe(request) + ")");
+            Check(request.BaseProvided && request.BaseUrl == "https://storage.test/bucket/bundle/main.bundle", "기본 프로바이더가 받은 URL로 읽는다 (" + Describe(request) + " url=" + request.BaseUrl + ")");
+            Check(FirebaseBoundary.Provided.Count == 0, "따로 내부 로드를 만들지 않는다");
 
             var again = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/main.bundle", typeof(IAssetBundleResource));
             Check(again.BaseProvided && FirebaseBoundary.Fetches.Count == 1, "캐시된 주소는 URL 요청 없이 기본 프로바이더가 처리한다");
             return Describe(request);
+        });
+
+        Run("AssetBundle 프로바이더는 URL을 받기 전에 겹친 같은 주소 요청을 모두 기본 프로바이더로 넘긴다", () =>
+        {
+            var first = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/overlap.bundle", typeof(IAssetBundleResource));
+            var second = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/overlap.bundle", typeof(IAssetBundleResource));
+            FirebaseBoundary.ResolvePending();
+            string trace = "first=" + Describe(first) + " url=" + first.BaseUrl + " second=" + Describe(second) + " url=" + second.BaseUrl;
+
+            Check(first.BaseProvided && first.BaseUrl == "https://storage.test/bucket/bundle/overlap.bundle", "앞선 요청을 받은 URL로 읽는다 (" + trace + ")");
+            Check(second.BaseProvided && second.BaseUrl == "https://storage.test/bucket/bundle/overlap.bundle", "뒤의 요청도 받은 URL로 읽는다 (" + trace + ")");
+            return trace;
         });
 
         Run("AssetBundle 프로바이더는 URL 요청 실패를 원래 예외로 넘기고 주소를 gs://로 남긴다", () =>

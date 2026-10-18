@@ -36,6 +36,7 @@ internal static class FirebaseBoundary
         internal object Result;
         internal Exception Exception;
         internal bool BaseProvided;
+        internal string BaseUrl;
     }
 
     internal sealed class Provision
@@ -44,6 +45,7 @@ internal static class FirebaseBoundary
         internal Type Type;
         internal Action<object> Complete;
         internal Action<Exception> Fail;
+        internal Func<bool> Released;
     }
 
     private sealed class Locator : IResourceLocator
@@ -227,6 +229,7 @@ namespace UnityEngine.ResourceManagement.AsyncOperations
         internal bool IsDone;
         internal T Result;
         internal Exception Error;
+        internal bool Released;
         internal event Action<AsyncOperationHandle<T>> Completed;
 
         internal void Complete(T result)
@@ -255,6 +258,7 @@ namespace UnityEngine.ResourceManagement.AsyncOperations
         public AsyncOperationStatus Status => !operation.IsDone ? AsyncOperationStatus.None : operation.Error == null ? AsyncOperationStatus.Succeeded : AsyncOperationStatus.Failed;
         public Exception OperationException => operation.Error;
         public bool IsValid() => operation != null;
+        public void Release() { operation.Released = true; }
 
         public event Action<AsyncOperationHandle<T>> Completed
         {
@@ -320,9 +324,11 @@ namespace UnityEngine.ResourceManagement.ResourceProviders
 
     public class AssetBundleProvider : ResourceProviderBase
     {
+        // 실제 AssetBundleResource도 시작할 때 TransformInternalId로 받은 주소에서 번들을 읽는다.
         public override void Provide(ProvideHandle provideHandle)
         {
             provideHandle.Request.BaseProvided = true;
+            provideHandle.Request.BaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
         }
     }
 
@@ -354,7 +360,7 @@ namespace UnityEngine.ResourceManagement
         public AsyncOperationHandle<T> ProvideResource<T>(IResourceLocation location)
         {
             var operation = new Operation<T>();
-            FirebaseBoundary.Provided.Add(new FirebaseBoundary.Provision { Location = location, Type = typeof(T), Complete = result => operation.Complete((T)result), Fail = operation.Fail });
+            FirebaseBoundary.Provided.Add(new FirebaseBoundary.Provision { Location = location, Type = typeof(T), Complete = result => operation.Complete((T)result), Fail = operation.Fail, Released = () => operation.Released });
             return new AsyncOperationHandle<T>(operation);
         }
 
