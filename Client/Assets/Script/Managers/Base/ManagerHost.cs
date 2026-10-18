@@ -68,7 +68,7 @@ namespace ProjectT
 
             isInitializationStarted = true;
             State = ManagerState.Initializing;
-            InitializeInternalAsync().Forget();
+            InitializeInternalAsync().Forget(Global.LogException);
             return ready.Task;
         }
 
@@ -92,14 +92,20 @@ namespace ProjectT
                 if (State == ManagerState.Stopping || State == ManagerState.Stopped)
                 {
                     ready.TrySetCanceled();
-                    return;
+                    if (error is OperationCanceledException && lifetimeToken.IsCancellationRequested)
+                        return;
+
+                    // 종료 뒤 늦게 끝난 매니저의 오류는 ready가 이미 취소되어 전달할 곳이 없으므로 Forget 처리기에서 보고한다.
+                    throw;
                 }
 
                 var errors = StopManagersInternal(ShutdownReason.InitializationFailure);
                 State = ManagerState.Failed;
                 // 정리 오류는 초기화 오류와 함께 ready로 전달해 Global의 초기화 경계에서 한 번에 보고한다.
-                if (errors != null)
+                // UniTaskCompletionSource는 취소 예외를 취소로 바꿔 메시지를 버리므로 취소 예외도 감싸서 전달한다.
+                if (errors != null || error is OperationCanceledException)
                 {
+                    errors ??= new List<Exception>();
                     errors.Insert(0, error);
                     error = new AggregateException(errors);
                 }

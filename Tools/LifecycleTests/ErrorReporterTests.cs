@@ -352,7 +352,8 @@ static partial class Program
             try
             {
                 host.Register(new Probe<A>(new(), "timeout") { StartAction = () => throw new OperationCanceledException("start timeout") });
-                await Throws<OperationCanceledException>(() => global.InitializeForTests());
+                var failure = await Capture(() => global.InitializeForTests());
+                Check(failure is AggregateException { InnerExceptions: [OperationCanceledException] }, "Cancellation failure did not reach the caller as a failure");
                 Check(host.State == ManagerState.Failed, "Cancellation failure did not fail the host");
             }
             finally
