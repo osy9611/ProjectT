@@ -299,6 +299,7 @@ namespace UnityEngine
         public readonly List<Transform> Children = new List<Transform>();
         public Vector3 position;
         public Vector3 localPosition;
+        public Vector3 localScale;
         public int FrontChanges;
 
         public Transform parent
@@ -353,6 +354,8 @@ namespace UnityEngine
         public Vector2 anchorMax;
         public Vector2 offsetMin;
         public Vector2 offsetMax;
+        public Vector2 pivot;
+        public Vector2 sizeDelta;
     }
 
     public struct Vector2
@@ -371,6 +374,8 @@ namespace UnityEngine
 
     public struct Vector3
     {
+        public static Vector3 zero;
+        public static Vector3 one = new Vector3(1f, 1f, 1f);
         public float x;
         public float y;
         public float z;

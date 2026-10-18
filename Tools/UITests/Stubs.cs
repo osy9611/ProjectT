@@ -37,12 +37,9 @@ namespace UnityEngine.EventSystems
 }
 namespace ProjectT.Util
 {
-    public enum AnchorPresets { StretchAll }
-    public enum PivotPresets { MiddleCenter }
     public static class ComUtilFunc
     {
         public static void SetLayer(UnityEngine.GameObject go,int layer,bool recursive) { }
-        public static void InitRectTransform(this UnityEngine.RectTransform tr,UnityEngine.RectTransform parent,AnchorPresets a,PivotPresets p) { tr.SetParent(parent,false); }
         public static UnityEngine.GameObject FindChild(UnityEngine.GameObject go,string name,bool recursive)=>null;
         public static T FindChild<T>(UnityEngine.GameObject go,string name,bool recursive) where T : UnityEngine.Object => null;
     }

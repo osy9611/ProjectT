@@ -92,7 +92,7 @@ namespace ProjectT.UGUI
             foreach (eUIContainerType type in System.Enum.GetValues(typeof(eUIContainerType)))
             {
                 typeRoot[(int)type] = new GameObject($"{type}").AddComponent<RectTransform>();
-                typeRoot[(int)type].InitRectTransform(uiCanvas2DRect, AnchorPresets.StretchAll, PivotPresets.MiddleCenter);
+                StretchInternal(typeRoot[(int)type], uiCanvas2DRect);
             }
 
             //enum 순서가 아니라 표시 순서로 배치한다. 시스템 공지가 다른 UI에 가려지면 안 된다
@@ -100,6 +100,17 @@ namespace ProjectT.UGUI
             {
                 typeRoot[(int)displayOrder[i]].SetSiblingIndex(i);
             }
+        }
+
+        private static void StretchInternal(RectTransform rect, RectTransform parent)
+        {
+            rect.SetParent(parent);
+            rect.localPosition = Vector3.zero;
+            rect.localScale = Vector3.one;
+            rect.anchorMin = new Vector2(0, 0);
+            rect.anchorMax = new Vector2(1, 1);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = Vector2.zero;
         }
 
         private void CreateCamera()
@@ -294,7 +305,7 @@ namespace ProjectT.UGUI
             var instance = GameObject.Instantiate(prefab, typeRoot[(int)source.Type], false);
             var widget = instance.GetComponent<T>();
             instance.SetActive(false);
-            widget.GetComponent<RectTransform>().InitRectTransform(typeRoot[(int)widget.Type], AnchorPresets.StretchAll, PivotPresets.MiddleCenter);
+            StretchInternal(widget.GetComponent<RectTransform>(), typeRoot[(int)widget.Type]);
 
             // 등록 전 인스턴스는 정리해 줄 상위 생명주기가 없으므로 OnEnter 실패나 도중 취소 시 여기서 파괴한다.
             try
