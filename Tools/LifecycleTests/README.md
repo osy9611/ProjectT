@@ -23,7 +23,7 @@
 현재 총 59개 시나리오를 실행한다. Global도 스텁 대신 실제 생산 코드(Global.cs)를 컴파일하며, 매니저 접근자는 GlobalAccessors.cs가, 테스트 진입점은 Tools/Shared/GlobalTestSupport.cs가 partial로 제공한다. Unity 및 테스트 대상 밖의 매니저는 대체한다.
 
 - Global.Resource 등 개별 속성과 GetManager<T>()는 초기화·종료 중에도 해당 매니저가 Ready면 반환한다. 미등록 또는 Ready가 아닌 매니저 조회는 예외로 차단한다. 종료 토큰 취소 후 새 리소스 로드·풀 대여는 시작하지 않는다.
-- IsReady, WhenReadyAsync, TryGetReady<T>()는 전체 매니저 준비 완료 기준을 유지한다. 업데이트도 전체 준비 완료 후 시작한다.
+- IsReady, WhenReadyAsync는 전체 매니저 준비 완료 기준을 유지한다. 업데이트도 전체 준비 완료 후 시작한다.
 - 종료에 필요한 의존성은 Global에서 직접 조회한다. 역순 종료 중 대상 매니저가 아직 Ready일 때만 접근 가능하며 새 리소스 로드·풀 대여는 취소 토큰으로 차단한다.
 - ManagerHost 생성자는 인자를 받지 않는다. ManagerBase는 CreateRootObject(name)에서 Global.Instance.transform을 부모로 지정하고 생성한 루트를 보관한다.
 - LoadData는 Global이 DataManager 생성자에 전달한다. 생성자의 기본값은 false다.
@@ -64,7 +64,7 @@ dotnet run --project Tools/LifecycleTests
 ## 사용 계약
 
 - Global이 깨어난 이후 `await Global.Instance.WhenReadyAsync(token)`으로 준비를 기다린다. Global 생성 이전에도 동작할 수 있는 컴포넌트는 먼저 인스턴스 생성까지 기다려야 한다. MonoBehaviour 알림 수신자는 `Global.Notify.Subscribe(id, listener, token)`에 `GetCancellationTokenOnDestroy()` 같은 소유 토큰을 넘기고, 토큰이 취소되면 자동 해제된다. SceneBase에서는 기존 LifetimeToken을 직접 전달한다.
-- `Global.Resource` 등은 대상 매니저가 Ready이면 초기화·종료 중에도 조회할 수 있다. 전체 준비 완료는 `WhenReadyAsync`로 기다리며, `Global.TryGetReady<T>(out manager)`는 전체 Host가 Ready인 경우에만 성공한다.
+- `Global.Resource` 등은 대상 매니저가 Ready이면 초기화·종료 중에도 조회할 수 있다. 전체 준비 완료는 `WhenReadyAsync`로 기다리고, 기다릴 수 없는 콜백은 `Global.IsReady`로 확인한다.
 - 초기화 내부의 의존성도 `Global`을 사용한다. 등록 순서상 먼저 초기화한 관리자만 가져올 수 있다.
 - Global로 접근 가능한 매니저는 사용 지점에서 Global로 직접 조회하고 필드에 캐싱하지 않는다. 정적 속성은 GetManager<T>()를 통해 대상 매니저의 Ready 상태를 확인한다.
 - Host는 타입 조회용 Dictionary, 실행 순서용 리스트와 startedCount를 사용한다. 범용 타입 조회는 Dictionary의 TryGetValue로 처리한다.

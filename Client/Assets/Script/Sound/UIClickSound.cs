@@ -133,7 +133,7 @@ namespace ProjectT.Sound
             if (!isActiveAndEnabled)
                 return;
 
-            if (!Global.TryGetReady<SoundManager>(out _))
+            if (!Global.IsReady)
                 return;
 
             if (clip != null)

@@ -104,7 +104,7 @@ static partial class Program
             var initialization = host.InitializeAsync();
             var ready = Global.WhenReadyAsync();
             Check(ReferenceEquals(Global.Resource, resource) && ReferenceEquals(Global.GetManager<ResourceManager>(), resource), "Typed and generic lookup differ");
-            Check(!Global.IsReady && !Global.TryGetReady<ResourceManager>(out _) && !ready.Status.IsCompleted(), "Whole host readiness published early");
+            Check(!Global.IsReady && !ready.Status.IsCompleted(), "Whole host readiness published early");
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<A>>());
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<B>>());
             host.Update(1f);
@@ -112,7 +112,7 @@ static partial class Program
             gate.TrySetResult();
             await initialization;
             await ready;
-            Check(Global.TryGetReady<ResourceManager>(out var found) && ReferenceEquals(found, resource), "Ready lookup failed");
+            Check(Global.IsReady && ReferenceEquals(Global.Resource, resource), "Ready lookup failed");
             global.Shutdown();
         });
 
@@ -144,7 +144,7 @@ static partial class Program
             probe.StopAction = () =>
             {
                 Check(ReferenceEquals(Global.Resource, resource), "Ready dependency inaccessible");
-                Check(!Global.TryGetReady<ResourceManager>(out _), "Whole host readiness exposed during shutdown");
+                Check(!Global.IsReady, "Whole host readiness exposed during shutdown");
                 ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<A>>()).GetAwaiter().GetResult();
                 ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<B>>()).GetAwaiter().GetResult();
                 ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<C>>()).GetAwaiter().GetResult();
@@ -158,15 +158,15 @@ static partial class Program
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<ResourceManager>());
         });
 
-        await Run("Global: absent and unstarted host cannot expose registered managers", async () =>
+        await Run("Global: absent Global and unstarted host cannot expose registered managers", async () =>
         {
-            var global = Global.BindForTests(null);
+            Global.ResetStaticsForTests();
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<ResourceManager>());
             var host = new ManagerHost();
             Global.BindForTests(host);
             host.Register(new ResourceManager());
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<ResourceManager>());
-            Check(!Global.TryGetReady<ResourceManager>(out _), "Created manager exposed");
+            Check(!Global.IsReady, "Created manager exposed");
             host.Shutdown();
         });
 
@@ -198,7 +198,7 @@ static partial class Program
             var init = host.InitializeAsync();
             var repeated = host.InitializeAsync();
             host.Update(1); host.Pause(false);
-            Check(!w1.Status.IsCompleted() && !host.TryGetReady<Probe<A>>(out _), "Ready published early.");
+            Check(!w1.Status.IsCompleted() && host.State != ManagerState.Ready, "Ready published early.");
             Check(probe.Updates + probe.Pauses == 0, "Early callback.");
             var allWaiters = UniTask.WhenAll(init, repeated, w1, w2);
             Check(!allWaiters.Status.IsCompleted(), "Waiters completed before preparation.");
@@ -336,7 +336,6 @@ static partial class Program
             Check(ReferenceEquals(host.Register(a), a), "Registration replaced the manager.");
             await host.InitializeAsync();
             Check(ReferenceEquals(Global.GetManager<Probe<A>>(), a), "Lookup returned a different manager.");
-            Check(!host.TryGetReady<Probe<B>>(out var missing) && missing == null, "Missing type was resolved.");
             await ThrowsSync<InvalidOperationException>(() => Global.GetManager<Probe<B>>());
             host.Shutdown();
         });

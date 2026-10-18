@@ -212,8 +212,8 @@ namespace ProjectT
 
         private static void PublishInternal(NotificationId id)
         {
-            if (Global.TryGetReady<NotificationManager>(out var notify))
-                notify.Publish(id);
+            if (Global.IsReady)
+                Global.Notify.Publish(id);
         }
 
         private void CreateEventSystemInternal(InputActionAsset asset)

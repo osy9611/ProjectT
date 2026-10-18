@@ -386,10 +386,6 @@ namespace ProjectT
         public static readonly List<Exception> Exceptions = new List<Exception>();
         public static void LogException(Exception error) => Exceptions.Add(error);
 
-        public static bool TryGetReady<T>(out T manager) where T : ManagerBase
-        {
-            manager = Sound as T;
-            return manager != null && manager.State == ManagerState.Ready;
-        }
+        public static bool IsReady => Sound != null && Sound.State == ManagerState.Ready;
     }
 }

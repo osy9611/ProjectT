@@ -322,6 +322,7 @@ static partial class Program
         var host = new ManagerHost();
         Global.BindForTests(host);
         host.Register(new InputManager());
+        host.Register(new NotificationManager());
         host.InitializeAsync().GetAwaiter().GetResult();
         return host;
     }

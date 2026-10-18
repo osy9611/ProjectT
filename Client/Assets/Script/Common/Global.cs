@@ -17,7 +17,7 @@ namespace ProjectT
         public bool UseDebugLog = true;
         private ManagerHost host;
         private bool paused;
-        public static ManagerState State => s_instance?.host?.State ?? ManagerState.Created;
+        public static ManagerState State => s_instance?.host.State ?? ManagerState.Created;
         public static bool IsReady => State == ManagerState.Ready;
 
         // 시스템 등록 시점
@@ -104,16 +104,10 @@ namespace ProjectT
 
         public static T GetManager<T>() where T : ManagerBase
         {
-            if (s_instance == null || s_instance.host == null)
+            if (s_instance == null)
                 throw new InvalidOperationException("Global is not available.");
 
             return s_instance.host.GetReadyManager<T>();
-        }
-
-        public static bool TryGetReady<T>(out T manager) where T : ManagerBase
-        {
-            manager = null;
-            return s_instance != null && s_instance.host != null && s_instance.host.TryGetReady(out manager);
         }
 
         private void Update()
@@ -123,7 +117,7 @@ namespace ProjectT
 
             try
             {
-                host?.Update(Time.deltaTime);
+                host.Update(Time.deltaTime);
             }
             finally
             {
@@ -137,7 +131,7 @@ namespace ProjectT
             if (!ReferenceEquals(s_instance, this))
                 return;
 
-            host?.Pause(value);
+            host.Pause(value);
             // 모바일은 백그라운드에서 종료 콜백 없이 프로세스가 끝날 수 있다.
             if (value)
                 ErrorReporter.Flush();
@@ -160,7 +154,7 @@ namespace ProjectT
             try
             {
                 // 초기화 실패로 이미 Failed인 호스트의 종료 오류는 InitializeAsync에서 보고했다.
-                if (host != null && host.State != ManagerState.Failed)
+                if (host.State != ManagerState.Failed)
                 {
                     host.Shutdown(reason);
                     foreach (var error in host.ShutdownErrors)

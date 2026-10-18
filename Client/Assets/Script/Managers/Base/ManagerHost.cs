@@ -53,32 +53,13 @@ namespace ProjectT
 
         internal T GetReadyManager<T>() where T : ManagerBase
         {
-            T manager = FindManager<T>();
-            if (manager == null)
+            if (!registry.TryGetValue(typeof(T), out var manager))
                 throw new InvalidOperationException($"{typeof(T).Name} is not registered.");
 
             if (manager.State != ManagerState.Ready)
                 throw new InvalidOperationException($"{typeof(T).Name} is {manager.State}, not Ready.");
 
-            return manager;
-        }
-
-        public bool TryGetReady<T>(out T manager) where T : ManagerBase
-        {
-            manager = null;
-            if (State != ManagerState.Ready)
-                return false;
-
-            manager = FindManager<T>();
-            return manager != null;
-        }
-
-        private T FindManager<T>() where T : ManagerBase
-        {
-            if (registry.TryGetValue(typeof(T), out var manager))
-                return (T)manager;
-
-            return null;
+            return (T)manager;
         }
 
         public UniTask InitializeAsync()
