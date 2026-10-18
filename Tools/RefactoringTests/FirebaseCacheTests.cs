@@ -25,7 +25,7 @@ internal static partial class FirebaseCacheTests
 
             FirebaseBoundary.ResolvePending();
             Check(prewarm.Status == UniTaskStatus.Succeeded, "마지막 요청 뒤 완료된다");
-            Check(Transform("gs://bucket/single/b.bundle") == "https://storage.test/bucket/single/b.bundle", "받은 URL로 주소를 바꾼다");
+            Check(DownloadUrl("gs://bucket/single/b.bundle") == "https://storage.test/bucket/single/b.bundle", "받은 URL로 내려받는다");
             return "status=" + prewarm.Status;
         });
 
@@ -86,7 +86,7 @@ internal static partial class FirebaseCacheTests
 
             Check(prewarm.Status == UniTaskStatus.Succeeded, "실패한 요청 뒤에도 완료된다 (" + trace + ")");
             Check(UnityEngine.Debug.Errors.Count == 0, "번들 로드가 다시 해석하므로 오류 로그를 남기지 않는다 (" + trace + ")");
-            Check(Transform("gs://bucket/failed/a.bundle") == "gs://bucket/failed/a.bundle", "실패한 주소는 바꾸지 않는다");
+            Check(DownloadUrl("gs://bucket/failed/a.bundle") == "gs://bucket/failed/a.bundle", "실패한 주소는 URL을 바꾸지 않는다");
             return trace;
         });
 
@@ -96,9 +96,12 @@ internal static partial class FirebaseCacheTests
         return failures == 0 ? 0 : 1;
     }
 
-    private static string Transform(string internalId)
+    // 번들 웹 요청이 실제로 나가는 URL이다.
+    private static string DownloadUrl(string internalId)
     {
-        return FirebaseAddressablesCache.IdTransformFunc(new FirebaseBoundary.Location { InternalId = internalId });
+        var request = new UnityEngine.Networking.UnityWebRequest(internalId);
+        UnityEngine.AddressableAssets.Addressables.WebRequestOverride?.Invoke(request);
+        return request.url;
     }
 
     private static void Run(string name, Func<string> scenario)

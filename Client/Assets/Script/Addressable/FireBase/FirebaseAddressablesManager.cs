@@ -37,7 +37,7 @@ namespace ProjectT.Addressable
             });
         }
 
-        // 카탈로그와 번들이 gs:// 위치를 사용하므로 첫 Addressables 로드 이전에 프로바이더와 URL 변환을 등록하고 Firebase 의존성을 확인해야 한다.
+        // 카탈로그와 번들이 gs:// 위치를 사용하므로 첫 Addressables 로드 이전에 프로바이더와 다운로드 URL 교체를 등록하고 Firebase 의존성을 확인해야 한다.
         // 프로바이더와 PreWarm은 이 순서를 전제로 준비를 기다리지 않고 Firebase Storage를 호출한다.
         public static async UniTask InitializeAsync(CancellationToken token)
         {
@@ -49,7 +49,7 @@ namespace ProjectT.Addressable
                 Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageAssetBundleProvider());
                 Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageJsonAssetProvider());
                 Addressables.ResourceManager.ResourceProviders.Add(new FirebaseStorageHashProvider());
-                Addressables.InternalIdTransformFunc = FirebaseAddressablesCache.IdTransformFunc;
+                Addressables.WebRequestOverride = FirebaseAddressablesCache.OverrideWebRequest;
                 providersRegistered = true;
             }
 

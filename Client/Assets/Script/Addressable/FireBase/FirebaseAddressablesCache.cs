@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.AddressableAssets.ResourceLocators;
+using UnityEngine.Networking;
 using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace ProjectT.Addressable
@@ -14,13 +15,17 @@ namespace ProjectT.Addressable
     {
         private static readonly Dictionary<string, string> internalIdToStorageUrlDict = new Dictionary<string, string>();
 
-        public static string IdTransformFunc(IResourceLocation location)
+        // 번들 op 캐시 키는 요청 시점의 TransformInternalId로 정해지므로 주소는 gs://로 두고 나가는 웹 요청의 URL만 받은 URL로 바꾼다.
+        // 주소를 바꾸면 URL을 받기 전에 로드된 번들과 그 뒤의 요청이 다른 키를 써서 같은 번들을 두 번 로드한다.
+        public static void OverrideWebRequest(UnityWebRequest request)
         {
-            if (internalIdToStorageUrlDict.TryGetValue(location.InternalId, out string storageUrl))
-            {
-                return storageUrl;
-            }
-            return location.InternalId;
+            if (internalIdToStorageUrlDict.TryGetValue(request.url, out string storageUrl))
+                request.url = storageUrl;
+        }
+
+        public static bool HasStorageUrl(string internalId)
+        {
+            return internalIdToStorageUrlDict.ContainsKey(internalId);
         }
 
         public static void SetInternalIdToStorageUrlMapping(string internalId, string storageUrl)
@@ -49,8 +54,8 @@ namespace ProjectT.Addressable
                         {
                             foreach (var dependency in location.Dependencies)
                             {
-                                string firebaseUrl = UnityEngine.AddressableAssets.Addressables.ResourceManager.TransformInternalId(dependency);
-                                if (FirebaseAddressablesManager.IsFirebaseStorageLocation(firebaseUrl) == false)
+                                string firebaseUrl = dependency.InternalId;
+                                if (FirebaseAddressablesManager.IsFirebaseStorageLocation(firebaseUrl) == false || HasStorageUrl(firebaseUrl))
                                 {
                                     continue;
                                 }

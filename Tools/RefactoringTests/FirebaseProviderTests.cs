@@ -156,7 +156,7 @@ internal static partial class FirebaseCacheTests
             var request = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/main.bundle", typeof(IAssetBundleResource));
             Check(!request.BaseProvided, "URL을 받기 전에는 로드하지 않는다");
             FirebaseBoundary.ResolvePending();
-            Check(Transform("gs://bucket/bundle/main.bundle") == "https://storage.test/bucket/bundle/main.bundle", "받은 URL로 주소를 바꾼다");
+            Check(DownloadUrl("gs://bucket/bundle/main.bundle") == "https://storage.test/bucket/bundle/main.bundle", "받은 URL로 내려받는다");
             Check(request.BaseProvided && request.BaseUrl == "https://storage.test/bucket/bundle/main.bundle", "기본 프로바이더가 받은 URL로 읽는다 (" + Describe(request) + " url=" + request.BaseUrl + ")");
             Check(FirebaseBoundary.Provided.Count == 0, "따로 내부 로드를 만들지 않는다");
 
@@ -196,7 +196,7 @@ internal static partial class FirebaseCacheTests
             FirebaseBoundary.RunMainThread();
             Check(request.CompleteCount == 1 && !request.Status && Carries(request, "bundle url failed"), "URL 오류로 실패한다 (" + Describe(request) + ")");
             Check(FirebaseBoundary.Provided.Count == 0, "내부 로드를 시작하지 않는다");
-            Check(Transform("gs://bucket/bundle/failed.bundle") == "gs://bucket/bundle/failed.bundle", "실패한 주소는 바꾸지 않는다");
+            Check(DownloadUrl("gs://bucket/bundle/failed.bundle") == "gs://bucket/bundle/failed.bundle", "실패한 주소는 URL을 바꾸지 않는다");
             return Describe(request);
         });
     }
