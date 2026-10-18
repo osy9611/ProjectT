@@ -37,19 +37,11 @@ namespace ProjectT.Addressable
             }
 
             this.provideHandle = provideHandle;
-            if (FirebaseAddressablesManager.IsFirebaseSetupFinished)
-            {
-                LoadManifest();
-            }
-            else
-            {
-                FirebaseAddressablesManager.FirebaseSetupFinished += LoadManifest;
-            }
+            LoadManifest();
         }
 
         private void LoadManifest()
         {
-            FirebaseAddressablesManager.FirebaseSetupFinished -= LoadManifest;
             var locationPath = UnityEngine.AddressableAssets.Addressables.ResourceManager.TransformInternalId(provideHandle.Location);
             Debug.Log("Loading Firebase catalog.");
 

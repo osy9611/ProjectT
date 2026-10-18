@@ -121,8 +121,6 @@ internal static class FirebaseBoundary
 
 namespace Firebase
 {
-    public enum LogLevel { Verbose, Debug, Info, Warning, Error, Assert }
-
     public enum DependencyStatus { Available, UnavailableOther }
 
     public sealed class FirebaseApp

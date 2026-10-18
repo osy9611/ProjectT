@@ -23,19 +23,11 @@ namespace ProjectT.Addressable
         public override void Provide(ProvideHandle provideHandle)
         {
             this.provideHandle = provideHandle;
-            if (FirebaseAddressablesManager.IsFirebaseSetupFinished)
-            {
-                LoadManifest();
-            }
-            else
-            {
-                FirebaseAddressablesManager.FirebaseSetupFinished += LoadManifest;
-            }
+            LoadManifest();
         }
 
         private void LoadManifest()
         {
-            FirebaseAddressablesManager.FirebaseSetupFinished -= LoadManifest;
             Debug.Log("Loading Firebase catalog hash.");
 
             var reference =

@@ -16,38 +16,16 @@ namespace ProjectT.Addressable
         private static bool isFirebaseSetupFinished;
         private static bool providersRegistered;
 
-        /// <summary>
-        /// Set this bool as soon as the app is ready to download from Firebase Storage. If you require authentication
-        /// to access items on Firebase Storage you should set this after your User has logged in.
-        /// The Addressables Pipeline will wait and 'load' until you set this to true.
-        /// </summary>
-        public static bool IsFirebaseSetupFinished
-        {
-            get => isFirebaseSetupFinished;
-            set
-            {
-                if (isFirebaseSetupFinished != value)
-                {
-                    isFirebaseSetupFinished = value;
-                    FireFirebaseSetupFinished();
-                }
-            }
-        }
-
-        public static LogLevel LogLevel = LogLevel.Warning;
-
-        public static event System.Action FirebaseSetupFinished;
-
         public static bool IsFirebaseStorageLocation(string internalId)
         {
-            return internalId.StartsWith(FirebaseAddressablesConstants.GS_URL_START);
-
+            return internalId.StartsWith("gs://");
         }
 
-        // 카탈로그와 번들이 gs:// 위치를 사용하므로 첫 Addressables 로드 이전에 프로바이더와 URL 변환을 등록하고 준비 완료를 알려야 한다.
+        // 카탈로그와 번들이 gs:// 위치를 사용하므로 첫 Addressables 로드 이전에 프로바이더와 URL 변환을 등록하고 Firebase 의존성을 확인해야 한다.
+        // 프로바이더와 PreWarm은 이 순서를 전제로 준비를 기다리지 않고 Firebase Storage를 호출한다.
         public static async UniTask InitializeAsync(CancellationToken token)
         {
-            if (IsFirebaseSetupFinished)
+            if (isFirebaseSetupFinished)
                 return;
 
             if (!providersRegistered)
@@ -64,14 +42,9 @@ namespace ProjectT.Addressable
             if (status != DependencyStatus.Available)
                 throw new InvalidOperationException($"Firebase dependencies are unavailable: {status}");
 
-            IsFirebaseSetupFinished = true;
+            isFirebaseSetupFinished = true;
 
             await Addressables.InitializeAsync().ToUniTask(cancellationToken: token);
-        }
-
-        private static void FireFirebaseSetupFinished()
-        {
-            FirebaseSetupFinished?.Invoke();
         }
     }
 }

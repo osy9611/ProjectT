@@ -1,13 +1,12 @@
-using Firebase;
 using Firebase.Extensions;
 using Firebase.Storage;
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
 
-using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -44,30 +43,19 @@ namespace ProjectT.Addressable
         public override void Provide(ProvideHandle provideHandle)
         {
             string path = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
-            LogInfo("Resolved bundle resource location.");
             if (FirebaseAddressablesManager.IsFirebaseStorageLocation(path) == false)
             {
-                LogInfo("No Firebase file. Redirecting to base Unity provider");
                 base.Provide(provideHandle);
                 return;
             }
 
-            if (FirebaseAddressablesManager.IsFirebaseSetupFinished)
-            {
-                LoadResource(provideHandle);
-            }
-            else
-            {
-                LogInfo("Delaying load until Firebase is setup");
-                FirebaseAddressablesManager.FirebaseSetupFinished += () => { LoadResource(provideHandle); };
-            }
+            LoadResource(provideHandle);
         }
 
         private void LoadResource(ProvideHandle provideHandle)
         {
             string firebaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
 
-            LogInfo("Loading Firebase bundle.");
             var reference = FirebaseStorage.DefaultInstance.GetReferenceFromUrl(firebaseUrl);
 
             reference.GetDownloadUrlAsync().ContinueWithOnMainThread(task =>
@@ -79,25 +67,8 @@ namespace ProjectT.Addressable
                 }
 
                 string url = task.Result.ToString();
-                LogInfo("Caching Firebase bundle download URL.");
                 FirebaseAddressablesCache.SetInternalIdToStorageUrlMapping(firebaseUrl, url);
-                IResourceLocation[] dependencies;
-                IList<IResourceLocation> originalDependencies = provideHandle.Location.Dependencies;
-                if (originalDependencies != null)
-                {
-                    dependencies = new IResourceLocation[originalDependencies.Count];
-                    for (int i = 0; i < originalDependencies.Count; i++)
-                    {
-                        var dependency = originalDependencies[i];
-
-                        LogInfo("Setting up bundle dependency.");
-                        dependencies[i] = dependency;
-                    }
-                }
-                else
-                {
-                    dependencies = new IResourceLocation[0];
-                }
+                IResourceLocation[] dependencies = provideHandle.Location.Dependencies?.ToArray() ?? Array.Empty<IResourceLocation>();
                 var bundleLoc = new ResourceLocationBase(url, url, GetType().FullName,
                     typeof(IResourceLocator), dependencies)
                 {
@@ -114,7 +85,6 @@ namespace ProjectT.Addressable
                         provideHandle.ResourceManager.Release(asyncOperationHandle);
                     }
                 }
-                LogInfo("Passing resolved Firebase location to Unity AssetBundle provider.");
                 asyncOperationHandle = provideHandle.ResourceManager.ProvideResource<IAssetBundleResource>(bundleLoc);
                 bundleOperationHandles.Add(firebaseUrl, asyncOperationHandle);
                 asyncOperationHandle.Completed += handle =>
@@ -122,14 +92,6 @@ namespace ProjectT.Addressable
                     provideHandle.Complete(handle.Result, true, null);
                 };
             });
-        }
-
-        private void LogInfo(string log)
-        {
-            if (FirebaseAddressablesManager.LogLevel <= LogLevel.Info)
-            {
-                Debug.Log(log);
-            }
         }
     }
 

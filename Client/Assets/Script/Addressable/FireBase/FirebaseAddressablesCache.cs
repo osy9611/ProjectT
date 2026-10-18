@@ -28,41 +28,15 @@ namespace ProjectT.Addressable
             internalIdToStorageUrlDict[internalId] = storageUrl;
         }
 
-        public static void PreWarmDependencies(object key, Action completed)
-        {
-            PreWarmDependencies(new List<object>() { key }, completed);
-        }
-
         public static UniTask PreWarmDependenciesAsync(IList<string> keys, CancellationToken token)
         {
             var ready = new UniTaskCompletionSource();
-            PreWarmDependencies(new List<object>(keys), () => ready.TrySetResult());
+            GetFirebaseUrl(keys, () => ready.TrySetResult());
 
             return ready.Task.AttachExternalCancellation(token);
         }
 
-        public static void PreWarmDependencies(List<object> keys, Action completed)
-        {
-            if (FirebaseAddressablesManager.IsFirebaseSetupFinished == false)
-            {
-                FirebaseAddressablesManager.FirebaseSetupFinished += () => { PreWarmDependencies(keys, completed); };
-            }
-            else
-            {
-                var initOperation = UnityEngine.AddressableAssets.Addressables.InitializeAsync();
-
-                if (initOperation.IsDone == false)
-                {
-                    initOperation.Completed += handle => GetFirebaseUrl(keys, completed);
-                }
-                else
-                {
-                    GetFirebaseUrl(keys, completed);
-                }
-            }
-        }
-
-        private static void GetFirebaseUrl(List<object> keys, Action completed)
+        private static void GetFirebaseUrl(IList<string> keys, Action completed)
         {
             var references = new List<(StorageReference reference, string firebaseUrl)>();
             foreach (var key in keys)
