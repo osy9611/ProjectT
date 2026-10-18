@@ -363,6 +363,64 @@ static partial class Program
             }
         });
 
+        await ReporterRun("ErrorReporter: initialization failure by cancellation exception keeps its message", async () =>
+        {
+            var sink = new ListSink();
+            ResetReporter(sink);
+            Global.ResetStaticsForTests();
+            var gate = new UniTaskCompletionSource();
+            var host = new ManagerHost();
+            var global = Global.BindForTests(host);
+            try
+            {
+                // UniTask는 await 전에 던진 취소 예외를 메서드 경계에서 새 취소로 바꾸므로 내부 타임아웃처럼 await 뒤에 던진다.
+                async UniTask TimeoutAfterGate()
+                {
+                    await gate.Task;
+                    throw new OperationCanceledException("start timeout");
+                }
+                host.Register(new Probe<A>(new(), "timeout") { Gate = TimeoutAfterGate() });
+                global.InitializeForTests().Forget(Global.LogException);
+                gate.TrySetResult();
+                ErrorReporter.Flush();
+                Check(sink.Events.Count == 1, "Cancellation initialization failure reported " + sink.Events.Count + " times");
+                Check(sink.Events[0].Exception.Message == "start timeout", "Cancellation initialization failure lost its message");
+            }
+            finally
+            {
+                global.Shutdown();
+                UnityEngine.Object.Destroy(global.gameObject);
+                Global.ResetStaticsForTests();
+            }
+        });
+
+        await ReporterRun("ErrorReporter: manager failing after shutdown during initialization is reported once", async () =>
+        {
+            var sink = new ListSink();
+            ResetReporter(sink);
+            Global.ResetStaticsForTests();
+            var gate = new UniTaskCompletionSource();
+            var host = new ManagerHost();
+            var global = Global.BindForTests(host);
+            try
+            {
+                host.Register(new Probe<A>(new(), "late") { FailStart = true, Gate = gate.Task });
+                global.InitializeForTests().Forget(Global.LogException);
+                global.Shutdown();
+                // Global.Shutdown releases its sinks after the final flush.
+                ErrorReporter.SetSinks(sink);
+                gate.TrySetResult();
+                ErrorReporter.Flush();
+                var late = sink.Events.FindAll(error => error.Exception?.Message == "start:late");
+                Check(late.Count == 1, "Late initialization failure reported " + late.Count + " times");
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(global.gameObject);
+                Global.ResetStaticsForTests();
+            }
+        });
+
         await ReporterRun("ErrorReporter: recreated or duplicate Global does not duplicate sinks", () =>
         {
             string directory = TempDirectory();
