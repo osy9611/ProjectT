@@ -333,13 +333,13 @@ namespace ProjectT
         }
 
         // BGM은 씬 전환 뒤에도 이어서 재생되므로 사운드 전용 Scope에 두고, 나머지 채널은 현재 씬 Scope에 둔다.
-        private AudioClip LoadClipInternal(string path, eSound type, ResourceScope scope = null)
+        private AudioClip LoadClipInternal(string path, eSound type)
         {
-            if (!CanAcceptWorkInternal() || string.IsNullOrWhiteSpace(path))
+            if (string.IsNullOrWhiteSpace(path))
                 return null;
 
             if (type != eSound.Bgm)
-                return Global.Resource.LoadAndGet<AudioClip>(path, scope: scope);
+                return Global.Resource.LoadAndGet<AudioClip>(path);
 
             bgmScope = bgmScope ?? Global.Resource.CreateScope();
             return Global.Resource.LoadAndGet<AudioClip>(path, scope: bgmScope);
@@ -350,38 +350,17 @@ namespace ProjectT
             if (!CanAcceptWorkInternal())
                 return;
 
-            AudioClip clip = LoadClipInternal(path, type);
-            Play(clip, type, pitch);
+            ValidatePitchInternal(pitch);
+            PlayImmediateInternal(LoadClipInternal(path, type), type, pitch);
         }
 
         public void Play(AudioClip clip, eSound type = eSound.FX, float pitch = 1.0f)
-        {
-            if (type == eSound.Bgm)
-                PlayBgm(clip, pitch);
-            else
-                PlayOneShot(clip, type, pitch);
-        }
-
-        public void PlayBgm(string path, float pitch = 1.0f, bool restart = false)
-        {
-            if (!CanAcceptWorkInternal())
-                return;
-
-            AudioClip clip = LoadClipInternal(path, eSound.Bgm);
-            PlayBgm(clip, pitch, restart);
-        }
-
-        public void PlayBgm(AudioClip clip, float pitch = 1.0f, bool restart = false)
         {
             if (!CanAcceptWorkInternal())
                 return;
 
             ValidatePitchInternal(pitch);
-            if (clip == null)
-                return;
-
-            CancelFadeInternal(eSound.Bgm, true);
-            PlayBgmInternal(audioSources[(int)eSound.Bgm], clip, pitch, restart);
+            PlayImmediateInternal(clip, type, pitch);
         }
 
         public void StopBgm()
@@ -392,26 +371,13 @@ namespace ProjectT
             source.clip = null;
         }
 
-        public void PlayOneShot(string path, eSound type = eSound.FX, float pitch = 1.0f)
+        private void PlayImmediateInternal(AudioClip clip, eSound type, float pitch)
         {
-            if (!CanAcceptWorkInternal() || type == eSound.Bgm)
-                return;
-
-            AudioClip clip = LoadClipInternal(path, type);
-            PlayOneShot(clip, type, pitch);
-        }
-
-        public void PlayOneShot(AudioClip clip, eSound type = eSound.FX, float pitch = 1.0f)
-        {
-            if (!CanAcceptWorkInternal())
-                return;
-
-            ValidatePitchInternal(pitch);
-            if (clip == null || type == eSound.Bgm)
+            if (clip == null)
                 return;
 
             CancelFadeInternal(type, true);
-            PlayOneShotInternal(audioSources[(int)type], clip, pitch);
+            PlayInternal(clip, type, pitch, false);
         }
 
         private void PlayBgmInternal(AudioSource source, AudioClip clip, float pitch, bool restart)
@@ -444,14 +410,13 @@ namespace ProjectT
             ValidatePitchInternal(pitch);
 
             ResourceScope sceneScope = type == eSound.Bgm ? null : Global.Resource.SceneScope;
-            AudioClip clip = LoadClipInternal(path, type, sceneScope);
+            AudioClip clip = LoadClipInternal(path, type);
             if (!CanAcceptWorkInternal() || clip == null || sceneScope != null && sceneScope.Token.IsCancellationRequested)
                 return;
 
             if (fadeTime <= 0f)
             {
-                CancelFadeInternal(type, true);
-                PlayInternal(clip, type, pitch, false);
+                PlayImmediateInternal(clip, type, pitch);
                 return;
             }
 

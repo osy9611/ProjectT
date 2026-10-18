@@ -217,7 +217,7 @@ internal static partial class Program
         var source = ActiveSpatialSource(setup.manager);
         Check(Approximately(source.volume, 0.1f), "Spatial voice did not apply master, FX, and per-play volume.");
 
-        setup.manager.PlayOneShot(new AudioClip("2d"), eSound.FX);
+        setup.manager.Play(new AudioClip("2d"), eSound.FX);
         setup.manager.PlayFade("FX2", eSound.FX, 1f);
         Step(0.25f);
         Check(Approximately(source.volume, 0.1f), "2D FX fade gain leaked into spatial volume.");
@@ -319,7 +319,7 @@ internal static partial class Program
     private static void FailedReturnCompletesCleanup()
     {
         var setup = Setup(2);
-        setup.manager.PlayBgm("C");
+        setup.manager.Play("C", eSound.Bgm);
         setup.manager.PlayAt("A", new Vector3());
         setup.manager.PlayAt("B", new Vector3());
         var sources = PooledSpatialSources(setup);

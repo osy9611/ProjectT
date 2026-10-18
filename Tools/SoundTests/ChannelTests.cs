@@ -8,7 +8,7 @@ internal static partial class Program
     private static void LatestPlayWins()
     {
         var setup = Setup();
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
         Step(0.25f);
         setup.manager.Play("C", eSound.Bgm);
@@ -22,9 +22,9 @@ internal static partial class Program
     private static void FadeReplacementIsChannelLocal()
     {
         var setup = Setup();
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
-        setup.manager.PlayOneShot(new AudioClip("existing-fx"), eSound.FX);
+        setup.manager.Play(new AudioClip("existing-fx"), eSound.FX);
         setup.manager.PlayFade("FX1", eSound.FX, 1f);
         Step(0.25f);
         setup.manager.PlayFade("FX2", eSound.FX, 0.5f);
@@ -39,7 +39,7 @@ internal static partial class Program
     private static void FadeReplacementPreservesGain()
     {
         var setup = Setup();
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
         Step(0.25f);
         var source = Source(setup.manager, eSound.Bgm);
@@ -57,7 +57,7 @@ internal static partial class Program
         var setup = Setup();
         setup.manager.SetMasterVolume(0.8f);
         setup.manager.SetCategoryVolume(eSound.Bgm, 0.5f);
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         Check(Approximately(Source(setup.manager, eSound.Bgm).volume, 0.4f), "Initial effective volume is incorrect.");
 
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
@@ -80,7 +80,7 @@ internal static partial class Program
         var setup = Setup();
         Time.deltaTime = 0f;
         Time.unscaledDeltaTime = 0.5f;
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
         Drain(0.5f, 8);
 
@@ -91,7 +91,7 @@ internal static partial class Program
     private static void StopAndClearCancelPendingFade()
     {
         var stopped = Setup();
-        stopped.manager.PlayBgm("A");
+        stopped.manager.Play("A", eSound.Bgm);
         stopped.manager.PlayFade("B", eSound.Bgm, 1f);
         Step(0.25f);
         stopped.manager.StopBgm();
@@ -100,7 +100,7 @@ internal static partial class Program
         Check(!stoppedSource.isPlaying && stoppedSource.clip == null, "A pending fade resumed after StopBgm.");
 
         var cleared = Setup();
-        cleared.manager.PlayBgm("A");
+        cleared.manager.Play("A", eSound.Bgm);
         cleared.manager.PlayFade("B", eSound.Bgm, 1f);
         Step(0.25f);
         cleared.manager.Clear();
@@ -165,7 +165,7 @@ internal static partial class Program
     private static void InvalidRequestsPreserveFade()
     {
         var setup = Setup();
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
         Step(0.25f);
 
@@ -192,8 +192,7 @@ internal static partial class Program
         setup.manager.Play("A", eSound.FX);
         setup.manager.Play("B", eSound.FX);
         setup.manager.Play(new AudioClip("direct"), eSound.FX);
-        setup.manager.PlayOneShot("A", eSound.FX);
-        setup.manager.PlayBgm(new AudioClip("direct-bgm"));
+        setup.manager.Play(new AudioClip("direct-bgm"), eSound.Bgm);
 
         Check(setup.resources.LoadCount == loads, "Canceled lifetime started a cached or new resource request.");
         Check(source.OneShots.Count == played, "Canceled lifetime accepted direct or cached playback.");
@@ -204,25 +203,26 @@ internal static partial class Program
     {
         var setup = Setup();
         var clip = new AudioClip("same");
-        setup.manager.PlayBgm(clip, 1f, false);
+        setup.manager.Play(clip, eSound.Bgm, 1f);
         var source = Source(setup.manager, eSound.Bgm);
         var starts = source.PlayCount;
-        setup.manager.PlayBgm(clip, 0.75f, false);
+        setup.manager.Play(clip, eSound.Bgm, 0.75f);
         Check(source.PlayCount == starts && Approximately(source.pitch, 0.75f), "Same BGM restarted or failed to update pitch.");
-        setup.manager.PlayBgm(clip, 1f, true);
-        Check(source.PlayCount == starts + 1, "Explicit BGM restart was ignored.");
+        setup.manager.StopBgm();
+        setup.manager.Play(clip, eSound.Bgm, 1f);
+        Check(source.PlayCount == starts + 1, "BGM did not restart after StopBgm.");
     }
 
     private static void ClipScopesFollowChannelLifetime()
     {
         var setup = Setup(1);
         var sceneScope = setup.resources.SceneScope;
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         var bgmScope = setup.resources.LastLoadScope;
         Check(bgmScope != null && !ReferenceEquals(bgmScope, sceneScope), "BGM was loaded into the scene scope.");
         setup.manager.Play("FX1", eSound.FX);
         Check(ReferenceEquals(setup.resources.LastLoadScope, sceneScope), "FX path was not loaded into the scene scope.");
-        setup.manager.PlayOneShot("UI", eSound.UI);
+        setup.manager.Play("UI", eSound.UI);
         Check(ReferenceEquals(setup.resources.LastLoadScope, sceneScope), "UI path was not loaded into the scene scope.");
         Check(setup.manager.PlayAt("B", new Vector3()) && ReferenceEquals(setup.resources.LastLoadScope, sceneScope),
             "Spatial path was not loaded into the scene scope.");
@@ -248,7 +248,7 @@ internal static partial class Program
         var clip = new AudioClip("scene-fx");
         setup.resources.Add("scene-fx", clip);
         var fx = Source(setup.manager, eSound.FX);
-        setup.manager.PlayOneShot(new AudioClip("existing-fx"), eSound.FX);
+        setup.manager.Play(new AudioClip("existing-fx"), eSound.FX);
         setup.manager.PlayFade("scene-fx", eSound.FX, 1f);
         Step(0.25f);
         UnityEngine.Object.Destroy(clip);
@@ -263,10 +263,10 @@ internal static partial class Program
         var setup = Setup();
         var shared = new AudioClip("shared");
         setup.resources.Add("shared", shared);
-        setup.manager.PlayBgm("shared");
+        setup.manager.Play("shared", eSound.Bgm);
         var bgmScope = setup.resources.LastLoadScope;
-        setup.manager.PlayOneShot(new AudioClip("existing-fx"), eSound.FX);
-        setup.manager.PlayOneShot(new AudioClip("existing-ui"), eSound.UI);
+        setup.manager.Play(new AudioClip("existing-fx"), eSound.FX);
+        setup.manager.Play(new AudioClip("existing-ui"), eSound.UI);
         setup.manager.PlayFade("shared", eSound.FX, 1f);
         setup.manager.PlayFade("shared", eSound.UI, 1f);
         Step(0.25f);
@@ -289,7 +289,7 @@ internal static partial class Program
         var setup = Setup();
         var shared = new AudioClip("shared");
         setup.resources.Add("shared", shared);
-        setup.manager.PlayBgm("shared");
+        setup.manager.Play("shared", eSound.Bgm);
         setup.manager.SetMasterVolume(0.8f);
         setup.manager.SetCategoryVolume(eSound.FX, 0.5f);
         setup.manager.PlayFade("shared", eSound.FX, 1f);
@@ -315,7 +315,7 @@ internal static partial class Program
     private static void NewSceneFadeSurvivesOldCompletion()
     {
         var setup = Setup();
-        setup.manager.PlayOneShot(new AudioClip("existing-fx"), eSound.FX);
+        setup.manager.Play(new AudioClip("existing-fx"), eSound.FX);
         setup.manager.PlayFade("FX1", eSound.FX, 1f);
         Step(0.25f);
         var fx = Source(setup.manager, eSound.FX);
@@ -335,7 +335,7 @@ internal static partial class Program
     private static void BgmFadeSurvivesSceneReplacement()
     {
         var setup = Setup();
-        setup.manager.PlayBgm("A");
+        setup.manager.Play("A", eSound.Bgm);
         setup.manager.PlayFade("B", eSound.Bgm, 1f);
         Step(0.25f);
         setup.resources.ReplaceSceneScope();

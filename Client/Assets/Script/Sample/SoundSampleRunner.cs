@@ -47,10 +47,10 @@ namespace ProjectT.Sample
 
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("BGM Title"))
-                sound.PlayBgm(TitleBgmPath);
+                sound.Play(TitleBgmPath, eSound.Bgm);
 
             if (GUILayout.Button("BGM Tone"))
-                sound.PlayBgm(ToneBgmPath);
+                sound.Play(ToneBgmPath, eSound.Bgm);
 
             if (GUILayout.Button("Fade BGM"))
                 sound.PlayFade(sound.CurrentBgm != null && sound.CurrentBgm.name == "Title" ? ToneBgmPath : TitleBgmPath, eSound.Bgm, 1.5f);
@@ -61,13 +61,13 @@ namespace ProjectT.Sample
 
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("FX Beep"))
-                sound.PlayOneShot(BeepPath);
+                sound.Play(BeepPath);
 
             if (GUILayout.Button("FX Fade"))
                 sound.PlayFade(BeepPath, eSound.FX, 0.5f);
 
             if (GUILayout.Button("UI Click"))
-                sound.PlayOneShot(ClickPath, eSound.UI);
+                sound.Play(ClickPath, eSound.UI);
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();

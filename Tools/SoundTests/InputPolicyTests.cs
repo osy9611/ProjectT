@@ -62,7 +62,7 @@ internal static partial class Program
         var setup = Setup(1);
         setup.lifetime.Cancel();
         setup.manager.Play(new AudioClip("2d"), eSound.FX, float.NaN);
-        setup.manager.PlayBgm(new AudioClip("bgm"), 0f);
+        setup.manager.Play(new AudioClip("bgm"), eSound.Bgm, 0f);
         setup.manager.PlayFade("A", eSound.FX, float.NaN);
         Check(!setup.manager.PlayAt(new AudioClip("3d"), new Vector3(float.NaN, 0f, 0f)), "Stopped manager accepted a spatial request.");
     }

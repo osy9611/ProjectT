@@ -33,7 +33,7 @@ internal static partial class Program
         Run("Clear detaches a scope even when release throws", ClearDetachesFailingScope);
         Run("Invalid requests preserve an existing fade", InvalidRequestsPreserveFade);
         Run("Canceled lifetime rejects cached direct and path playback", CanceledLifetimeRejectsPlayback);
-        Run("Same BGM respects the restart flag", SameBgmRestartPolicy);
+        Run("Same BGM keeps playing until StopBgm", SameBgmRestartPolicy);
         Run("Spatial voices are prewarmed reset and reused", SpatialVoicesAreReused);
         Run("Spatial capacity rejects before resource loading", SpatialCapacityRejectsBeforeLoad);
         Run("Spatial completion respects frame load and pause state", SpatialCompletionPolicy);
