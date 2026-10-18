@@ -74,7 +74,7 @@ namespace ProjectT.Addressable
             {
                 if (task.IsCanceled || task.IsFaulted)
                 {
-                    provideHandle.Complete(this, false, task.Exception);
+                    provideHandle.Complete<IAssetBundleResource>(null, false, task.Exception);
                     return;
                 }
 

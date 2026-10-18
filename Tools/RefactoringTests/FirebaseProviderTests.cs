@@ -107,6 +107,17 @@ internal static partial class FirebaseCacheTests
             Check(again.BaseProvided && FirebaseBoundary.Fetches.Count == 1, "캐시된 주소는 URL 요청 없이 기본 프로바이더가 처리한다");
             return Describe(request);
         });
+
+        Run("AssetBundle 프로바이더는 URL 요청 실패를 원래 예외로 넘기고 주소를 gs://로 남긴다", () =>
+        {
+            var request = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/failed.bundle", typeof(IAssetBundleResource));
+            FirebaseBoundary.Fetches[0].Source.SetException(new InvalidOperationException("bundle url failed"));
+            FirebaseBoundary.RunMainThread();
+            Check(request.CompleteCount == 1 && !request.Status && Carries(request, "bundle url failed"), "URL 오류로 실패한다 (" + Describe(request) + ")");
+            Check(FirebaseBoundary.Provided.Count == 0, "내부 로드를 시작하지 않는다");
+            Check(Transform("gs://bucket/bundle/failed.bundle") == "gs://bucket/bundle/failed.bundle", "실패한 주소는 바꾸지 않는다");
+            return Describe(request);
+        });
     }
 
     private static FirebaseBoundary.Request Provide<TProvider>(string internalId, Type resourceType, params IResourceLocation[] dependencies)
