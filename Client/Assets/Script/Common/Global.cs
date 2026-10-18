@@ -73,7 +73,7 @@ namespace ProjectT
 
                 host.Pause(paused);
             }
-            // UniTask는 취소 예외로 끝난 초기화 실패(Failed)도 취소로 전달하므로 정상 종료로 인한 취소만 삼킨다.
+            // 초기화 중 종료되면 호스트가 초기화 신호를 취소로 끝내므로 그 취소만 삼킨다. 초기화 실패는 취소 예외도 AggregateException으로 감싸 전달되어 이 필터에 걸리지 않는다.
             catch (OperationCanceledException) when (host.State == ManagerState.Stopping || host.State == ManagerState.Stopped)
             {
             }

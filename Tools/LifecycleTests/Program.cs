@@ -237,8 +237,8 @@ static partial class Program
             var trace = new List<string>(); var host = new ManagerHost(); Global.BindForTests(host);
             var a = new Probe<A>(trace, "A"); var b = new Probe<B>(trace, "B") { FailStart = true }; var c = new Probe<C>(trace, "C");
             host.Register(a); host.Register(b); host.Register(c);
-            await Throws<InvalidOperationException>(() => host.InitializeAsync());
-            var failure = await Capture(() => host.WhenReady);
+            var failure = await Capture(() => host.InitializeAsync());
+            await Throws<OperationCanceledException>(() => host.WhenReady);
             Check(host.State == ManagerState.Failed && failure is InvalidOperationException && failure.Message == "start:B", "Failure lost.");
             Check(a.Stops == 1 && b.Stops == 1 && c.Starts == 0 && c.Stops == 0, "Rollback scope incorrect.");
             Check(b.RootObject == null && UnityEngine.Object.Destroyed.Contains(b.Owned), "Partial root leaked.");

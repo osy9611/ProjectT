@@ -15,7 +15,9 @@ namespace ProjectT
         // Shutdown에서 lifetime을 Dispose한 뒤에도 늦게 끝난 초기화가 취소 여부를 확인할 수 있도록 토큰을 따로 보관한다.
         private readonly CancellationToken lifetimeToken;
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource();
+        // 대기자마다 같은 초기화 오류를 다시 보고하지 않도록 ready는 성공과 취소로만 끝내고, 오류는 초기화를 시작한 쪽에만 전달한다.
         private readonly UniTaskCompletionSource ready = new UniTaskCompletionSource();
+        private readonly UniTaskCompletionSource initialization = new UniTaskCompletionSource();
 
         private bool isInitializationStarted;
         
@@ -61,7 +63,7 @@ namespace ProjectT
         public UniTask InitializeAsync()
         {
             if (isInitializationStarted)
-                return ready.Task;
+                return initialization.Task;
 
             if (State != ManagerState.Created)
                 throw new InvalidOperationException($"Cannot initialize from {State}.");
@@ -69,7 +71,7 @@ namespace ProjectT
             isInitializationStarted = true;
             State = ManagerState.Initializing;
             InitializeInternalAsync().Forget(Global.LogException);
-            return ready.Task;
+            return initialization.Task;
         }
 
         private async UniTask InitializeInternalAsync()
@@ -86,22 +88,24 @@ namespace ProjectT
                 lifetimeToken.ThrowIfCancellationRequested();
                 State = ManagerState.Ready;
                 ready.TrySetResult();
+                initialization.TrySetResult();
             }
             catch (Exception error)
             {
                 if (State == ManagerState.Stopping || State == ManagerState.Stopped)
                 {
                     ready.TrySetCanceled();
+                    initialization.TrySetCanceled();
                     if (error is OperationCanceledException && lifetimeToken.IsCancellationRequested)
                         return;
 
-                    // 종료 뒤 늦게 끝난 매니저의 오류는 ready가 이미 취소되어 전달할 곳이 없으므로 Forget 처리기에서 보고한다.
+                    // 종료 뒤 늦게 끝난 매니저의 오류는 initialization이 이미 취소되어 전달할 곳이 없으므로 Forget 처리기에서 보고한다.
                     throw;
                 }
 
                 var errors = StopManagersInternal(ShutdownReason.InitializationFailure);
                 State = ManagerState.Failed;
-                // 정리 오류는 초기화 오류와 함께 ready로 전달해 Global의 초기화 경계에서 한 번에 보고한다.
+                // 정리 오류는 초기화 오류와 함께 initialization으로 전달해 Global의 초기화 경계에서 한 번에 보고한다.
                 // UniTaskCompletionSource는 취소 예외를 취소로 바꿔 메시지를 버리므로 취소 예외도 감싸서 전달한다.
                 if (errors != null || error is OperationCanceledException)
                 {
@@ -110,7 +114,8 @@ namespace ProjectT
                     error = new AggregateException(errors);
                 }
 
-                ready.TrySetException(error);
+                ready.TrySetCanceled();
+                initialization.TrySetException(error);
                 lifetime.Dispose();
             }
         }
@@ -126,6 +131,7 @@ namespace ProjectT
             var errors = StopManagersInternal(reason);
             State = ManagerState.Stopped;
             ready.TrySetCanceled();
+            initialization.TrySetCanceled();
             lifetime.Dispose();
             ErrorCollector.ThrowIfAny(errors);
         }
