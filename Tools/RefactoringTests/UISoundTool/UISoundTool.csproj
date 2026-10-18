@@ -2,7 +2,6 @@
   <Import Project="..\..\Tests.Build.props" />
   <PropertyGroup>
     <LangVersion>9.0</LangVersion>
-    <CodePage>949</CodePage>
     <!-- 변경 전 사본과 비교할 때 -p:UISoundToolPath=로 바꾼다. -->
     <UISoundToolPath Condition="'$(UISoundToolPath)' == ''">$(ProductScript)Sound\Editor\UISoundTool.cs</UISoundToolPath>
   </PropertyGroup>

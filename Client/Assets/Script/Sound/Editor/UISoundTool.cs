@@ -8,7 +8,7 @@ namespace ProjectT.Sound
 {
     public class UISoundTool : EditorWindow
     {
-        //UI Å¬¸¯ ÄÄÆ÷³ÍÆ® Á¤º¸ °ü·Ã Å¬·¡½º
+        //UI í´ë¦­ ì»´í¬ë„ŒíŠ¸ ì •ë³´ ê´€ë ¨ í´ë˜ìŠ¤
         class UIClickSoundInfo
         {
             public UIClickSound ClickSound;
@@ -69,7 +69,7 @@ namespace ProjectT.Sound
         static public void ShowWindow()
         {
             var window = GetWindow<UISoundTool>("UISoundTool");
-            window.minSize = new Vector2(1000, 400);  // ÃÖ¼Ò Å©±â ¼³Á¤
+            window.minSize = new Vector2(1000, 400);  // ìµœì†Œ í¬ê¸° ì„¤ì •
         }
 
         private void OnGUI()
@@ -161,7 +161,7 @@ namespace ProjectT.Sound
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("AddClickSound", GUILayout.Width(150)))
             {
-                if (EditorUtility.DisplayDialog("Info", "ÀÛ¾÷ÁßÀÎ ÇÁ¸®ÆÕÀ» ÀüºÎ ´İ¾ÆÁÖ¼¼¿ä!", "OK"))
+                if (EditorUtility.DisplayDialog("Info", "ì‘ì—…ì¤‘ì¸ í”„ë¦¬íŒ¹ì„ ì „ë¶€ ë‹«ì•„ì£¼ì„¸ìš”!", "OK"))
                 {
                     AddClickSound();
                     GetPrefabComponentList(selectPrefabIndex);
@@ -219,9 +219,9 @@ namespace ProjectT.Sound
             {
                 if (!IsValidPrefabIndex(selectPrefabIndex) || prefabs[selectPrefabIndex] == null)
                 {
-                    EditorUtility.DisplayDialog("Warning", "º¯°æÇÒ ÇÁ¸®ÆÕÀ» ¼±ÅÃÇØ ÁÖ¼¼¿ä.", "OK");
+                    EditorUtility.DisplayDialog("Warning", "ë³€ê²½í•  í”„ë¦¬íŒ¹ì„ ì„ íƒí•´ ì£¼ì„¸ìš”.", "OK");
                 }
-                else if (EditorUtility.DisplayDialog("Info", "ÇÁ¸®ÆÕÀ» º¯°æÇÏ¸é ´Ù¸¥ ÇÁ¸®ÆÕ¿¡ ¿µÇâÀÌ ÀÖÀ» ¼ö ÀÖ½À´Ï´Ù ±×·¡µµ ¹Ù²Ù½Ã°Ú½À´Ï±î?", "OK", "Cancel"))
+                else if (EditorUtility.DisplayDialog("Info", "í”„ë¦¬íŒ¹ì„ ë³€ê²½í•˜ë©´ ë‹¤ë¥¸ í”„ë¦¬íŒ¹ì— ì˜í–¥ì´ ìˆì„ ìˆ˜ ìˆìŠµë‹ˆë‹¤ ê·¸ë˜ë„ ë°”ê¾¸ì‹œê² ìŠµë‹ˆê¹Œ?", "OK", "Cancel"))
                 {
                     ChangeClickSound();
                     EditorUtility.DisplayDialog("Info", "Complete!", "OK");
@@ -235,7 +235,7 @@ namespace ProjectT.Sound
         {
             if (string.IsNullOrEmpty(selectedFolderPath))
             {
-                EditorUtility.DisplayDialog("Error", "Æú´õ¸¦ ¼±ÅÃÇØ ÁÖ¼¼¿ä", "OK");
+                EditorUtility.DisplayDialog("Error", "í´ë”ë¥¼ ì„ íƒí•´ ì£¼ì„¸ìš”", "OK");
                 return;
             }
 

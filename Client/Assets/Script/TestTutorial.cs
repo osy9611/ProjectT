@@ -43,8 +43,8 @@ public class TestTutorial : MonoBehaviour
         objs[currentPage].SetActive(false);
         objs[index].SetActive(false);
 
-        //Current Mid¿¡¼­ Left·Î
-        //Target Right¿¡¼­ Mid·Î
+        //Current Midì—ì„œ Leftë¡œ
+        //Target Rightì—ì„œ Midë¡œ
         if (currentPage < index)
         {
             currentPageTr.position = pivotObjs[(int)ePivot.Mid].transform.position;

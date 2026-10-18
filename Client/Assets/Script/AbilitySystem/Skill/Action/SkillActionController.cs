@@ -19,7 +19,7 @@ namespace ProjectT.Skill
         public void ReleaseAll()
         {
             var snapshot = new List<BaseSkillAction>(actions.Values);
-            // Ãë¼Ò°¡ ½ÇÆĞÇØµµ ´ÙÀ½ ½ºÆù¿¡ ½ºÅ³ÀÌ ³²Áö ¾Êµµ·Ï ¸ñ·ÏÀ» ¸ÕÀú ºñ¿î´Ù. ½ÇÆĞÇÑ Actor´Â faulted·Î °İ¸®µÈ´Ù.
+            // ì·¨ì†Œê°€ ì‹¤íŒ¨í•´ë„ ë‹¤ìŒ ìŠ¤í°ì— ìŠ¤í‚¬ì´ ë‚¨ì§€ ì•Šë„ë¡ ëª©ë¡ì„ ë¨¼ì € ë¹„ìš´ë‹¤. ì‹¤íŒ¨í•œ ActorëŠ” faultedë¡œ ê²©ë¦¬ëœë‹¤.
             actions.Clear();
             activeActions.Clear();
             foreach (var action in snapshot)
@@ -61,7 +61,7 @@ namespace ProjectT.Skill
                 if (skillAction.IsActive && !activeActions.Contains(skillAction))
                     activeActions.Add(skillAction);
 
-                // ¹ßµ¿ ¾Ë¸² ÇÚµé·¯°¡ ¾òÀº Ãë¼Ò ÅÂ±×·Î ÀÌ ½ºÅ³ÀÌ Ãë¼ÒµÇµµ·Ï È°¼º ¸ñ·Ï¿¡ ³ÖÀº µÚ ¾Ë¸°´Ù.
+                // ë°œë™ ì•Œë¦¼ í•¸ë“¤ëŸ¬ê°€ ì–»ì€ ì·¨ì†Œ íƒœê·¸ë¡œ ì´ ìŠ¤í‚¬ì´ ì·¨ì†Œë˜ë„ë¡ í™œì„± ëª©ë¡ì— ë„£ì€ ë’¤ ì•Œë¦°ë‹¤.
                 skillAction.CompleteActivationInternal();
             }
         }
@@ -76,7 +76,7 @@ namespace ProjectT.Skill
                     action.OnUpdate(deletaTime);
             }
 
-            //Äğ´Ù¿î ¾÷µ¥ÀÌÆ®
+            //ì¿¨ë‹¤ìš´ ì—…ë°ì´íŠ¸
             foreach(var pair in actions)
             {
                 pair.Value.Spec.OnUpdateInternal(deletaTime);

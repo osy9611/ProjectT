@@ -40,7 +40,7 @@ namespace ProjectT.Build
         }
         public static async Task Build()
         {
-            //Addressable Build¸¦ ÇÏ¸é µÇ´Âµ¥ Áö±İÀº ÆÄÀÌ¾î º£ÀÌ½º ¾îµå·¹¼­ºí ºôµå¸¸ ÇÏ±â ¶§¹®¿¡ ¿ì¼± ±¸ÇöÇÔ
+            //Addressable Buildë¥¼ í•˜ë©´ ë˜ëŠ”ë° ì§€ê¸ˆì€ íŒŒì´ì–´ ë² ì´ìŠ¤ ì–´ë“œë ˆì„œë¸” ë¹Œë“œë§Œ í•˜ê¸° ë•Œë¬¸ì— ìš°ì„  êµ¬í˜„í•¨
             Debug.Log("Start FireBase Setting");
             FireBaseBuildSetting();
 
@@ -60,7 +60,7 @@ namespace ProjectT.Build
         }
 
 
-        //FireBase´Â ±âº» ºôµå¶ûÀº ´Ù¸£°Ô ºôµå¸¦ ÇØ¾ßÇÑ´Ù.
+        //FireBaseëŠ” ê¸°ë³¸ ë¹Œë“œë‘ì€ ë‹¤ë¥´ê²Œ ë¹Œë“œë¥¼ í•´ì•¼í•œë‹¤.
         private static void FireBaseBuildSetting()
         {
             string buildScript = "Assets/AddressableAssetsData/DataBuilders/BuildScriptFirebaseMode.asset";

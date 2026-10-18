@@ -15,7 +15,7 @@ namespace ProjectT.Skill
             Definition = definition;
         }
 
-        // reductionÀº Äğ´Ù¿î °¨¼ÒÀ²ÀÌ´Ù. Status°¡ 0 ¹Ì¸¸À» ¸·À¸¹Ç·Î 1À» ³Ñ´Â °ª¸¸ Á¦ÇÑÇÑ´Ù.
+        // reductionì€ ì¿¨ë‹¤ìš´ ê°ì†Œìœ¨ì´ë‹¤. Statusê°€ 0 ë¯¸ë§Œì„ ë§‰ìœ¼ë¯€ë¡œ 1ì„ ë„˜ëŠ” ê°’ë§Œ ì œí•œí•œë‹¤.
         internal void StartCooldownInternal(float reduction)
         {
             CoolDownRemaining = Definition.CoolTime * (1f - Math.Min(reduction, 1f));
@@ -34,18 +34,18 @@ namespace ProjectT.Skill
     public enum SkillEndReason
     {
         Completed,
-        // ÅÂ±×, Á¤¸®, Á÷Á¢ Ãë¼Ò·Î ³¡³­ °æ¿ì´Ù.
+        // íƒœê·¸, ì •ë¦¬, ì§ì ‘ ì·¨ì†Œë¡œ ëë‚œ ê²½ìš°ë‹¤.
         Cancelled,
     }
 
     internal enum SkillActionState
     {
         Idle,
-        // ¹ßµ¿ÀÌ È®Á¤µÇ±â Àü(Activate, Commit, ¹ßµ¿ Á÷ÈÄ ÅÂ±× ÆÇÁ¤)ÀÌ´Ù. ÀÌ¶§ ³¡³ª¸é Á¾·á ÀÌº¥Æ®¸¦ ¹ßµ¿ ÀÌº¥Æ® µÚ·Î ¹Ì·é´Ù.
+        // ë°œë™ì´ í™•ì •ë˜ê¸° ì „(Activate, Commit, ë°œë™ ì§í›„ íƒœê·¸ íŒì •)ì´ë‹¤. ì´ë•Œ ëë‚˜ë©´ ì¢…ë£Œ ì´ë²¤íŠ¸ë¥¼ ë°œë™ ì´ë²¤íŠ¸ ë’¤ë¡œ ë¯¸ë£¬ë‹¤.
         Activating,
         Active,
-        // OnEnd ÁßÀÌ°Å³ª ¹ßµ¿ È®Á¤ Àü¿¡ ³¡³ª Á¾·á ¾Ë¸²À» ¹Ì·é »óÅÂ´Ù.
-        // ÀÌ¶§ °°Àº ½ºÅ³À» ´Ù½Ã ¹ßµ¿ÇÏ¸é »õ ¹ßµ¿ ¾Ë¸²ÀÌ ÀÌÀü Á¾·á ¾Ë¸²º¸´Ù ¸ÕÀú ³ª°¡¹Ç·Î ¸·´Â´Ù. Àç¹ßµ¿°ú ¿¬°è´Â Á¾·á ¾Ë¸²¿¡¼­ ÇÑ´Ù.
+        // OnEnd ì¤‘ì´ê±°ë‚˜ ë°œë™ í™•ì • ì „ì— ëë‚˜ ì¢…ë£Œ ì•Œë¦¼ì„ ë¯¸ë£¬ ìƒíƒœë‹¤.
+        // ì´ë•Œ ê°™ì€ ìŠ¤í‚¬ì„ ë‹¤ì‹œ ë°œë™í•˜ë©´ ìƒˆ ë°œë™ ì•Œë¦¼ì´ ì´ì „ ì¢…ë£Œ ì•Œë¦¼ë³´ë‹¤ ë¨¼ì € ë‚˜ê°€ë¯€ë¡œ ë§‰ëŠ”ë‹¤. ì¬ë°œë™ê³¼ ì—°ê³„ëŠ” ì¢…ë£Œ ì•Œë¦¼ì—ì„œ í•œë‹¤.
         Ending
     }
 
@@ -70,20 +70,20 @@ namespace ProjectT.Skill
             this.spec = spec;
         }
 
-        //½ºÅ³ ¹ßµ¿ ¿äÃ». ¹ßµ¿À» ¾Ë·Á¾ß ÇÏ¸é true¸¦ ¹İÈ¯ÇÑ´Ù.
+        //ìŠ¤í‚¬ ë°œë™ ìš”ì²­. ë°œë™ì„ ì•Œë ¤ì•¼ í•˜ë©´ trueë¥¼ ë°˜í™˜í•œë‹¤.
         internal bool TryActivateInternal()
         {
-            // CanActivateÀÇ ºÎÀÛ¿ëÀ¸·Î ºñÈ°¼ºÈ­µÇ´Â °æ¿ìµµ Àâµµ·Ï ÆÇÁ¤ Àü¿¡ ±â·ÏÇÑ´Ù.
+            // CanActivateì˜ ë¶€ì‘ìš©ìœ¼ë¡œ ë¹„í™œì„±í™”ë˜ëŠ” ê²½ìš°ë„ ì¡ë„ë¡ íŒì • ì „ì— ê¸°ë¡í•œë‹¤.
             int deactivations = agent.DeactivationCount;
             if (!CanActivate())
                 return false;
 
             State = SkillActionState.Activating;
-            Activate(); //½ÇÁ¦ ¹ßµ¿(¾Ö´Ï¸ŞÀÌ¼Ç ÆÇÁ¤ µî)
-            Commit();   //ÄğÅ¸ÀÓ Àû¿ë, ÀÚ¿ø Â÷°¨ µî
+            Activate(); //ì‹¤ì œ ë°œë™(ì• ë‹ˆë©”ì´ì…˜ íŒì • ë“±)
+            Commit();   //ì¿¨íƒ€ì„ ì ìš©, ìì› ì°¨ê° ë“±
 
-            // ¹ßµ¿ ÁßÀÎ ½ºÅ³Àº ÅÂ±× È¹µæ¡¤ºñÈ°¼ºÈ­ Ãë¼Ò¿¡¼­ ºüÁö¹Ç·Î, ÀÌ¹Ì °¡Á³°Å³ª Activate Áß¿¡ ¾òÀº Ãë¼Ò ÅÂ±×¿Í Activate Áß ºñÈ°¼ºÈ­´Â ¿©±â¼­ Ã³¸®ÇÑ´Ù.
-            // ÀÌ·¸°Ô Ãë¼ÒµÈ ½ºÅ³Àº ¹ßµ¿ÇÏÁö ¾ÊÀº °ÍÀ¸·Î º¸°í ¹ßµ¿¡¤Á¾·á ÀÌº¥Æ®¸¦ ¸ğµÎ ³»Áö ¾Ê´Â´Ù.
+            // ë°œë™ ì¤‘ì¸ ìŠ¤í‚¬ì€ íƒœê·¸ íšë“Â·ë¹„í™œì„±í™” ì·¨ì†Œì—ì„œ ë¹ ì§€ë¯€ë¡œ, ì´ë¯¸ ê°€ì¡Œê±°ë‚˜ Activate ì¤‘ì— ì–»ì€ ì·¨ì†Œ íƒœê·¸ì™€ Activate ì¤‘ ë¹„í™œì„±í™”ëŠ” ì—¬ê¸°ì„œ ì²˜ë¦¬í•œë‹¤.
+            // ì´ë ‡ê²Œ ì·¨ì†Œëœ ìŠ¤í‚¬ì€ ë°œë™í•˜ì§€ ì•Šì€ ê²ƒìœ¼ë¡œ ë³´ê³  ë°œë™Â·ì¢…ë£Œ ì´ë²¤íŠ¸ë¥¼ ëª¨ë‘ ë‚´ì§€ ì•ŠëŠ”ë‹¤.
             if (State == SkillActionState.Activating && (deactivations != agent.DeactivationCount || agent.HasAnyTagInternal(Spec.Definition.CancelledByTags)))
             {
                 Cancel();
@@ -96,9 +96,9 @@ namespace ProjectT.Skill
 
         internal void CompleteActivationInternal()
         {
-            // ¹ßµ¿ ¾Ë¸² ÇÚµé·¯°¡ End¡¤CancelÇÏ¸é ±× È£ÃâÀÌ Á¾·á¸¦ ¾Ë¸®¹Ç·Î ¾Ë¸² Àü »óÅÂ·Î ÆÇ´ÜÇÑ´Ù.
+            // ë°œë™ ì•Œë¦¼ í•¸ë“¤ëŸ¬ê°€ EndÂ·Cancelí•˜ë©´ ê·¸ í˜¸ì¶œì´ ì¢…ë£Œë¥¼ ì•Œë¦¬ë¯€ë¡œ ì•Œë¦¼ ì „ ìƒíƒœë¡œ íŒë‹¨í•œë‹¤.
             bool ended = State == SkillActionState.Ending;
-            // ÀÌ¹Ì ³¡³­ ¹ßµ¿Àº ¾Ë¸² Áß EndingÀ» À¯ÁöÇØ °°Àº ½ºÅ³ÀÇ Àç¹ßµ¿À» ¸·´Â´Ù. Àç¹ßµ¿Àº ¹ßµ¿¡¤Á¾·á ½Ö°ú ¹Ì·é Á¾·á Á¾·ù¸¦ ±ú¶ß¸®¹Ç·Î Á¾·á ¾Ë¸²¿¡¼­ ÇÑ´Ù.
+            // ì´ë¯¸ ëë‚œ ë°œë™ì€ ì•Œë¦¼ ì¤‘ Endingì„ ìœ ì§€í•´ ê°™ì€ ìŠ¤í‚¬ì˜ ì¬ë°œë™ì„ ë§‰ëŠ”ë‹¤. ì¬ë°œë™ì€ ë°œë™Â·ì¢…ë£Œ ìŒê³¼ ë¯¸ë£¬ ì¢…ë£Œ ì¢…ë¥˜ë¥¼ ê¹¨ëœ¨ë¦¬ë¯€ë¡œ ì¢…ë£Œ ì•Œë¦¼ì—ì„œ í•œë‹¤.
             if (!ended)
                 State = SkillActionState.Active;
 
@@ -110,16 +110,16 @@ namespace ProjectT.Skill
             }
         }
 
-        // ºñ¿ëÀÌ ÀÖÀ¸¸é ¼ÒÀ¯ÀÚÀÇ Status°¡ ÀÖ¾î¾ß ÇÏ°í, Á¤ÀÇµÇÁö ¾ÊÀº ÀÚ¿øÀº GetResource°¡ ¿¹¿Ü·Î µå·¯³½´Ù.
+        // ë¹„ìš©ì´ ìˆìœ¼ë©´ ì†Œìœ ìì˜ Statusê°€ ìˆì–´ì•¼ í•˜ê³ , ì •ì˜ë˜ì§€ ì•Šì€ ìì›ì€ GetResourceê°€ ì˜ˆì™¸ë¡œ ë“œëŸ¬ë‚¸ë‹¤.
         protected virtual bool CanActivate()
         {
             return !Spec.IsOnCoolDown && CanPayCostsInternal();
         }
 
-        // ¹ßµ¿ ½Ã ¾Ö´Ï¸ŞÀÌ¼Ç µî ½ÇÇà
+        // ë°œë™ ì‹œ ì• ë‹ˆë©”ì´ì…˜ ë“± ì‹¤í–‰
         protected abstract void Activate();
 
-        //ÀÚ¿ø Â÷°¨, Äğ´Ù¿î µî·Ï
+        //ìì› ì°¨ê°, ì¿¨ë‹¤ìš´ ë“±ë¡
         protected virtual void Commit()
         {
             StatId stat = Spec.Definition.CooldownReductionStat;
@@ -130,29 +130,29 @@ namespace ProjectT.Skill
                 status.SetResource(costs[i].Resource, status.GetResource(costs[i].Resource) - costs[i].Amount);
         }
 
-        // ´ë»ó ¼±ÅÃÀº °ÔÀÓ ÄÚµå°¡ ÇÑ´Ù. ¼ÒÀ¯ÀÚ¿¡°Ô °É·Á¸é ¼ÒÀ¯ÀÚÀÇ SkillAgent¸¦ ³Ñ±ä´Ù.
+        // ëŒ€ìƒ ì„ íƒì€ ê²Œì„ ì½”ë“œê°€ í•œë‹¤. ì†Œìœ ìì—ê²Œ ê±¸ë ¤ë©´ ì†Œìœ ìì˜ SkillAgentë¥¼ ë„˜ê¸´ë‹¤.
         protected void ApplyEffects(SkillAgent target)
         {
             IReadOnlyList<EffectDefinition> effects = Spec.Definition.Effects;
-            // ¹ßµ¿ ¹Û¿¡¼­ ºÒ·Áµµ ¾Õ¼± È¿°úÀÇ Äİ¹é¿¡¼­ ½ÃÀüÀÚ°¡ ¹İ³³µÇÁö ¾Êµµ·Ï ½ÃÀüÀÚÀÇ È£Ãâ·Î µĞ´Ù.
+            // ë°œë™ ë°–ì—ì„œ ë¶ˆë ¤ë„ ì•ì„  íš¨ê³¼ì˜ ì½œë°±ì—ì„œ ì‹œì „ìê°€ ë°˜ë‚©ë˜ì§€ ì•Šë„ë¡ ì‹œì „ìì˜ í˜¸ì¶œë¡œ ë‘”ë‹¤.
             using var scope = agent.EnterCallInternal();
             for (int i = 0; i < effects.Count; i++)
                 target.ApplyEffect(effects[i], Owner);
         }
 
-        //½ºÅ³ Á¾·á
+        //ìŠ¤í‚¬ ì¢…ë£Œ
         public void End()
         {
             EndInternal(SkillEndReason.Completed);
         }
 
-        //Áßµµ Ãë¼Ò (ÇÇ°İ µî)
+        //ì¤‘ë„ ì·¨ì†Œ (í”¼ê²© ë“±)
         public void Cancel()
         {
             EndInternal(SkillEndReason.Cancelled);
         }
 
-        // È°¼º ½ºÅ³ÀÌ ³¡³¯ ¶§ ÇÑ ¹ø ºÒ¸°´Ù. ÀÌ¹Ì ºñÈ°¼º »óÅÂÀÌ¹Ç·Î ¿©±â¼­ End¡¤CancelÇØµµ ´Ù½Ã ºÒ¸®Áö ¾Ê´Â´Ù.
+        // í™œì„± ìŠ¤í‚¬ì´ ëë‚  ë•Œ í•œ ë²ˆ ë¶ˆë¦°ë‹¤. ì´ë¯¸ ë¹„í™œì„± ìƒíƒœì´ë¯€ë¡œ ì—¬ê¸°ì„œ EndÂ·Cancelí•´ë„ ë‹¤ì‹œ ë¶ˆë¦¬ì§€ ì•ŠëŠ”ë‹¤.
         protected virtual void OnEnd(SkillEndReason reason) { }
 
         //Update Function
@@ -179,7 +179,7 @@ namespace ProjectT.Skill
 
         private void EndInternal(SkillEndReason reason)
         {
-            // Á¤¸®°¡ Cancel Äİ¹é ÁßÀÎ ½ºÅ³À» ´Ù½Ã Ãë¼ÒÇÏ´Â °ÍÃ³·³ ¿©·¯ ¹ø ºÒ·Áµµ Á¾·á´Â ÇÑ ¹ø¸¸ ¾Ë¸°´Ù.
+            // ì •ë¦¬ê°€ Cancel ì½œë°± ì¤‘ì¸ ìŠ¤í‚¬ì„ ë‹¤ì‹œ ì·¨ì†Œí•˜ëŠ” ê²ƒì²˜ëŸ¼ ì—¬ëŸ¬ ë²ˆ ë¶ˆë ¤ë„ ì¢…ë£ŒëŠ” í•œ ë²ˆë§Œ ì•Œë¦°ë‹¤.
             if (!IsActive)
                 return;
 

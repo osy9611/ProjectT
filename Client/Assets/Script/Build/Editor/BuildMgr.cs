@@ -60,7 +60,7 @@ namespace ProjectT.Build
             task.Wait();
         }
 
-        //¾÷·Îµå Å×½ºÆ® ¿ë
+        //ì—…ë¡œë“œ í…ŒìŠ¤íŠ¸ ìš©
         //[MenuItem("Build/BuildAndUploadAddressable")]
         //public static void BuildAndUploadAddressable()
         //{
@@ -101,7 +101,7 @@ namespace ProjectT.Build
             return editorScenes.ToArray();
         }
 
-        //-executeMethod´Â async ¿Ï·á¸¦ ±â´Ù¸®Áö ¾ÊÀ¸¹Ç·Î -quit ¾øÀÌ ½ÇÇàÇÏ°í ¿©±â¼­ Á¾·á ÄÚµå¸¦ ³²±ä´Ù.
+        //-executeMethodëŠ” async ì™„ë£Œë¥¼ ê¸°ë‹¤ë¦¬ì§€ ì•Šìœ¼ë¯€ë¡œ -quit ì—†ì´ ì‹¤í–‰í•˜ê³  ì—¬ê¸°ì„œ ì¢…ë£Œ ì½”ë“œë¥¼ ë‚¨ê¸´ë‹¤.
         public static async void PreBuild()
         {
             int exitCode = 1;
@@ -115,7 +115,7 @@ namespace ProjectT.Build
 
                     System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
 
-                    //Addressable FireBase ºôµå
+                    //Addressable FireBase ë¹Œë“œ
                     await AddressableBuild.Build();
 
                     LogElapsedInternal("Addressable Build", timer);
@@ -200,7 +200,7 @@ namespace ProjectT.Build
         {
             System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
 
-            //Addressabe FireBase ºôµå ÆÄÀÏ ¾÷·Îµå
+            //Addressabe FireBase ë¹Œë“œ íŒŒì¼ ì—…ë¡œë“œ
             FirebaseUploader uploader = new FirebaseUploader(buildTarget, buildVersion);
             await uploader.UploadFiles();
             LogElapsedInternal("Upload", timer);
@@ -210,13 +210,13 @@ namespace ProjectT.Build
             LogElapsedInternal("Player Build", timer);
             await PostBuild();
 
-            //ºôµåµÈ ÆÄÀÏ Á¦°Å
+            //ë¹Œë“œëœ íŒŒì¼ ì œê±°
             uploader.DeleteFiles();
         }
 
         private static async Task Build(BuildTarget buildTarget, string buildVersion)
         {
-            //º»°İÀûÀ¸·Î ÇÃ·§Æû¿¡ µû¶ó ºôµå ½ÃÀÛ
+            //ë³¸ê²©ì ìœ¼ë¡œ í”Œë«í¼ì— ë”°ë¼ ë¹Œë“œ ì‹œì‘
 
             switch (buildTarget)
             {
@@ -236,7 +236,7 @@ namespace ProjectT.Build
 
         private static async Task PostBuild()
         {
-            //ºôµå ÈÄ ÇÊ¿ä¾ø´Â µ¥ÀÌÅÍ Á¤¸® ¹× ¾÷·Îµå¸¦ À§ÇÑ ¹«¾ğ°¡°¡ ÇÊ¿äÇÔ
+            //ë¹Œë“œ í›„ í•„ìš”ì—†ëŠ” ë°ì´í„° ì •ë¦¬ ë° ì—…ë¡œë“œë¥¼ ìœ„í•œ ë¬´ì–¸ê°€ê°€ í•„ìš”í•¨
         }
     }
 
