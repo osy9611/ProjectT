@@ -7,6 +7,8 @@ Client/Library/
 Client/Temp/
 Client/Obj/
 Client/Build/
+Client/Builds/
+Client/ServerData/
 Client/Logs/
 Client/UserSettings/
 Client/MemoryCaptures/
@@ -55,6 +57,10 @@ Client/*.VC.db
 
 # Unity3D generated file on crash reports
 sysinfo.txt
+
+# Unity3D crash recovery scenes
+Client/Assets/_Recovery/
+Client/Assets/_Recovery.meta
 
 # Builds
 *.apk
