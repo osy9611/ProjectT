@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets.ResourceLocators;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 
@@ -44,7 +45,7 @@ namespace ProjectT.Addressable
                 {
                     provideHandle.ResourceManager.ProvideResource<ContentCatalogData>(catalogLoc).Completed += handle =>
                     {
-                        provideHandle.Complete(handle.Result, true, null);
+                        provideHandle.Complete(handle.Result, handle.Status == AsyncOperationStatus.Succeeded, handle.OperationException);
                     };
                 }
                 else

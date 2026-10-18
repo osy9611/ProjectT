@@ -70,7 +70,7 @@ namespace ProjectT.Addressable
                 bundleOperationHandles.Add(firebaseUrl, asyncOperationHandle);
                 asyncOperationHandle.Completed += handle =>
                 {
-                    provideHandle.Complete(handle.Result, true, null);
+                    provideHandle.Complete(handle.Result, handle.Status == AsyncOperationStatus.Succeeded, handle.OperationException);
                 };
             });
         }

@@ -39,6 +39,23 @@ internal static partial class FirebaseCacheTests
             return Describe(request);
         });
 
+        Run("Hash·Json·AssetBundle 프로바이더는 내부 로드 실패를 원래 예외로 넘긴다", () =>
+        {
+            var hash = Provide<FirebaseStorageHashProvider>("gs://bucket/inner.hash", typeof(string));
+            var catalog = Provide<FirebaseStorageJsonAssetProvider>("gs://bucket/inner.json", typeof(ContentCatalogData));
+            var bundle = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/inner.bundle", typeof(IAssetBundleResource));
+            FirebaseBoundary.ResolvePending();
+            Check(FirebaseBoundary.Provided.Count == 3, "받은 URL로 내부 로드를 시작한다");
+            foreach (var inner in FirebaseBoundary.Provided)
+                inner.Fail(new InvalidOperationException("inner load failed: " + inner.Location.InternalId));
+            string trace = "hash=" + Describe(hash) + " catalog=" + Describe(catalog) + " bundle=" + Describe(bundle);
+
+            Check(hash.CompleteCount == 1 && !hash.Status && Carries(hash, "inner.hash"), "Hash 요청이 내부 오류로 실패한다 (" + trace + ")");
+            Check(catalog.CompleteCount == 1 && !catalog.Status && Carries(catalog, "inner.json"), "Json 요청이 내부 오류로 실패한다 (" + trace + ")");
+            Check(bundle.CompleteCount == 1 && !bundle.Status && Carries(bundle, "inner.bundle"), "AssetBundle 요청이 내부 오류로 실패한다 (" + trace + ")");
+            return trace;
+        });
+
         Run("Hash·Json 프로바이더는 동시에 받은 요청을 각자의 결과로 완료한다", () =>
         {
             var firstHash = Provide<FirebaseStorageHashProvider>("gs://bucket/first.hash", typeof(string));

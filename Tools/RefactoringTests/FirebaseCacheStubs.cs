@@ -43,6 +43,7 @@ internal static class FirebaseBoundary
         internal IResourceLocation Location;
         internal Type Type;
         internal Action<object> Complete;
+        internal Action<Exception> Fail;
     }
 
     private sealed class Locator : IResourceLocator
@@ -219,16 +220,26 @@ namespace UnityEngine.AddressableAssets.ResourceLocators
 
 namespace UnityEngine.ResourceManagement.AsyncOperations
 {
+    public enum AsyncOperationStatus { None, Succeeded, Failed }
+
     public sealed class Operation<T>
     {
         internal bool IsDone;
         internal T Result;
+        internal Exception Error;
         internal event Action<AsyncOperationHandle<T>> Completed;
 
         internal void Complete(T result)
         {
             IsDone = true;
             Result = result;
+            Completed?.Invoke(new AsyncOperationHandle<T>(this));
+        }
+
+        internal void Fail(Exception error)
+        {
+            IsDone = true;
+            Error = error;
             Completed?.Invoke(new AsyncOperationHandle<T>(this));
         }
     }
@@ -241,6 +252,8 @@ namespace UnityEngine.ResourceManagement.AsyncOperations
 
         public bool IsDone => operation.IsDone;
         public T Result => operation.Result;
+        public AsyncOperationStatus Status => !operation.IsDone ? AsyncOperationStatus.None : operation.Error == null ? AsyncOperationStatus.Succeeded : AsyncOperationStatus.Failed;
+        public Exception OperationException => operation.Error;
         public bool IsValid() => operation != null;
 
         public event Action<AsyncOperationHandle<T>> Completed
@@ -341,7 +354,7 @@ namespace UnityEngine.ResourceManagement
         public AsyncOperationHandle<T> ProvideResource<T>(IResourceLocation location)
         {
             var operation = new Operation<T>();
-            FirebaseBoundary.Provided.Add(new FirebaseBoundary.Provision { Location = location, Type = typeof(T), Complete = result => operation.Complete((T)result) });
+            FirebaseBoundary.Provided.Add(new FirebaseBoundary.Provision { Location = location, Type = typeof(T), Complete = result => operation.Complete((T)result), Fail = operation.Fail });
             return new AsyncOperationHandle<T>(operation);
         }
 
