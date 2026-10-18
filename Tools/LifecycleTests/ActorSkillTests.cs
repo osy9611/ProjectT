@@ -149,6 +149,39 @@ static partial class Program
             Check(TraceOf(actor).EndsWith(",disable,enable,disable,release") && actor.Releases == 1 && pool.InactiveCount == 1, "Later return was rejected or repeated a step");
         });
 
+        await RunSkillActorCase("returning from a skill, effect or status callback is rejected, keeps the spawn and a return after the call releases once", () =>
+        {
+            var dot = TestEffect(6, 1f, Time.deltaTime, null, 10f, new FlatDamageExecution());
+            using var pool = CreateActorPool<StatusActorProbe>();
+            var actor = BorrowActor(pool, true);
+            var rejected = new List<string>();
+            actor.EnterAction = () =>
+            {
+                actor.SkillAgent.GiveSkill(TestSkill);
+                actor.Status.SetBase(SkillDefinitions.MaxHpStat, 100f);
+                actor.Status.SetResource(SkillDefinitions.HpStat, 100f);
+            };
+            actor.Spawn();
+            actor.SkillAgent.OnSkillActivated += definition =>
+            {
+                if (IsRejection(CaptureSync(() => ReturnActor(pool, actor))))
+                    rejected.Add("activated");
+            };
+            actor.Status.OnResourceChanged += (resource, previous, current) =>
+            {
+                if (IsRejection(CaptureSync(() => ReturnActor(pool, actor))))
+                    rejected.Add("hp:" + current);
+            };
+            actor.SkillAgent.ActivateSkill(TestSkillId);
+            actor.Status.SetResource(SkillDefinitions.HpStat, 90f);
+            actor.SkillAgent.ApplyEffect(dot, actor);
+            ActorMessage(actor, "Update");
+            Check(string.Join(",", rejected) == "activated,hp:90,hp:80,hp:70", "Return from a callback was not rejected: " + string.Join(",", rejected));
+            Check(actor.Releases == 0 && pool.ActiveCount == 1 && actor.gameObject.activeSelf && Dispatches(actor), "Rejected return ended the spawn or changed pool tracking");
+            ReturnActor(pool, actor);
+            Check(actor.Releases == 1 && pool.InactiveCount == 1, "Return after the call was rejected or repeated");
+        });
+
         await RunSkillActorCase("input reset failure on plain disable skips the skill cancel and the disable hook", () =>
         {
             var actor = new GameObject("Actor").AddComponent<SkillActorProbe>();

@@ -91,7 +91,8 @@ namespace ProjectT
         {
         }
 
-        // 풀 반납은 스폰을 끝낸다. 스폰 전환이나 비활성화 중 반납되면 진행 중인 처리가 반납된 객체에 상태를 남기므로 거부한다.
+        // 풀 반납은 스폰을 끝낸다. 스폰 전환, 비활성화, 스킬·효과 호출, Status 알림 중 반납되면 진행 중인 처리가 반납된 객체에 상태를 남기므로 거부한다.
+        // 반납은 호출이 끝난 뒤(틱 뒤의 OnUpdate, 호출 반환 뒤) 한다.
         void IPoolable.OnReturn()
         {
             if (spawnTransitioning)
@@ -99,6 +100,9 @@ namespace ProjectT
 
             if (deactivating)
                 throw new InvalidOperationException("Actor cannot be returned during deactivation.");
+
+            if (skillAgent?.IsInCall == true || status?.IsInCall == true)
+                throw new InvalidOperationException("Actor cannot be returned during a skill, effect or status call.");
 
             if (faulted)
                 throw new InvalidOperationException("Faulted actor cannot be returned to the pool.");
