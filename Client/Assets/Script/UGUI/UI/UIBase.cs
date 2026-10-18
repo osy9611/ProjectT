@@ -10,8 +10,7 @@ namespace ProjectT.UGUI
     {
         System,  // 게임 시스템 UI 관련
         Dynamic, // 동적 UI 관련
-        Static,   // 정적 UI 관련
-        HUD
+        Static   // 정적 UI 관련
     }
 
     public abstract class UIBase : MonoBehaviour

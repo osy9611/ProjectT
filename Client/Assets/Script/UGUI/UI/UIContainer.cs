@@ -11,14 +11,14 @@ namespace ProjectT.UGUI
 
     internal class UIContainer
     {
-        //뒤에서 앞 순서. System UI가 항상 최상위에 그려진다
-        private static readonly eUIContainerType[] displayOrder =
+        //뒤에서 앞 순서로 선언한다. 루트를 이 순서로 만들어 System UI가 항상 최상위에 그려진다
+        private enum eUILayer
         {
-            eUIContainerType.Static,
-            eUIContainerType.HUD,
-            eUIContainerType.Dynamic,
-            eUIContainerType.System
-        };
+            Static,
+            HUD,
+            Dynamic,
+            System
+        }
 
         private Dictionary<UIDefine.eUIType, UIBase> uiDatas = new Dictionary<UIDefine.eUIType, UIBase>();
 
@@ -43,8 +43,8 @@ namespace ProjectT.UGUI
             }
         }
 
-        private RectTransform[] typeRoot;
-        public RectTransform HudRoot => typeRoot[(int)eUIContainerType.HUD];
+        private RectTransform[] layerRoot;
+        public RectTransform HudRoot => layerRoot[(int)eUILayer.HUD];
 
         private Transform uiCanvas2D;
 
@@ -72,7 +72,7 @@ namespace ProjectT.UGUI
             CreateCamera();
             CreateCanvas();
 
-            CreateTypeRoots();
+            CreateLayerRoots();
         }
 
         public void Shutdown()
@@ -82,23 +82,30 @@ namespace ProjectT.UGUI
         }
         #endregion
 
-        private void CreateTypeRoots()
+        private void CreateLayerRoots()
         {
-            typeRoot = new RectTransform[System.Enum.GetValues(typeof(eUIContainerType)).Length];
+            layerRoot = new RectTransform[System.Enum.GetValues(typeof(eUILayer)).Length];
 
             //2D Canvas
             var uiCanvas2DRect = uiCanvas2D.GetComponent<RectTransform>();
 
-            foreach (eUIContainerType type in System.Enum.GetValues(typeof(eUIContainerType)))
+            foreach (eUILayer layer in System.Enum.GetValues(typeof(eUILayer)))
             {
-                typeRoot[(int)type] = new GameObject($"{type}").AddComponent<RectTransform>();
-                StretchInternal(typeRoot[(int)type], uiCanvas2DRect);
+                layerRoot[(int)layer] = new GameObject($"{layer}").AddComponent<RectTransform>();
+                StretchInternal(layerRoot[(int)layer], uiCanvas2DRect);
             }
+        }
 
-            //enum 순서가 아니라 표시 순서로 배치한다. 시스템 공지가 다른 UI에 가려지면 안 된다
-            for (int i = 0; i < displayOrder.Length; ++i)
+        // 프리팹에 직렬화된 값이 정의되지 않은 경우(예: 제거된 HUD 값)를 생성 전에 거절한다.
+        private RectTransform GetLayerRootInternal(eUIContainerType type)
+        {
+            switch (type)
             {
-                typeRoot[(int)displayOrder[i]].SetSiblingIndex(i);
+                case eUIContainerType.Static: return layerRoot[(int)eUILayer.Static];
+                case eUIContainerType.Dynamic: return layerRoot[(int)eUILayer.Dynamic];
+                case eUIContainerType.System: return layerRoot[(int)eUILayer.System];
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(type), type, "UI container type has no layer.");
             }
         }
 
@@ -302,10 +309,11 @@ namespace ProjectT.UGUI
             if (!prefab.activeSelf)
                 throw new InvalidOperationException($"UI prefab root must be active: {type}");
 
-            var instance = GameObject.Instantiate(prefab, typeRoot[(int)source.Type], false);
+            var layer = GetLayerRootInternal(source.Type);
+            var instance = GameObject.Instantiate(prefab, layer, false);
             var widget = instance.GetComponent<T>();
             instance.SetActive(false);
-            StretchInternal(widget.GetComponent<RectTransform>(), typeRoot[(int)widget.Type]);
+            StretchInternal(widget.GetComponent<RectTransform>(), layer);
 
             // 등록 전 인스턴스는 정리해 줄 상위 생명주기가 없으므로 OnEnter 실패나 도중 취소 시 여기서 파괴한다.
             try

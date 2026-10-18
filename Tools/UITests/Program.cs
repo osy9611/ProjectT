@@ -110,6 +110,14 @@ static class Program
             Check(c.FindWidget<Probe>(Key)==null&&Probe.Enters==0&&UnityEngine.Object.Destroyed.Count==0,"inactive prefab was instantiated");
             Global.Resource.Prefab.SetActive(true);Check(c.CreateWidget<Probe>(Key,"UI")!=null&&Probe.Enters==1,"retry after fixing prefab failed");
         });
+        await Run("Layer roots are drawn back to front and an undefined container type is rejected before instantiation",async()=> {
+            Setup();var root=new GameObject("Root").transform;var c=new UIContainer(root,default);c.Initialize();
+            var canvas=root.Find("Canvas2D");
+            Check(string.Join(",",canvas.Children.ConvertAll(t=>t.name))=="Static,HUD,Dynamic,System","layer order");
+            Global.Resource.Prefab=Prefab((eUIContainerType)3);
+            await ExpectSync<ArgumentOutOfRangeException>(()=>c.CreateWidget<Probe>(Key,"UI"));
+            Check(c.FindWidget<Probe>(Key)==null&&Probe.Enters==0&&canvas.Children.TrueForAll(t=>t.childCount==0),"undefined type was instantiated");
+        });
         await Run("Sync creation during async creation is rejected",async()=> {
             var c=Setup();Global.Resource.Gate=new();var a=c.CreateWidgetAsync<Probe>(Key,"UI",default);
             await ExpectSync<InvalidOperationException>(()=>c.CreateWidget<Probe>(Key,"UI"));

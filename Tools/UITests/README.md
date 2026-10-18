@@ -29,7 +29,7 @@ Static UI를 열면 이전 Static UI는 논리적으로 열린 상태를 유지�
 
 표시 순서와 스택은 OnShow보다 먼저 반영한다. OnShow에서 다른 UI를 열면 나중에 연 UI가 앞에 남고, OnShow에서 이전 Static UI를 다시 열면 그 UI를 가리지 않는다. OnShow가 실패해도 UI는 열린 상태로 스택 최상단에 남고 포커스도 그 UI 기준으로 유지된다. 이후 Hide나 씬 정리로 닫는다.
 
-Dynamic/System/HUD는 정적 화면 스택에 포함하지 않는다. 표시 시 같은 패널의 마지막 sibling으로 이동한다. 생성된 UI는 UIContainer가 소유하며 중간 초기화 객체를 FindWidget으로 노출하지 않는다.
+Dynamic/System은 정적 화면 스택에 포함하지 않는다. 표시 시 같은 패널의 마지막 sibling으로 이동한다. 생성된 UI는 UIContainer가 소유하며 중간 초기화 객체를 FindWidget으로 노출하지 않는다.
 
 ## 범위
 
