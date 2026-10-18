@@ -1,13 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Threading.Tasks;
 
-using UnityEngine.AddressableAssets;
-using UnityEngine.AddressableAssets.ResourceLocators;
-using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 
 namespace ProjectT.Addressable
@@ -18,25 +10,6 @@ namespace ProjectT.Addressable
     [DisplayName("Firebase AssetBundle Provider")]
     public class FirebaseStorageAssetBundleProvider : AssetBundleProvider
     {
-        public readonly Dictionary<string, AsyncOperationHandle<IAssetBundleResource>> bundleOperationHandles = new Dictionary<string, AsyncOperationHandle<IAssetBundleResource>>();
-
-        public override void Release(IResourceLocation location, object asset)
-        {
-            base.Release(location, asset);
-
-            // We have to make sure that the actual Bundle Load operation for this asset also gets released together with the Firebase Resource
-            if (bundleOperationHandles.TryGetValue(location.InternalId, out AsyncOperationHandle<IAssetBundleResource> operation))
-            {
-                if (operation.IsValid())
-                {
-                    Addressables.ResourceManager.Release(operation);
-                }
-                bundleOperationHandles.Remove(location.InternalId);
-            }
-        }
-
-
-
         public override void Provide(ProvideHandle provideHandle)
         {
             string firebaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
@@ -46,32 +19,11 @@ namespace ProjectT.Addressable
                 return;
             }
 
+            // 기본 프로바이더는 로드를 시작할 때 TransformInternalId로 주소를 읽으므로 매핑을 먼저 등록하면 받은 URL에서 번들을 읽는다.
             FirebaseAddressablesManager.ResolveDownloadUrl(provideHandle, firebaseUrl, url =>
             {
                 FirebaseAddressablesCache.SetInternalIdToStorageUrlMapping(firebaseUrl, url);
-                IResourceLocation[] dependencies = provideHandle.Location.Dependencies?.ToArray() ?? Array.Empty<IResourceLocation>();
-                var bundleLoc = new ResourceLocationBase(url, url, GetType().FullName,
-                    typeof(IResourceLocator), dependencies)
-                {
-                    Data = provideHandle.Location.Data,
-                    PrimaryKey = provideHandle.Location.PrimaryKey
-                };
-
-                AsyncOperationHandle<IAssetBundleResource> asyncOperationHandle;
-                if (bundleOperationHandles.TryGetValue(firebaseUrl, out asyncOperationHandle))
-                {
-                    // Release already running handler
-                    if (asyncOperationHandle.IsValid())
-                    {
-                        provideHandle.ResourceManager.Release(asyncOperationHandle);
-                    }
-                }
-                asyncOperationHandle = provideHandle.ResourceManager.ProvideResource<IAssetBundleResource>(bundleLoc);
-                bundleOperationHandles.Add(firebaseUrl, asyncOperationHandle);
-                asyncOperationHandle.Completed += handle =>
-                {
-                    provideHandle.Complete(handle.Result, handle.Status == AsyncOperationStatus.Succeeded, handle.OperationException);
-                };
+                base.Provide(provideHandle);
             });
         }
     }

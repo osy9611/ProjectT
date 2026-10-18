@@ -46,6 +46,7 @@ namespace ProjectT.Addressable
                     provideHandle.ResourceManager.ProvideResource<ContentCatalogData>(catalogLoc).Completed += handle =>
                     {
                         provideHandle.Complete(handle.Result, handle.Status == AsyncOperationStatus.Succeeded, handle.OperationException);
+                        handle.Release();
                     };
                 }
                 else

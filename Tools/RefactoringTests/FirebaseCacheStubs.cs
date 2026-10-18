@@ -363,10 +363,6 @@ namespace UnityEngine.ResourceManagement
             FirebaseBoundary.Provided.Add(new FirebaseBoundary.Provision { Location = location, Type = typeof(T), Complete = result => operation.Complete((T)result), Fail = operation.Fail, Released = () => operation.Released });
             return new AsyncOperationHandle<T>(operation);
         }
-
-        public void Release<T>(AsyncOperationHandle<T> handle)
-        {
-        }
     }
 }
 

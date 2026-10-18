@@ -32,6 +32,7 @@ namespace ProjectT.Addressable
                 {
                     Debug.Log("Got hash for catalog: " + handle.Result);
                     provideHandle.Complete(handle.Result, handle.Status == AsyncOperationStatus.Succeeded, handle.OperationException);
+                    handle.Release();
                 };
             });
         }
