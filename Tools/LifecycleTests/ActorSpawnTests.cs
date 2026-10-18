@@ -48,7 +48,7 @@ static partial class Program
             ActorMessage(actor, "Update");
             Check(!actor.Trace.Contains("enter") && !actor.Trace.Contains("enable") && !IsRegistered(actor.Input) && actor.Updates == 0, "Failed actor initialization later became active");
             ActorMessage(actor, "OnDestroy");
-            Check(actor.Releases == 0 && actor.Input.Actor == null, "Destruction released a spawn that never entered");
+            Check(actor.Releases == 0 && !Holds(actor, actor.Input), "Destruction released a spawn that never entered");
         });
 
         await RunActorCase("failed initialization retries leave the actor unspawned and a later successful retry runs the full lifecycle", () =>
@@ -73,7 +73,7 @@ static partial class Program
             Check(ReferenceEquals(BorrowActor(pool, false), actor), "Pool did not lend the failed actor again");
             actor.Spawn();
             Check(TraceOf(actor) == "init,init,init,init,enter,enable" && Dispatches(actor), "Successful retry did not run the full lifecycle");
-            Check(RegisteredContextCount(actor) == 1 && ReferenceEquals(actor.Input.Actor, actor), "Initialization retries duplicated or lost the input context");
+            Check(RegisteredContextCount(actor) == 1 && Holds(actor, actor.Input), "Initialization retries duplicated or lost the input context");
             ReturnActor(pool, actor);
             Check(TraceOf(actor) == "init,init,init,init,enter,enable,disable,release", "Return after a recovered spawn did not release once");
         });
@@ -156,7 +156,7 @@ static partial class Program
             var actor = CreateInputActor();
             actor.gameObject.SetActive(false);
             ThrowsSync<InvalidOperationException>(() => actor.Spawn()).GetAwaiter().GetResult();
-            Check(actor.Trace.Count == 0 && actor.PivotAgent == null && actor.Input.Actor == null, "Inactive spawn ran OnInit or OnEnter before Awake");
+            Check(actor.Trace.Count == 0 && actor.PivotAgent == null && !Holds(actor, actor.Input), "Inactive spawn ran OnInit or OnEnter before Awake");
             actor.gameObject.SetActive(true);
             ActorMessage(actor, "Awake");
             ActorMessage(actor, "OnEnable");
@@ -180,7 +180,7 @@ static partial class Program
             ActorMessage(actor, "OnEnable");
             Check(IsRegistered(actor.Input), "Omitting base hooks bypassed reactivation");
             ActorMessage(actor, "OnDestroy");
-            Check(!IsRegistered(actor.Input) && actor.Input.Actor == null && TraceOf(actor) == "init", "Omitting base.OnRelease bypassed final cleanup");
+            Check(!IsRegistered(actor.Input) && !Holds(actor, actor.Input) && TraceOf(actor) == "init", "Omitting base.OnRelease bypassed final cleanup");
         });
 
         await RunActorCase("spawn while inactive enters without activation and a later enable activates", () =>
@@ -228,7 +228,7 @@ static partial class Program
             actor.DisabledAction = () => actor.Spawn();
             var caught = CaptureSync(() => ActorMessage(actor, "OnDestroy"));
             Check(caught is ObjectDisposedException, "Destruction callback spawn was not rejected as disposed");
-            Check(!IsRegistered(actor.Input) && actor.Input.Actor == null && actor.Releases == 0 && actor.Count("enter") == 1, "Destruction callback spawned, ran the release hook or retained input");
+            Check(!IsRegistered(actor.Input) && !Holds(actor, actor.Input) && actor.Releases == 0 && actor.Count("enter") == 1, "Destruction callback spawned, ran the release hook or retained input");
         });
 
         await RunActorCase("input shutdown detaches contexts and later actor cleanup does not query the stopped manager", () =>
@@ -252,18 +252,18 @@ static partial class Program
             var first = AttachActor(CreateInputActor());
             var second = AttachActor(CreateInputActor());
             ThrowsSync<InvalidOperationException>(() => second.Register(first.Input)).GetAwaiter().GetResult();
-            Check(ReferenceEquals(first.Input.Actor, first) && Dispatches(first) && RegisteredContextCount(second) == 1, "Rejected sharing changed either registration");
+            Check(Holds(first, first.Input) && Dispatches(first) && RegisteredContextCount(second) == 1, "Rejected sharing changed either registration");
             var context = first.Input;
             first.Unregister(context);
-            Check(context.Actor == null && !IsRegistered(context), "Unregister kept the actor registration");
+            Check(!Holds(first, context) && !IsRegistered(context), "Unregister kept the actor registration");
             second.Register(context);
-            Check(ReferenceEquals(context.Actor, second) && IsRegistered(context), "Unregistered context could not be registered again");
+            Check(Holds(second, context) && IsRegistered(context), "Unregistered context could not be registered again");
             var shared = new InputContext("shared", 0).Bind("Player/Fire", _ => { }, eInputEvent.Performed, consume: false);
             first.Register(shared);
             ThrowsSync<InvalidOperationException>(() => second.Register(shared)).GetAwaiter().GetResult();
             ActorMessage(first, "OnDestroy");
             second.Register(shared);
-            Check(ReferenceEquals(shared.Actor, second) && IsRegistered(shared), "Context of a destroyed actor could not be registered again");
+            Check(Holds(second, shared) && IsRegistered(shared), "Context of a destroyed actor could not be registered again");
             ActorMessage(second, "OnDestroy");
         });
     }

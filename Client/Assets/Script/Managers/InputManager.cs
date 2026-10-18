@@ -70,6 +70,16 @@ namespace ProjectT
             ApplyInputStateInternal();
         }
 
+        public void AddContext(ProjectT.Controller.InputContext context)
+        {
+            Controller.AddContext(context);
+        }
+
+        public void RemoveContext(ProjectT.Controller.InputContext context)
+        {
+            Controller.RemoveContext(context);
+        }
+
         internal void SetUIFocused(bool focused)
         {
             if (focused && !uiFocused)

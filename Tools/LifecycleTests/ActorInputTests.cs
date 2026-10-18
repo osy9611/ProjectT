@@ -75,11 +75,11 @@ static partial class Program
             actor.Register(extra);
             ActorMessage(actor, "OnDestroy");
             Check(!IsRegistered(actor.Input) && !IsRegistered(extra) && !Dispatches(actor) && Dispatches(other), "Destroyed actor retained input or removed another actor");
-            Check(actor.Input.Actor == null && extra.Actor == null && RegisteredContextCount(actor) == 0 && actor.Releases == 1, "Destruction kept context ownership or repeated the release hook");
+            Check(!Holds(actor, actor.Input) && !Holds(actor, extra) && RegisteredContextCount(actor) == 0 && actor.Releases == 1, "Destruction kept context ownership or repeated the release hook");
             ThrowsSync<ObjectDisposedException>(() => actor.Register(new InputContext("late", 0))).GetAwaiter().GetResult();
             ThrowsSync<ObjectDisposedException>(() => actor.Spawn()).GetAwaiter().GetResult();
             other.Register(extra);
-            Check(ReferenceEquals(extra.Actor, other) && IsRegistered(extra), "Finally detached context could not be registered again");
+            Check(Holds(other, extra) && IsRegistered(extra), "Finally detached context could not be registered again");
             Check(!UnityEngine.Object.Destroyed.Exists(x => x is InputActionAsset), "Actor release destroyed the shared asset");
             ActorMessage(other, "OnDestroy");
         });
@@ -115,7 +115,7 @@ static partial class Program
             Check(!IsRegistered(deferred), "Disabled actor registered input immediately");
             actor.enabled = true;
             ActorMessage(actor, "OnEnable");
-            Check(!IsRegistered(invalid) && invalid.Actor == null && IsRegistered(actor.Input) && IsRegistered(deferred), "Rejected or deferred registration state is wrong");
+            Check(!IsRegistered(invalid) && !Holds(actor, invalid) && IsRegistered(actor.Input) && IsRegistered(deferred), "Rejected or deferred registration state is wrong");
             ActorMessage(actor, "OnDestroy");
         });
 
@@ -138,7 +138,7 @@ static partial class Program
             Check(!IsRegistered(later), "Faulted actor registered a later context on enable");
             ActorMessage(actor, "OnDestroy");
             Check(TraceOf(actor) == "init,enter,enable,release" && laterResets == 1, "Destruction did not finish the faulted spawn once");
-            Check(actor.Input.Actor == null && later.Actor == null && RegisteredContextCount(actor) == 0, "Destroyed actor kept context registrations");
+            Check(!Holds(actor, actor.Input) && !Holds(actor, later) && RegisteredContextCount(actor) == 0, "Destroyed actor kept context registrations");
         });
 
         await RunActorCase("input reset failure during destruction propagates unchanged, skips later resets and the release hook and still unregisters input", () =>
@@ -154,7 +154,7 @@ static partial class Program
             var caught = CaptureSync(() => ActorMessage(actor, "OnDestroy"));
             Check(ReferenceEquals(caught, first) && laterResets == 0, "A later reset ran after the first error or replaced it");
             Check(TraceOf(actor) == "init,enter,enable", "Steps after the reset failure still ran");
-            Check(!IsRegistered(actor.Input) && !IsRegistered(second) && actor.Input.Actor == null && second.Actor == null, "Destroyed actor kept context registrations");
+            Check(!IsRegistered(actor.Input) && !IsRegistered(second) && !Holds(actor, actor.Input) && !Holds(actor, second), "Destroyed actor kept context registrations");
             ThrowsSync<ObjectDisposedException>(() => actor.Spawn()).GetAwaiter().GetResult();
         });
 
@@ -170,7 +170,7 @@ static partial class Program
             Check(ReferenceEquals(caught, failure), "Destruction wrapped, lost or replaced the disable error");
             Check(TraceOf(actor) == "init,enter,enable,disable" && !IsRegistered(actor.Input) && !IsRegistered(later) && !Dispatches(actor),
                 "Disable failure ran the release hook or retained input");
-            Check(actor.Input.Actor == null && later.Actor == null, "Destroyed actor kept context registrations");
+            Check(!Holds(actor, actor.Input) && !Holds(actor, later), "Destroyed actor kept context registrations");
         });
     }
 }

@@ -298,12 +298,12 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         Check(stopped, "input", "stick release cancels Move");
 
         var blocker = (ProjectT.Controller.InputContext)Get(runner, "blocker");
-        input.Controller.AddContext(blocker);
+        input.AddContext(blocker);
         before = JumpCounts(actors);
         int blockerLines = CountLines("Blocker consumed Jump");
         yield return PressSouthInternal();
         Check(SameCounts(before, JumpCounts(actors)) && CountLines("Blocker consumed Jump") == blockerLines + 1, "input", "priority 100 blocker consumes Jump");
-        input.Controller.RemoveContext(blocker);
+        input.RemoveContext(blocker);
         before = JumpCounts(actors);
         yield return PressSouthInternal();
         Check(AllIncreased(before, JumpCounts(actors)), "input", "Jump reaches actors after blocker removed");

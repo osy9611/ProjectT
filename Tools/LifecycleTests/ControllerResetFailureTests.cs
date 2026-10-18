@@ -30,8 +30,9 @@ static partial class Program
                 caught = error;
             }
             Check(ReferenceEquals(caught, failure), "Reset error was wrapped or lost.");
-            Check(resets == 0 && !f.Controller.HasAsset && f.Fire.SubscriberCount == 0 && failing.Owner == null && later.Owner == null,
+            Check(resets == 0 && f.Fire.SubscriberCount == 0 && failing.Owner == null && later.Owner == null,
                 "A reset exception left the controller holding contexts or subscriptions.");
+            ThrowsSync<InvalidOperationException>(() => f.Controller.AddContext(new InputContext("late", 0))).GetAwaiter().GetResult();
             Check(failing.Resolved.Count == 0 && later.Resolved.Count == 0, "A reset exception left a context resolved.");
             Check(later.Unbind("Player/Move") == later && resets == 1, "A skipped reset was not delivered by the later cleanup.");
             var reused = CreateInputFixture();
@@ -51,7 +52,7 @@ static partial class Program
             var asset = new InputActionAsset();
             f.Controller.Init(asset, "Player");
             f.Controller.Enable();
-            Check(f.Controller.HasAsset && asset.FindAction("Player/Fire", true).enabled, "Release left the controller stuck releasing.");
+            Check(asset.FindAction("Player/Fire", true).enabled, "Release left the controller stuck releasing.");
             f.Controller.Release();
         });
 
@@ -78,7 +79,7 @@ static partial class Program
             }
             Check(ReferenceEquals(caught, failure) && ReferenceEquals(high.Owner, f.Controller), "Hidden reset error was wrapped or registration was lost.");
             Check(held == 1, "Remaining hidden resets ran after the first failure.");
-            f.Controller.Disable();
+            f.Controller.SetInputAllowed(false);
             Check(held == 0, "Deactivation did not reset the skipped binding.");
             f.Controller.Release();
         });
@@ -120,8 +121,8 @@ static partial class Program
             ThrowsSync<InvalidOperationException>(() => f.Controller.SetInputAllowed(false)).GetAwaiter().GetResult();
             f.Controller.SetInputAllowed(true);
             Check(f.Fire.enabled && f.Move.enabled, "An owed reset blocked reactivation.");
-            ThrowsSync<InvalidOperationException>(f.Controller.Disable).GetAwaiter().GetResult();
-            f.Controller.Enable();
+            ThrowsSync<InvalidOperationException>(() => f.Controller.SetInputAllowed(false)).GetAwaiter().GetResult();
+            f.Controller.SetInputAllowed(true);
             Check(f.Fire.enabled && f.Move.enabled, "An owed reset blocked reenable.");
             f.Controller.Release();
         });
@@ -138,7 +139,7 @@ static partial class Program
             f.Move.Trigger(InputActionPhase.Performed);
             ThrowsSync<InvalidOperationException>(() => f.Move.Trigger(InputActionPhase.Canceled)).GetAwaiter().GetResult();
             Check(held == 1, "Remaining cancellation resets ran after the first failure.");
-            f.Controller.Disable();
+            f.Controller.SetInputAllowed(false);
             Check(held == 0, "Deactivation did not reset the skipped binding.");
             f.Controller.Release();
         });

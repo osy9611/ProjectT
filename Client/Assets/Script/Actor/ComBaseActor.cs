@@ -157,17 +157,17 @@ namespace ProjectT
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
 
-            if (context.Actor != null && !ReferenceEquals(context.Actor, this))
-                throw new InvalidOperationException("Input context is already registered to another actor.");
-
             if (inputContexts.Contains(context))
                 return;
 
+            // 비활성 Actor가 가진 컨텍스트는 Controller에 등록되어 있지 않으므로 공유를 거부하지 못한다.
+            if (context.Owner != null)
+                throw new InvalidOperationException("Input context is already registered elsewhere.");
+
             // Controller 검증이 실패해도 Actor에 등록 흔적이 남지 않도록 Controller에 먼저 추가한다.
             if (spawnState == SpawnState.Active)
-                Global.Input.Controller.AddContext(context);
+                Global.Input.AddContext(context);
 
-            context.Actor = this;
             var updated = new List<InputContext>(inputContexts);
             updated.Add(context);
             inputContexts = updated;
@@ -184,7 +184,6 @@ namespace ProjectT
             var updated = new List<InputContext>(inputContexts);
             updated.Remove(context);
             inputContexts = updated;
-            context.Actor = null;
             context.Owner?.RemoveContext(context);
         }
 
@@ -307,14 +306,13 @@ namespace ProjectT
             if (snapshot.Count == 0)
                 return;
 
-            var controller = Global.Input.Controller;
             for (int i = 0; i < snapshot.Count; i++)
             {
                 if (spawnState != SpawnState.Active)
                     return;
 
                 if (inputContexts.Contains(snapshot[i]))
-                    controller.AddContext(snapshot[i]);
+                    Global.Input.AddContext(snapshot[i]);
             }
         }
 
@@ -322,9 +320,6 @@ namespace ProjectT
         {
             var previous = inputContexts;
             inputContexts = new List<InputContext>();
-            foreach (var context in previous)
-                context.Actor = null;
-
             DetachInputContextsInternal(previous);
         }
 

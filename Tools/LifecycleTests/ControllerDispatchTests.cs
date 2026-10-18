@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using ProjectT.Controller;
@@ -201,7 +202,7 @@ static partial class Program
             f.Controller.Release();
         });
 
-        await RunControllerCase("block disable and release reset held state without fabricated cancellation", () =>
+        await RunControllerCase("block and release reset held state without fabricated cancellation", () =>
         {
             var f = CreateInputFixture();
             int held = 0, resets = 0, canceled = 0;
@@ -218,13 +219,10 @@ static partial class Program
             Check(held == 0 && resets == 1 && canceled == 0 && !f.Move.enabled, "Block did not reset and disable.");
             f.Controller.SetInputAllowed(true);
             f.Move.Trigger(InputActionPhase.Started);
-            f.Controller.Disable();
-            Check(held == 0 && resets == 2 && canceled == 0 && !f.Move.enabled, "Disable delivered a synthetic cancellation.");
-            f.Controller.Enable();
-            f.Move.Trigger(InputActionPhase.Started);
             f.Controller.Release();
-            Check(held == 0 && resets == 3 && canceled == 0 && f.Move.SubscriberCount == 0 && !f.Controller.HasAsset,
+            Check(held == 0 && resets == 2 && canceled == 0 && f.Move.SubscriberCount == 0,
                 "Release retained state or subscriptions.");
+            ThrowsSync<InvalidOperationException>(() => f.Controller.AddContext(new InputContext("late", 0))).GetAwaiter().GetResult();
         });
 
         await RunControllerCase("release in a callback stops delivery and detaches contexts", () =>
@@ -235,8 +233,9 @@ static partial class Program
             f.Controller.AddContext(context);
             f.Controller.AddContext(new InputContext("tail", 0).Bind("Player/Fire", _ => tail++));
             f.Fire.Trigger(InputActionPhase.Performed);
-            Check(tail == 0 && !f.Controller.HasAsset && context.Unbind("Player/Fire") == context,
+            Check(tail == 0 && context.Unbind("Player/Fire") == context,
                 "Release did not stop delivery or detach the context.");
+            ThrowsSync<InvalidOperationException>(() => f.Controller.AddContext(new InputContext("late", 0))).GetAwaiter().GetResult();
         });
 
         await RunControllerCase("a rebound context can move to another controller", () =>
@@ -299,14 +298,14 @@ static partial class Program
             f.Controller.Release();
         });
 
-        await RunControllerCase("reenable requested during reset applies after disabling completes", () =>
+        await RunControllerCase("input allowed again during reset applies after disabling completes", () =>
         {
             var f = CreateInputFixture();
             int resets = 0;
             f.Controller.AddContext(new InputContext("input", 0).Bind("Player/Move", _ => { },
-                eInputEvent.Performed, onReset: () => { resets++; f.Controller.Enable(); }));
+                eInputEvent.Performed, onReset: () => { resets++; f.Controller.SetInputAllowed(true); }));
             f.Move.Trigger(InputActionPhase.Performed);
-            f.Controller.Disable();
+            f.Controller.SetInputAllowed(false);
             Check(resets == 1 && f.Move.enabled && f.Fire.enabled, "Reset lost a reenable request.");
             f.Controller.Release();
         });

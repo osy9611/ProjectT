@@ -138,9 +138,9 @@ namespace ProjectT.Sample
             if (GUILayout.Button(blocking ? "Remove Jump Blocker" : "Add Jump Blocker"))
             {
                 if (blocking)
-                    input.Controller.RemoveContext(blocker);
+                    input.RemoveContext(blocker);
                 else
-                    input.Controller.AddContext(blocker);
+                    input.AddContext(blocker);
 
                 Write(blocking ? "Blocker removed" : "Blocker added (priority 100, consume)");
             }

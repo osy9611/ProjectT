@@ -8,14 +8,9 @@ using UnityEngine.InputSystem.Users;
 
 static partial class Program
 {
-    sealed class ControllerProbe : Controller
-    {
-        public bool HasAsset => inputActionAsset != null;
-    }
-
     sealed class InputFixture
     {
-        public ControllerProbe Controller;
+        public Controller Controller;
         public InputActionAsset Asset;
         public InputAction Fire, Move, Click;
     }
@@ -33,7 +28,7 @@ static partial class Program
         asset.Maps.Add("Menu", menu);
         var click = new InputAction { name = "Click", actionMap = menu };
         menu.actions.Add(click);
-        var controller = new ControllerProbe();
+        var controller = new Controller();
         controller.Init(asset, "Player");
         controller.Enable();
         return new InputFixture { Controller = controller, Asset = asset, Fire = fire, Move = move, Click = click };

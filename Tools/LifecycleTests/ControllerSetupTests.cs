@@ -34,7 +34,7 @@ static partial class Program
             var context = new InputContext("shared", 0).Bind("Player/Fire", _ => { });
             f.Controller.AddContext(context);
             var otherAsset = new InputActionAsset();
-            var other = new ControllerProbe();
+            var other = new Controller();
             other.Init(otherAsset, "Player");
             ThrowsSync<InvalidOperationException>(() => other.AddContext(context)).GetAwaiter().GetResult();
             other.Release();
@@ -47,7 +47,7 @@ static partial class Program
             var submit = asset.FindAction("UI/Submit", true);
             var fire = asset.FindAction("Player/Fire", true);
             submit.enabled = fire.enabled = true;
-            var controller = new ControllerProbe();
+            var controller = new Controller();
             controller.Init(asset, "Player");
             Check(!submit.enabled && !fire.enabled, "Init did not disable the auto-enabled project-wide actions once.");
             controller.Enable();
@@ -56,9 +56,6 @@ static partial class Program
             controller.SetInputAllowed(false);
             Check(!fire.enabled && submit.enabled, "Blocking disabled another map.");
             controller.SetInputAllowed(true);
-            controller.Disable();
-            Check(!fire.enabled && submit.enabled, "Disable changed another map.");
-            controller.Enable();
             submit.enabled = false;
             controller.SetInputAllowed(false);
             controller.SetInputAllowed(true);
@@ -68,8 +65,8 @@ static partial class Program
             Check(submit.enabled && submit.DisableCalls == 1 && submit.SubscriberCount == 0, "Release or subscription touched another map.");
             var missing = new InputActionAsset();
             missing.Map.name = "Other";
-            ThrowsSync<ArgumentException>(() => new ControllerProbe().Init(missing, "Player")).GetAwaiter().GetResult();
-            ThrowsSync<ArgumentException>(() => new ControllerProbe().Init(new InputActionAsset(), " ")).GetAwaiter().GetResult();
+            ThrowsSync<ArgumentException>(() => new Controller().Init(missing, "Player")).GetAwaiter().GetResult();
+            ThrowsSync<ArgumentException>(() => new Controller().Init(new InputActionAsset(), " ")).GetAwaiter().GetResult();
         });
 
         await RunControllerCase("only its own map dispatches and deactivation resets held bindings without cancellation", () =>
@@ -106,7 +103,7 @@ static partial class Program
             Check(fire.enabled && !submit.enabled, "Controller enabled the UI map owned by the UI module.");
             int calls = 0;
             var context = new InputContext("probe", 0).Bind("Player/Fire", _ => calls++, eInputEvent.Performed);
-            input.Controller.AddContext(context);
+            input.AddContext(context);
             input.SetInputAllowed(false);
             fire.Trigger(InputActionPhase.Performed);
             input.SetInputAllowed(true);
@@ -202,7 +199,7 @@ static partial class Program
                 else
                     held = 1;
             }, consume: false, onReset: () => { held = 0; resets++; });
-            input.Controller.AddContext(holder);
+            input.AddContext(holder);
             ProjectFire.Trigger(InputActionPhase.Started);
             Check(held == 1 && Dispatches(actor), "Gameplay input was not delivered without UI focus.");
             input.SetUIFocused(true);
@@ -328,7 +325,7 @@ static partial class Program
             var eventSystem = module.gameObject.GetComponent<UnityEngine.EventSystems.EventSystem>();
             var fire = InputSystem.actions.FindAction("Player/Fire", true);
             int held = 0, resets = 0;
-            input.Controller.AddContext(new InputContext("holder", 0).Bind("Player/Fire", _ => held = 1, consume: false, onReset: () => { held = 0; resets++; }));
+            input.AddContext(new InputContext("holder", 0).Bind("Player/Fire", _ => held = 1, consume: false, onReset: () => { held = 0; resets++; }));
             fire.Trigger(InputActionPhase.Started);
             InputUser.SimulateDeviceRemoved(pad);
             Check(input.IsDeviceLost && !fire.enabled && held == 0 && resets == 1, "Device loss did not block and reset gameplay input.");

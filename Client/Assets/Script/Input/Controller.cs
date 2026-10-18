@@ -13,7 +13,7 @@ namespace ProjectT.Controller
         Cancel = 1 << 2
     }
 
-    public class Controller
+    public sealed class Controller
     {
         // 같은 컨텍스트를 재등록해도 진행 중인 입력에는 이전 등록만 남는다.
         private sealed class Registration
@@ -26,7 +26,7 @@ namespace ProjectT.Controller
             }
         }
 
-        protected InputActionAsset inputActionAsset;
+        private InputActionAsset inputActionAsset;
 
         private List<Registration> contexts = new List<Registration>();
         private InputActionMap actionMap;
@@ -71,16 +71,6 @@ namespace ProjectT.Controller
                 return;
 
             enableRequested = true;
-            deliveryVersion++;
-            ApplyActiveInternal();
-        }
-
-        internal void Disable()
-        {
-            if (!enableRequested)
-                return;
-
-            enableRequested = false;
             deliveryVersion++;
             ApplyActiveInternal();
         }
@@ -132,7 +122,7 @@ namespace ProjectT.Controller
                 entry.Context.ResetAllInternal();
         }
 
-        public void AddContext(InputContext context)
+        internal void AddContext(InputContext context)
         {
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
@@ -156,7 +146,7 @@ namespace ProjectT.Controller
             ResetBlockedInternal();
         }
 
-        public void RemoveContext(InputContext context)
+        internal void RemoveContext(InputContext context)
         {
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
