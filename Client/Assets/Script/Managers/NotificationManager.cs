@@ -1,4 +1,3 @@
-using Cysharp.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -12,24 +11,20 @@ namespace ProjectT
         {
             public readonly NotificationManager Owner;
             public readonly NotificationId Id;
-            public readonly Action<object[]> Listener;
+            public readonly Action Listener;
             public readonly CancellationToken OwnerToken;
-            public readonly int Priority;
             public bool IsOwnerCanceled;
             public bool HasCancellationRegistration;
             public CancellationTokenRegistration CancellationRegistration;
 
-            public Subscription(NotificationManager owner, NotificationId id, Action<object[]> listener, CancellationToken ownerToken, int priority)
+            public Subscription(NotificationManager owner, NotificationId id, Action listener, CancellationToken ownerToken)
             {
                 Owner = owner;
                 Id = id;
                 Listener = listener;
                 OwnerToken = ownerToken;
-                Priority = priority;
             }
         }
-
-        private static readonly object[] EmptyArgs = Array.Empty<object>();
 
         private readonly object syncRoot = new object();
         private readonly Dictionary<NotificationId, List<Subscription>> subscriptions = new Dictionary<NotificationId, List<Subscription>>();
@@ -57,7 +52,7 @@ namespace ProjectT
             DisposeRegistrationsInternal(registrations);
         }
 
-        public void Subscribe(NotificationId id, Action<object[]> listener, CancellationToken cancellationToken = default, int priority = 0)
+        public void Subscribe(NotificationId id, Action listener, CancellationToken ownerToken)
         {
             ValidateIdInternal(id);
 
@@ -90,7 +85,7 @@ namespace ProjectT
                         break;
                     }
 
-                    cancellationToken.ThrowIfCancellationRequested();
+                    ownerToken.ThrowIfCancellationRequested();
 
                     if (expiredIndex >= 0)
                     {
@@ -106,22 +101,12 @@ namespace ProjectT
                         subscriptions.Add(id, listeners);
                     }
 
-                    var subscription = new Subscription(this, id, listener, cancellationToken, priority);
-                    int insertionIndex = listeners.Count;
-                    for (int i = 0; i < listeners.Count; ++i)
-                    {
-                        if (priority > listeners[i].Priority)
-                        {
-                            insertionIndex = i;
-                            break;
-                        }
-                    }
+                    var subscription = new Subscription(this, id, listener, ownerToken);
+                    listeners.Add(subscription);
 
-                    listeners.Insert(insertionIndex, subscription);
-
-                    if (cancellationToken.CanBeCanceled)
+                    if (ownerToken.CanBeCanceled)
                     {
-                        var registration = cancellationToken.Register(OnSubscriptionCanceledInternal, subscription);
+                        var registration = ownerToken.Register(OnSubscriptionCanceledInternal, subscription);
                         subscription.CancellationRegistration = registration;
                         subscription.HasCancellationRegistration = true;
 
@@ -136,42 +121,7 @@ namespace ProjectT
             }
         }
 
-        public void Unsubscribe(NotificationId id, Action<object[]> listener)
-        {
-            ValidateIdInternal(id);
-
-            if (listener == null)
-                throw new ArgumentNullException(nameof(listener));
-
-            CancellationTokenRegistration registration = default;
-            bool shouldDisposeRegistration = false;
-
-            lock (syncRoot)
-            {
-                if (!subscriptions.TryGetValue(id, out var listeners))
-                    return;
-
-                for (int i = 0; i < listeners.Count; ++i)
-                {
-                    var subscription = listeners[i];
-                    if (subscription.Listener != listener)
-                        continue;
-
-                    listeners.RemoveAt(i);
-                    if (listeners.Count == 0)
-                        subscriptions.Remove(id);
-
-                    shouldDisposeRegistration = TryTakeCancellationRegistrationInternal(subscription, out registration);
-
-                    break;
-                }
-            }
-
-            if (shouldDisposeRegistration)
-                registration.Dispose();
-        }
-
-        public void Publish(NotificationId id, params object[] args)
+        public void Publish(NotificationId id)
         {
             ValidateIdInternal(id);
 
@@ -186,7 +136,6 @@ namespace ProjectT
                 snapshot = listeners.ToArray();
             }
 
-            var normalizedArgs = args ?? EmptyArgs;
             for (int i = 0; i < snapshot.Length; ++i)
             {
                 var subscription = snapshot[i];
@@ -198,34 +147,7 @@ namespace ProjectT
                         continue;
                 }
 
-                subscription.Listener(normalizedArgs);
-            }
-        }
-
-        public UniTask PublishNextFrameAsync(NotificationId id, CancellationToken cancellationToken = default, params object[] args)
-        {
-            return PublishAfterSecondsAsync(id, 0.0f, cancellationToken, args);
-        }
-
-        public async UniTask PublishAfterSecondsAsync(NotificationId id, float seconds, CancellationToken cancellationToken = default, params object[] args)
-        {
-            ValidateIdInternal(id);
-
-            if (float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0.0f)
-                throw new ArgumentOutOfRangeException(nameof(seconds));
-
-            ThrowIfWorkUnavailableInternal();
-
-            var scheduledArgs = CloneArgsInternal(args);
-            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancellationToken))
-            {
-                if (seconds == 0.0f)
-                    await UniTask.NextFrame(cancellationToken: linked.Token);
-                else
-                    await UniTask.Delay(TimeSpan.FromSeconds(seconds), cancellationToken: linked.Token);
-
-                linked.Token.ThrowIfCancellationRequested();
-                Publish(id, scheduledArgs);
+                subscription.Listener();
             }
         }
 
@@ -290,11 +212,6 @@ namespace ProjectT
 
             for (int i = 0; i < registrations.Count; ++i)
                 registrations[i].Dispose();
-        }
-
-        private static object[] CloneArgsInternal(object[] args)
-        {
-            return args == null || args.Length == 0 ? EmptyArgs : (object[])args.Clone();
         }
 
         private static void ValidateIdInternal(NotificationId id)

@@ -63,7 +63,7 @@ dotnet run --project Tools/LifecycleTests
 
 ## 사용 계약
 
-- Global이 깨어난 이후 `await Global.Instance.WhenReadyAsync(token)`으로 준비를 기다린다. Global 생성 이전에도 동작할 수 있는 컴포넌트는 먼저 인스턴스 생성까지 기다려야 한다. MonoBehaviour 알림 수신자는 NotifyHandlerBehaviour의 OnSubscribe(token)에서 `Global.Notify.Subscribe(id, listener, token)`으로 구독한다. 기반 클래스가 준비 대기와 활성 구간 토큰을 관리하고 비활성화·파괴 시 자동 해제한다. SceneBase에서는 기존 LifetimeToken을 직접 전달한다.
+- Global이 깨어난 이후 `await Global.Instance.WhenReadyAsync(token)`으로 준비를 기다린다. Global 생성 이전에도 동작할 수 있는 컴포넌트는 먼저 인스턴스 생성까지 기다려야 한다. MonoBehaviour 알림 수신자는 `Global.Notify.Subscribe(id, listener, token)`에 `GetCancellationTokenOnDestroy()` 같은 소유 토큰을 넘기고, 토큰이 취소되면 자동 해제된다. SceneBase에서는 기존 LifetimeToken을 직접 전달한다.
 - `Global.Resource` 등은 대상 매니저가 Ready이면 초기화·종료 중에도 조회할 수 있다. 전체 준비 완료는 `WhenReadyAsync`로 기다리며, `Global.TryGetReady<T>(out manager)`는 전체 Host가 Ready인 경우에만 성공한다.
 - 초기화 내부의 의존성도 `Global`을 사용한다. 등록 순서상 먼저 초기화한 관리자만 가져올 수 있다.
 - Global로 접근 가능한 매니저는 사용 지점에서 Global로 직접 조회하고 필드에 캐싱하지 않는다. 정적 속성은 GetManager<T>()를 통해 대상 매니저의 Ready 상태를 확인한다.

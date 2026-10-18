@@ -9,8 +9,8 @@
     <NotificationManagerPath Condition="'$(NotificationManagerPath)' == ''">$(ProductScript)Managers\NotificationManager.cs</NotificationManagerPath>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Stubs.cs;GlobalAccessors.cs;Program.cs;BehaviourTests.cs" />
-    <Compile Include="$(ProductScript)Event\NotificationId.cs;$(ProductScript)Event\NotifyHandlerBehaviour.cs" />
+    <Compile Include="Stubs.cs;Program.cs" />
+    <Compile Include="$(ProductScript)Event\NotificationId.cs" />
     <Compile Include="$(NotificationManagerPath)" />
   </ItemGroup>
 </Project>

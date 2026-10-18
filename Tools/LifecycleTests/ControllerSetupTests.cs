@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT;
 using ProjectT.Controller;
@@ -391,7 +392,7 @@ static partial class Program
             }
             var published = new List<NotificationId>();
             foreach (var id in new[] { NotificationId.InputDeviceLost, NotificationId.InputDeviceRegained, NotificationId.InputControlsChanged })
-                notify.Subscribe(id, _ => published.Add(id));
+                notify.Subscribe(id, () => published.Add(id), CancellationToken.None);
             var fire = InputSystem.actions.FindAction("Player/Fire", true);
             InputUser.SimulateDeviceRemoved(pad);
             Check(!fire.enabled, "Device loss was not applied before all managers were ready.");

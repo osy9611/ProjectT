@@ -30,7 +30,7 @@ static partial class Program
             if (FailInitialize) throw new InvalidOperationException("Initialize");
         }
 
-        private void OnNotification(object[] args)
+        private void OnNotification()
         {
             Notifications++;
         }

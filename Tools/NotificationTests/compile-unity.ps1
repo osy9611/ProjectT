@@ -17,7 +17,8 @@ $dotnet = Join-Path $UnityData 'NetCoreRuntime/dotnet.exe'
 $compiler = Join-Path $UnityData 'DotNetSdkRoslyn/csc.dll'
 $removedSources = @(
     'Assets/Script/Event/INotify.cs',
-    'Assets/Script/Event/NotifyHandler.cs'
+    'Assets/Script/Event/NotifyHandler.cs',
+    'Assets/Script/Event/NotifyHandlerBehaviour.cs'
 )
 
 Push-Location $project
@@ -52,7 +53,7 @@ try
         })
 
         if ($assembly -eq 'Assembly-CSharp') {
-            foreach ($notificationSource in @('"Assets/Script/Event/NotificationId.cs"', '"Assets/Script/Event/NotifyHandlerBehaviour.cs"')) {
+            foreach ($notificationSource in @('"Assets/Script/Event/NotificationId.cs"')) {
                 if (!($lines | Where-Object { $_.Replace('\', '/') -eq $notificationSource })) {
                     $lines += $notificationSource
                 }

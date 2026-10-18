@@ -54,9 +54,9 @@ namespace ProjectT.Sample
             if (await Global.WhenReadyAsync(token).SuppressCancellationThrow())
                 return;
 
-            Global.Notify.Subscribe(NotificationId.InputControlsChanged, _ => Write($"Notify InputControlsChanged: {Global.Input.CurrentDevice?.displayName}"), token);
-            Global.Notify.Subscribe(NotificationId.InputDeviceLost, _ => Write("Notify InputDeviceLost"), token);
-            Global.Notify.Subscribe(NotificationId.InputDeviceRegained, _ => Write("Notify InputDeviceRegained"), token);
+            Global.Notify.Subscribe(NotificationId.InputControlsChanged, () => Write($"Notify InputControlsChanged: {Global.Input.CurrentDevice?.displayName}"), token);
+            Global.Notify.Subscribe(NotificationId.InputDeviceLost, () => Write("Notify InputDeviceLost"), token);
+            Global.Notify.Subscribe(NotificationId.InputDeviceRegained, () => Write("Notify InputDeviceRegained"), token);
 
             blocker = new InputContext("SampleBlocker", 100)
                 .Bind("Player/Jump", _ => Write("Blocker consumed Jump"), eInputEvent.Performed);
