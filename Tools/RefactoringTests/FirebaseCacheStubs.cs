@@ -37,6 +37,7 @@ internal static class FirebaseBoundary
         internal Exception Exception;
         internal bool BaseProvided;
         internal string BaseUrl;
+        internal string CacheKey;
     }
 
     internal sealed class Provision
@@ -324,11 +325,13 @@ namespace UnityEngine.ResourceManagement.ResourceProviders
 
     public class AssetBundleProvider : ResourceProviderBase
     {
-        // 실제 AssetBundleResource도 시작할 때 TransformInternalId로 받은 주소에서 번들을 읽는다.
+        // 실제 AssetBundleResource도 TransformInternalId 주소로 웹 요청을 만들고 보내기 전에 WebRequestOverride를 부른다.
         public override void Provide(ProvideHandle provideHandle)
         {
+            var request = new Networking.UnityWebRequest(provideHandle.ResourceManager.TransformInternalId(provideHandle.Location));
+            provideHandle.ResourceManager.WebRequestOverride?.Invoke(request);
             provideHandle.Request.BaseProvided = true;
-            provideHandle.Request.BaseUrl = provideHandle.ResourceManager.TransformInternalId(provideHandle.Location);
+            provideHandle.Request.BaseUrl = request.url;
         }
     }
 
@@ -351,6 +354,7 @@ namespace UnityEngine.ResourceManagement
     {
         public readonly List<ResourceProviders.IResourceProvider> ResourceProviders = new List<ResourceProviders.IResourceProvider>();
         public Func<IResourceLocation, string> InternalIdTransformFunc;
+        public Action<Networking.UnityWebRequest> WebRequestOverride { get; set; }
 
         public string TransformInternalId(IResourceLocation location)
         {
@@ -381,6 +385,12 @@ namespace UnityEngine.AddressableAssets
             set => ResourceManager.InternalIdTransformFunc = value;
         }
 
+        public static Action<Networking.UnityWebRequest> WebRequestOverride
+        {
+            get => ResourceManager.WebRequestOverride;
+            set => ResourceManager.WebRequestOverride = value;
+        }
+
         public static AsyncOperationHandle<IResourceLocator> InitializeAsync() => new AsyncOperationHandle<IResourceLocator>(initialized);
 
         private static Operation<IResourceLocator> CreateInitialized()
@@ -389,5 +399,15 @@ namespace UnityEngine.AddressableAssets
             operation.Complete(FirebaseBoundary.Locators[0]);
             return operation;
         }
+    }
+}
+
+namespace UnityEngine.Networking
+{
+    public class UnityWebRequest
+    {
+        public UnityWebRequest(string url) { this.url = url; }
+
+        public string url { get; set; }
     }
 }

@@ -165,6 +165,18 @@ internal static partial class FirebaseCacheTests
             return Describe(request);
         });
 
+        Run("AssetBundle 프로바이더는 URL을 받은 뒤에도 번들 캐시 키를 바꾸지 않고 받은 URL로 내려받는다", () =>
+        {
+            var first = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/key.bundle", typeof(IAssetBundleResource));
+            FirebaseBoundary.ResolvePending();
+            var again = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/key.bundle", typeof(IAssetBundleResource));
+            string trace = "firstKey=" + first.CacheKey + " againKey=" + again.CacheKey + " firstUrl=" + first.BaseUrl + " againUrl=" + again.BaseUrl;
+
+            Check(again.CacheKey == first.CacheKey, "URL을 받기 전과 뒤의 요청이 같은 캐시 키를 쓴다 (" + trace + ")");
+            Check(first.BaseUrl == "https://storage.test/bucket/bundle/key.bundle" && again.BaseUrl == first.BaseUrl, "두 요청 모두 받은 URL로 내려받는다 (" + trace + ")");
+            return trace;
+        });
+
         Run("AssetBundle 프로바이더는 URL을 받기 전에 겹친 같은 주소 요청을 모두 기본 프로바이더로 넘긴다", () =>
         {
             var first = Provide<FirebaseStorageAssetBundleProvider>("gs://bucket/bundle/overlap.bundle", typeof(IAssetBundleResource));
@@ -200,7 +212,8 @@ internal static partial class FirebaseCacheTests
             PrimaryKey = "key:" + internalId,
             Dependencies = new List<IResourceLocation>(dependencies)
         };
-        var request = new FirebaseBoundary.Request { Location = location, RequestedType = resourceType };
+        // 실제 ResourceManager는 프로바이더를 부르기 전에 번들 op 캐시 키를 TransformInternalId로 정한다.
+        var request = new FirebaseBoundary.Request { Location = location, RequestedType = resourceType, CacheKey = Addressables.ResourceManager.TransformInternalId(location) };
         ((ResourceProviderBase)(object)provider).Provide(new ProvideHandle(request));
         return request;
     }
