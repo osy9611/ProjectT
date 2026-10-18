@@ -567,7 +567,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
 
     private static string State(SampleActor actor)
     {
-        return Get(actor, "spawnState").ToString();
+        return Get(actor, "state").ToString();
     }
 
     private static bool ContextOwned(SampleActor actor)

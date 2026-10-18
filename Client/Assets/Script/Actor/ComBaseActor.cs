@@ -12,22 +12,27 @@ namespace ProjectT
     [RequireComponent(typeof(ComPivotAgent))]
     public abstract class ComBaseActor : MonoBehaviour, IPoolable, IAbilityOwner
     {
-        private enum SpawnState
+        private enum ActorState
         {
             None,
             Entering,
+            // OnEnter가 실패한 스폰. 활성화·재스폰하지 않고 반납·파괴에서 정리한다.
+            EnterFailed,
             Entered,
-            Active
+            Active,
+            // 비활성화 콜백에서의 재활성화는 허용하고 반납만 막는다.
+            Deactivating,
+            Ending,
+            // 비활성화·스폰 종료가 중간에 실패한 Actor는 상태가 오염되었을 수 있으므로 다시 활성화·스폰·반납하지 않고 파괴로 정리한다.
+            // Faulted는 파괴가 스폰을 끝내고, EndFaulted는 이미 끝내다 실패했으므로 파괴에서 다시 정리하지 않는다.
+            Faulted,
+            EndFaulted,
+            Destroying,
+            Destroyed
         }
 
-        private SpawnState spawnState;
+        private ActorState state;
         private bool initialized;
-        private bool destroying;
-        // 비활성화·스폰 종료가 중간에 실패한 Actor는 상태가 오염되었을 수 있으므로 다시 활성화·스폰·반납하지 않고 파괴로 정리한다.
-        private bool faulted;
-        private bool spawnTransitioning;
-        // 비활성화 콜백에서의 재활성화는 허용하고 반납만 막으므로 spawnTransitioning과 구분한다.
-        private bool deactivating;
         // Controller/onReset 콜백 중 등록·해제되어도 순회 중인 스냅샷이 유효하도록 리스트를 수정하지 않고 교체한다(copy-on-write).
         private List<InputContext> inputContexts = new List<InputContext>();
 
@@ -51,16 +56,16 @@ namespace ProjectT
         // 만료와 쿨다운이 반영된 뒤 OnUpdate가 판단하도록 먼저 틱한다. 틱 중 비활성화·반납되면 OnUpdate를 호출하지 않는다.
         private void Update()
         {
-            if (spawnState == SpawnState.Active && AutoTickSkills)
+            if (state == ActorState.Active && AutoTickSkills)
                 skillAgent?.TickInternal(Time.deltaTime);
 
-            if (spawnState == SpawnState.Active)
+            if (state == ActorState.Active)
                 OnUpdate(Time.deltaTime);
         }
 
         private void LateUpdate()
         {
-            if (spawnState == SpawnState.Active)
+            if (state == ActorState.Active)
                 OnLateUpdate(Time.deltaTime);
         }
 
@@ -76,13 +81,13 @@ namespace ProjectT
 
         private void OnDestroy()
         {
-            destroying = true;
             try
             {
-                EndSpawnInternal();
+                EndSpawnInternal(ActorState.Destroying);
             }
             finally
             {
+                state = ActorState.Destroyed;
                 UnregisterAllInputContextsInternal();
             }
         }
@@ -95,30 +100,30 @@ namespace ProjectT
         // 반납은 호출이 끝난 뒤(틱 뒤의 OnUpdate, 호출 반환 뒤) 한다.
         void IPoolable.OnReturn()
         {
-            if (spawnTransitioning)
+            if (state == ActorState.Entering || state == ActorState.Ending || state == ActorState.Destroying)
                 throw new InvalidOperationException("Actor cannot be returned during a spawn transition.");
 
-            if (deactivating)
+            if (state == ActorState.Deactivating)
                 throw new InvalidOperationException("Actor cannot be returned during deactivation.");
 
             if (skillAgent?.IsInCall == true || status?.IsInCall == true)
                 throw new InvalidOperationException("Actor cannot be returned during a skill, effect or status call.");
 
-            if (faulted)
+            if (state == ActorState.Faulted || state == ActorState.EndFaulted)
                 throw new InvalidOperationException("Faulted actor cannot be returned to the pool.");
 
-            EndSpawnInternal();
+            EndSpawnInternal(ActorState.Ending);
         }
 
         public void Spawn()
         {
-            if (destroying)
+            if (state == ActorState.Destroying || state == ActorState.Destroyed)
                 throw new ObjectDisposedException(GetType().Name);
 
-            if (faulted)
+            if (state == ActorState.Faulted || state == ActorState.EndFaulted)
                 throw new InvalidOperationException("Faulted actor cannot be spawned.");
 
-            if (spawnTransitioning || spawnState != SpawnState.None)
+            if (state != ActorState.None)
                 throw new InvalidOperationException("Actor is already spawned or in a spawn transition.");
 
             // 파생 클래스가 base.Awake()를 호출하지 않았거나 OnInit이 실패했으면 여기서 다시 초기화한다. 활성 계층에 있으면 Awake는 이미 지났다.
@@ -131,31 +136,32 @@ namespace ProjectT
             }
 
             spawnSerial++;
-            // OnEnter가 실패하면 Entering에 남아 이후 활성화와 재시도를 막고, 반납·파괴에서 정리된다.
             // 스킬 등록은 스폰 종료가 해제를 보장하는 상태부터 열어 OnEnter에서 등록할 수 있게 한다.
-            spawnState = SpawnState.Entering;
+            state = ActorState.Entering;
             skillAgent?.OpenInternal();
-            spawnTransitioning = true;
+            bool completed = false;
             try
             {
                 OnEnter();
+                completed = true;
             }
             finally
             {
-                spawnTransitioning = false;
+                if (!completed && state == ActorState.Entering)
+                    state = ActorState.EnterFailed;
             }
 
-            if (spawnState != SpawnState.Entering)
+            if (state != ActorState.Entering)
                 return;
 
-            spawnState = SpawnState.Entered;
+            state = ActorState.Entered;
             if (isActiveAndEnabled)
                 ActivateInternal();
         }
 
         protected void RegisterInputContext(InputContext context)
         {
-            if (destroying)
+            if (state == ActorState.Destroying || state == ActorState.Destroyed)
                 throw new ObjectDisposedException(GetType().Name);
 
             if (context == null)
@@ -169,7 +175,7 @@ namespace ProjectT
                 throw new InvalidOperationException("Input context is already registered elsewhere.");
 
             // Controller 검증이 실패해도 Actor에 등록 흔적이 남지 않도록 Controller에 먼저 추가한다.
-            if (spawnState == SpawnState.Active)
+            if (state == ActorState.Active)
                 Global.Input.AddContext(context);
 
             var updated = new List<InputContext>(inputContexts);
@@ -197,7 +203,7 @@ namespace ProjectT
         // 자동 틱과 같이 Active일 때만 진행해 비활성·반납된 Actor의 효과와 쿨다운이 흐르지 않게 한다.
         protected void TickSkills(float deltaTime)
         {
-            if (spawnState == SpawnState.Active)
+            if (state == ActorState.Active)
                 skillAgent?.TickInternal(deltaTime);
         }
 
@@ -232,62 +238,81 @@ namespace ProjectT
 
         private void ActivateInternal()
         {
-            if (faulted || spawnTransitioning || spawnState != SpawnState.Entered)
+            if (state != ActorState.Entered && state != ActorState.Deactivating)
                 return;
 
-            spawnState = SpawnState.Active;
+            state = ActorState.Active;
             AddInputContextsInternal();
 
-            if (spawnState == SpawnState.Active)
+            if (state == ActorState.Active)
                 Enable();
         }
 
         private void DeactivateInternal()
         {
-            if (spawnState != SpawnState.Active)
+            if (state != ActorState.Active)
                 return;
 
-            spawnState = SpawnState.Entered;
-            var snapshot = inputContexts;
-            DetachInputContextsInternal(snapshot);
-
-            bool wasDeactivating = deactivating;
-            deactivating = true;
             bool completed = false;
             try
             {
-                ResetInputContextsInternal(snapshot);
-
-                // 파생 클래스가 Disable에서 구독을 해제하기 전에 취소 효과를 받도록 먼저 취소한다.
-                if (spawnState == SpawnState.Entered)
-                    skillAgent?.CancelActiveSkillsInternal();
-
-                if (spawnState == SpawnState.Entered)
-                    Disable();
-
+                RunDeactivationInternal(ActorState.Deactivating);
                 completed = true;
             }
             finally
             {
-                faulted |= !completed;
-                deactivating = wasDeactivating;
+                // 콜백이 재활성화한 뒤 실패하면 다시 등록된 입력이 파괴 전까지 격리된 Actor에 전달되지 않도록 분리한다.
+                if (!completed && state != ActorState.Destroying && state != ActorState.Destroyed)
+                {
+                    state = ActorState.Faulted;
+                    DetachInputContextsInternal(inputContexts);
+                }
+                else if (completed && state == ActorState.Deactivating)
+                    state = ActorState.Entered;
             }
         }
 
-        private void EndSpawnInternal()
+        // 스폰 종료의 비활성화는 Ending·Destroying 상태로 진행해 콜백에서의 재활성화를 막는다.
+        private void RunDeactivationInternal(ActorState during)
+        {
+            state = during;
+            var snapshot = inputContexts;
+            DetachInputContextsInternal(snapshot);
+            ResetInputContextsInternal(snapshot);
+
+            // 파생 클래스가 Disable에서 구독을 해제하기 전에 취소 효과를 받도록 먼저 취소한다.
+            if (ContinueDeactivationInternal(during))
+                skillAgent?.CancelActiveSkillsInternal();
+
+            if (ContinueDeactivationInternal(during))
+                Disable();
+        }
+
+        // 콜백이 재활성화한 뒤 다시 비활성화하면 Entered로 끝나므로, 남은 단계를 이어받으며 반납 거부를 다시 건다.
+        private bool ContinueDeactivationInternal(ActorState during)
+        {
+            if (state != during && !(during == ActorState.Deactivating && state == ActorState.Entered))
+                return false;
+
+            state = during;
+            return true;
+        }
+
+        private void EndSpawnInternal(ActorState ending)
         {
             // 스폰하지 않은 동안 출처로 잡힌 효과도 반납·파괴 뒤에는 이 Actor의 Status를 쓰지 않도록 스폰 상태와 관계없이 바꾼다.
             spawnSerial++;
-            if (spawnState == SpawnState.None)
+            var previous = state;
+            if (previous == ActorState.None || previous == ActorState.EndFaulted || previous == ActorState.Destroyed)
                 return;
 
-            // 입력 리셋 콜백이 반납 중인 Actor를 다시 활성화하거나 스폰하지 않도록 리셋 전에 전환 잠금을 건다.
-            bool wasTransitioning = spawnTransitioning;
-            spawnTransitioning = true;
+            state = ending;
             bool completed = false;
             try
             {
-                DeactivateInternal();
+                if (previous == ActorState.Active)
+                    RunDeactivationInternal(ending);
+
                 ResetInputContextsInternal(inputContexts);
 
                 // 기반 클래스가 관리하는 모듈은 파생 훅보다 먼저 정리한다. 버프가 건 수정자는 Status를 비우기 전에 제거되어야 한다.
@@ -298,9 +323,8 @@ namespace ProjectT
             }
             finally
             {
-                spawnState = SpawnState.None;
-                faulted |= !completed;
-                spawnTransitioning = wasTransitioning;
+                if (state == ActorState.Ending)
+                    state = completed ? ActorState.None : ActorState.EndFaulted;
             }
         }
 
@@ -312,7 +336,7 @@ namespace ProjectT
 
             for (int i = 0; i < snapshot.Count; i++)
             {
-                if (spawnState != SpawnState.Active)
+                if (state != ActorState.Active)
                     return;
 
                 if (inputContexts.Contains(snapshot[i]))
@@ -340,7 +364,7 @@ namespace ProjectT
             for (int i = 0; i < snapshot.Count; i++)
             {
                 // onReset에서 Actor가 다시 활성화되면 추가 경로가 등록을 이어받으므로 리셋을 중단한다.
-                if (spawnState == SpawnState.Active)
+                if (state == ActorState.Active)
                     break;
 
                 snapshot[i].ResetAllInternal();

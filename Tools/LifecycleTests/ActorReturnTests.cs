@@ -64,6 +64,18 @@ static partial class Program
             Check(TraceOf(actor) == "init,enter,enable,release", "Destruction did not end the faulted spawn once without disabling again");
         });
 
+        await RunActorCase("a return after destroying a faulted actor does nothing", () =>
+        {
+            var actor = AttachActor(CreateInputActor());
+            actor.Register(CreateHeldContext(() => throw new InvalidOperationException("Reset failed")));
+            ProjectFire.Trigger(InputActionPhase.Started);
+            actor.enabled = false;
+            CaptureSync(() => ActorMessage(actor, "OnDisable"));
+            ActorMessage(actor, "OnDestroy");
+            ((ProjectT.Pool.IPoolable)actor).OnReturn();
+            Check(TraceOf(actor) == "init,enter,enable,release", "Return after destruction cleaned up the faulted actor again");
+        });
+
         await RunActorCase("disable hook failure during return propagates unchanged over a later release error and skips the release hook", () =>
         {
             var pool = CreateActorPool();

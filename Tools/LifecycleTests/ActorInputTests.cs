@@ -141,6 +141,28 @@ static partial class Program
             Check(!Holds(actor, actor.Input) && !Holds(actor, later) && RegisteredContextCount(actor) == 0, "Destroyed actor kept context registrations");
         });
 
+        await RunActorCase("an input reset that reenables and then fails on plain disable quarantines the actor without updates or input until destruction releases once", () =>
+        {
+            var actor = AttachActor(CreateInputActor());
+            var failure = new InvalidOperationException("Reset failed");
+            actor.Register(CreateHeldContext(() =>
+            {
+                actor.enabled = true;
+                ActorMessage(actor, "OnEnable");
+                throw failure;
+            }));
+            ProjectFire.Trigger(InputActionPhase.Started);
+            actor.enabled = false;
+            var caught = CaptureSync(() => ActorMessage(actor, "OnDisable"));
+            Check(ReferenceEquals(caught, failure) && TraceOf(actor) == "init,enter,enable,enable", "Disable wrapped or lost the reset error");
+            Check(!IsRegistered(actor.Input), "Faulted actor kept the input registered by the reenable");
+            CheckQuarantined(actor);
+            actor.enabled = false;
+            ActorMessage(actor, "OnDisable");
+            ActorMessage(actor, "OnDestroy");
+            Check(TraceOf(actor) == "init,enter,enable,enable,release" && RegisteredContextCount(actor) == 0, "Destruction did not end the faulted spawn once without disabling");
+        });
+
         await RunActorCase("input reset failure during destruction propagates unchanged, skips later resets and the release hook and still unregisters input", () =>
         {
             var actor = new GameObject("Actor").AddComponent<ActorProbe>();
