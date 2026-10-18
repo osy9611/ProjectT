@@ -201,6 +201,20 @@ static partial class Program
             host.Shutdown();
         });
 
+        await ReporterRun("scenes: unload failure during shutdown is reported once and releases its handle", async () =>
+        {
+            var sink = new ListSink();
+            ResetReporter(sink);
+            var manager = StartScenes(out var host, out _);
+            await Finish(manager.TransitionAsync<SceneProbe<A>>("A", LoadSceneMode.Single));
+            Addressables.UnloadFactory = () => new FakeOperation { IsDone = true, Error = new InvalidOperationException("Shutdown unload failed") };
+            host.Shutdown();
+            Addressables.UnloadFactory = null;
+            ErrorReporter.Flush();
+            Check(sink.Events.Count == 1 && sink.Events[0].Exception?.Message == "Shutdown unload failed", "Shutdown unload failure reported " + sink.Events.Count + " times");
+            Check(Addressables.UnloadOperations.Count == 1 && Addressables.UnloadOperations[0].Releases == 1, "Shutdown unload handle leaked or doubled");
+        });
+
         await Run("scenes: scene resources released and sweep completed before next load", async () =>
         {
             var manager = StartScenes(out var host, out var resource);

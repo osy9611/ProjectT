@@ -232,9 +232,30 @@ namespace ProjectT
             }
 
             if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result.Scene.isLoaded)
-                Addressables.UnloadSceneAsync(handle);
+                UnloadReleasedSceneInternalAsync(handle).Forget(Global.LogException);
             else
                 Addressables.Release(handle);
+        }
+
+        // 종료나 취소된 로드의 정리라 결과를 기다리는 호출자가 없으므로 언로드 실패는 Forget 경계에서 보고한다.
+        private static async UniTask UnloadReleasedSceneInternalAsync(AsyncOperationHandle<SceneInstance> scene)
+        {
+            var handle = Addressables.UnloadSceneAsync(scene, autoReleaseHandle: false);
+            try
+            {
+                while (!handle.IsDone)
+                {
+                    await UniTask.Yield();
+                }
+
+                if (handle.Status != AsyncOperationStatus.Succeeded)
+                    throw handle.OperationException ?? new InvalidOperationException("Scene unload failed.");
+            }
+            finally
+            {
+                if (handle.IsValid())
+                    Addressables.Release(handle);
+            }
         }
         #endregion
 

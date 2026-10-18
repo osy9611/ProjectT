@@ -217,7 +217,7 @@ namespace UnityEngine.AddressableAssets
             return new AsyncOperationHandle<SceneInstance>(operation);
         }
 
-        public static AsyncOperationHandle<SceneInstance> UnloadSceneAsync(AsyncOperationHandle<SceneInstance> handle) => UnloadSceneAsync(handle.Result, true);
+        public static AsyncOperationHandle<SceneInstance> UnloadSceneAsync(AsyncOperationHandle<SceneInstance> handle, bool autoReleaseHandle = true) => UnloadSceneAsync(handle.Result, autoReleaseHandle);
 
         public static AsyncOperationHandle<SceneInstance> UnloadSceneAsync(SceneInstance scene, bool autoReleaseHandle)
         {
