@@ -73,15 +73,15 @@ namespace ProjectT
 
         public T GetHud<T>(HudDefine.eHudType type, PivotInfo pivotInfo) where T : ComHudAgent
         {
-            return AttachHudInternal<T>(Global.Pool.Get(HudDefine.GetPath(type), uiContainer.HudRoot, Global.Resource.AppScope), pivotInfo);
+            return RentHudInternal<T>(Global.Resource.LoadAndGet<GameObject>(HudDefine.GetPath(type), Global.Resource.AppScope), pivotInfo);
         }
 
         public async UniTask<T> GetHudAsync<T>(HudDefine.eHudType type, PivotInfo pivotInfo, CancellationToken cancelToken = default) where T : ComHudAgent
         {
             using (var linked = CancellationTokenSource.CreateLinkedTokenSource(LifetimeToken, cancelToken))
             {
-                var obj = await Global.Pool.GetAsync(HudDefine.GetPath(type), uiContainer.HudRoot, Global.Resource.AppScope, linked.Token);
-                return AttachHudInternal<T>(obj, pivotInfo);
+                var original = await Global.Resource.LoadAndGetAsync<GameObject>(HudDefine.GetPath(type), linked.Token, Global.Resource.AppScope);
+                return RentHudInternal<T>(original, pivotInfo);
             }
         }
 
@@ -94,15 +94,13 @@ namespace ProjectT
             Global.Pool.Return(hud.gameObject);
         }
 
-        private T AttachHudInternal<T>(GameObject obj, PivotInfo pivotInfo) where T : ComHudAgent
+        // 대여 전에 프리팹을 검사해야 실패 시 반납할 인스턴스가 생기지 않는다.
+        private T RentHudInternal<T>(GameObject original, PivotInfo pivotInfo) where T : ComHudAgent
         {
-            var hud = obj.GetComponent<T>();
-            if (hud == null)
-            {
-                Global.Pool.Return(obj);
+            if (original.GetComponent<T>() == null)
                 throw new InvalidOperationException($"HUD prefab has no {typeof(T).Name}.");
-            }
 
+            var hud = Global.Pool.Get(original, uiContainer.HudRoot, Global.Resource.AppScope).GetComponent<T>();
             hud.AttachInternal(pivotInfo);
             huds.Add(hud);
 

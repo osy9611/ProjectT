@@ -309,6 +309,7 @@ static class Program
         await Run("HUD is placed under the HUD root, updated once per frame, and only returned by its actor",async()=> {
             Setup();var manager=new UIManager();await manager.Initialize();
             Global.Pool.Create=()=> {var go=new GameObject("Hud");go.AddComponent<ComHudAgent>();return go;};
+            Global.Resource.Prefab=new GameObject("HudOriginal");Global.Resource.Prefab.AddComponent<ComHudAgent>();
             var pivot=new ProjectT.Pivot.PivotInfo();
             var hud=manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,pivot);
             Check(hud.transform.parent==manager.RootObject.Find("Canvas2D").Find("HUD")&&hud.Pivot==pivot&&hud.PositionUpdates==0,"hud attach");
@@ -322,12 +323,12 @@ static class Program
             manager.Shutdown();
             Check(Global.Pool.Returned.Count==1&&other.Pivot==null,"shutdown returned huds instead of detaching them");
         });
-        await Run("HUD prefab without the requested component is returned and rejected",async()=> {
+        await Run("HUD prefab without the requested component is rejected before renting",async()=> {
             Setup();var manager=new UIManager();await manager.Initialize();
-            Global.Pool.Create=()=>new GameObject("Plain");
+            Global.Resource.Prefab=new GameObject("Plain");
             await ExpectSync<InvalidOperationException>(()=>manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,new ProjectT.Pivot.PivotInfo()));
-            UnityEngine.Camera.main=new GameObject("Main").AddComponent<UnityEngine.Camera>();manager.OnUpdate(0);
-            Check(Global.Pool.Returned.Count==1,"rejected hud was not returned");manager.Shutdown();Check(Global.Pool.Returned.Count==1,"rejected hud was tracked");
+            await Expect<InvalidOperationException>(async()=> { await manager.GetHudAsync<ComHudAgent>(HudDefine.eHudType.Test,new ProjectT.Pivot.PivotInfo()); });
+            Check(Global.Pool.Rents==0&&Global.Pool.Returned.Count==0,"rejected hud was rented");
         });
         await Run("App scope actor keeps its HUD across scene clear and never returns another actor's HUD",async()=> {
             Setup();var manager=new UIManager();await manager.Initialize();
@@ -336,6 +337,7 @@ static class Program
                 if(reused<Global.Pool.Returned.Count) return Global.Pool.Returned[reused++];
                 var go=new GameObject("Hud");go.AddComponent<ComHudAgent>();return go;
             };
+            Global.Resource.Prefab=new GameObject("HudOriginal");Global.Resource.Prefab.AddComponent<ComHudAgent>();
             UnityEngine.Camera.main=new GameObject("Main").AddComponent<UnityEngine.Camera>();
             var appHud=manager.GetHud<ComHudAgent>(HudDefine.eHudType.Test,new ProjectT.Pivot.PivotInfo());
             manager.ClearTransientWidgets();manager.OnUpdate(0);

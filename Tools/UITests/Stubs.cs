@@ -76,7 +76,7 @@ namespace ProjectT
         public int Loads;
         public object AppScope => null;
         public T LoadAndGet<T>(string path,object scope=null) where T : class => Prefab as T;
-        public async UniTask<T> LoadAndGetAsync<T>(string path,CancellationToken cancelToken=default) where T : class
+        public async UniTask<T> LoadAndGetAsync<T>(string path,CancellationToken cancelToken=default,object scope=null) where T : class
         {
             Loads++;
             cancelToken.ThrowIfCancellationRequested();
@@ -87,8 +87,8 @@ namespace ProjectT
     {
         public Func<UnityEngine.GameObject> Create = () => new();
         public readonly List<UnityEngine.GameObject> Returned = new();
-        public UnityEngine.GameObject Get(string path,UnityEngine.Transform parent,object scope) { var go=Create();go.transform.SetParent(parent,false);return go; }
-        public UniTask<UnityEngine.GameObject> GetAsync(string path,UnityEngine.Transform parent,object scope,CancellationToken cancelToken=default) { cancelToken.ThrowIfCancellationRequested();return UniTask.FromResult(Get(path,parent,scope)); }
+        public int Rents;
+        public UnityEngine.GameObject Get(UnityEngine.GameObject original,UnityEngine.Transform parent,object scope) { Rents++;var go=Create();go.transform.SetParent(parent,false);return go; }
         public bool Return(UnityEngine.GameObject go) { Returned.Add(go);return true; }
     }
     public class FakeInput
