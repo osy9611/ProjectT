@@ -56,7 +56,7 @@ Compare-Object (Get-Content 'Tools/RefactoringTests/bin/downloader-before.txt') 
 dotnet run --project Tools/RefactoringTests/FirebaseCache
 ```
 
-실제 FirebaseAddressablesCache와 UniTask 소스를 .NET 9에서 컴파일한다. Firebase Storage URL 요청, 메인 스레드 후속 처리, Addressables 위치 조회와 FirebaseAddressablesManager의 준비 상태는 테스트가 응답 시점을 정하는 대체물이다. 단일 PreWarm 완료, gs:// 의존성 없음, 진행 중 중복 호출, 취소 후 재호출 4개 시나리오를 확인한다. `-p:CachePath=`로 변경 전 사본을 지정할 수 있다. 실제 Firebase 접속은 검증하지 않는다.
+`Addressable/FireBase` 폴더의 런타임 소스 전체(Cache, Manager, AssetBundle·Hash·Json 프로바이더)와 UniTask 소스를 .NET 9에서 컴파일한다. 실제 `FirebaseAddressablesManager.InitializeAsync`로 프로바이더를 등록한 뒤 시나리오를 실행한다. Firebase Storage URL 요청, 메인 스레드 후속 처리, Addressables 위치 조회·`ProvideHandle`·내부 `ProvideResource`는 테스트가 응답 시점을 정하는 대체물이다. `ProvideHandle.Complete`는 실제 Addressables처럼 요청 타입으로 바꿀 수 없는 결과를 변환 오류로 실패시킨다. PreWarm 5개와 프로바이더 성공·실패·기본 프로바이더 전달 시나리오를 확인한다. `-p:FirebasePath=`로 변경 전 FireBase 폴더 사본을 지정할 수 있다. 실제 Firebase 접속과 Addressables 번들 로드는 검증하지 않는다.
 
 ## 결과와 한계
 

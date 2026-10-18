@@ -4,12 +4,15 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectT.Addressable;
 
-internal static class FirebaseCacheTests
+internal static partial class FirebaseCacheTests
 {
     private static int failures;
+    private static int scenarios;
 
     private static int Main()
     {
+        FirebaseBoundary.Initialize();
+
         Run("단일 PreWarm은 모든 gs:// URL을 받은 뒤 완료된다", () =>
         {
             FirebaseBoundary.AddBundle("single", "gs://bucket/single/a.bundle", "gs://bucket/single/b.bundle", "local/c.bundle");
@@ -87,7 +90,9 @@ internal static class FirebaseCacheTests
             return trace;
         });
 
-        Console.WriteLine(failures == 0 ? "ALL PASSED: 5 firebase cache scenarios" : "FAILED: " + failures + " firebase cache scenarios");
+        RunProviderScenarios();
+
+        Console.WriteLine(failures == 0 ? "ALL PASSED: " + scenarios + " firebase scenarios" : "FAILED: " + failures + " of " + scenarios + " firebase scenarios");
         return failures == 0 ? 0 : 1;
     }
 
@@ -98,6 +103,7 @@ internal static class FirebaseCacheTests
 
     private static void Run(string name, Func<string> scenario)
     {
+        scenarios++;
         FirebaseBoundary.Reset();
         try
         {

@@ -4,10 +4,10 @@
     <LangVersion>9.0</LangVersion>
     <UseUniTask>true</UseUniTask>
     <UseUnityStubs>true</UseUnityStubs>
-    <!-- 변경 전 사본과 비교할 때 -p:CachePath=로 바꾼다. -->
-    <CachePath Condition="'$(CachePath)' == ''">$(ProductScript)Addressable\FireBase\FirebaseAddressablesCache.cs</CachePath>
+    <!-- 변경 전 사본과 비교할 때 -p:FirebasePath=로 FireBase 폴더 사본을 지정한다. -->
+    <FirebasePath Condition="'$(FirebasePath)' == ''">$(ProductScript)Addressable\FireBase\</FirebasePath>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(CachePath);..\FirebaseCacheStubs.cs;..\FirebaseCacheTests.cs" />
+    <Compile Include="$(FirebasePath)*.cs;..\FirebaseCacheStubs.cs;..\FirebaseCacheTests.cs;..\FirebaseProviderTests.cs" />
   </ItemGroup>
 </Project>
