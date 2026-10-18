@@ -422,6 +422,42 @@ static partial class Program
             }
         });
 
+        foreach (int waiters in new[] { 0, 1, 3 })
+        {
+            await ReporterRun($"ErrorReporter: initialization failure is reported once with {waiters} readiness waiters", async () =>
+            {
+                var sink = new ListSink();
+                ResetReporter(sink);
+                Global.ResetStaticsForTests();
+                var gate = new UniTaskCompletionSource();
+                var host = new ManagerHost();
+                var global = Global.BindForTests(host);
+                try
+                {
+                    host.Register(new Probe<A>(new(), "fail") { FailStart = true, Gate = gate.Task });
+                    global.InitializeForTests().Forget(Global.LogException);
+                    // 샘플 러너와 같은 형태로 대기한다.
+                    async UniTask WaitLikeRunner()
+                    {
+                        if (await Global.WhenReadyAsync().SuppressCancellationThrow())
+                            return;
+                    }
+                    for (int i = 0; i < waiters; ++i)
+                        WaitLikeRunner().Forget(Global.LogException);
+                    gate.TrySetResult();
+                    ErrorReporter.Flush();
+                    int events = sink.Events.FindAll(error => error.Exception?.Message == "start:fail").Count;
+                    Check(events == 1 && Debug.Errors.Count == 1, $"Initialization failure reported {events} times, console {Debug.Errors.Count} times");
+                }
+                finally
+                {
+                    global.Shutdown();
+                    UnityEngine.Object.Destroy(global.gameObject);
+                    Global.ResetStaticsForTests();
+                }
+            });
+        }
+
         await ReporterRun("ErrorReporter: recreated or duplicate Global does not duplicate sinks", () =>
         {
             string directory = TempDirectory();
