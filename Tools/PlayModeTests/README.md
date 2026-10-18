@@ -2,6 +2,8 @@
 
 `Unity/ProjectTP0PlayProbe.cs`는 FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, 입력, UI, Scene)를 실행 중인 Unity 에디터의 Play Mode에서 순서대로 실행한다. 샘플 버튼 함수는 private이라 같은 함수를 리플렉션으로 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 단계에서 `Tools/UITests/Unity/ProjectTUIPlayProbe.Verify`도 같은 세션에서 실행한다.
 
+UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreenControl sender 검사(`Fresh sender after real OnDisable/OnEnable` 포함)도 삭제했다. 아래 결과 기록의 pass 수와 해당 실패는 삭제 전 구성 기준이다. 삭제 후 구성의 pass 수는 아직 기록하지 않았다.
+
 ## 실행
 
 1. `Client/Assets/ProjectTP0ProbeHarness/`를 만들고 `Unity/ProjectTP0PlayProbe.cs`와 `../UITests/Unity/ProjectTUIPlayProbe.cs`를 복사한다.

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using ProjectT.UGUI;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 public class ProjectTUIPlayProbe : UIBase
 {
@@ -47,33 +46,9 @@ public class ProjectTUIPlayProbe : UIBase
         // 가려진 d는 복원될 때 OnShow를 다시 받으므로 실패 핸들러는 이 시나리오에서만 쓴다.
         d.Shown = null;
         Check(container.TopWidget == c && !a.gameObject.activeSelf && c.gameObject.activeSelf, "Nested Show failure");
-        var input = c.gameObject.AddComponent<UIEventHandler>();
-        input.controlPath = "<Gamepad>/leftStick";
-        Action<Vector2> retained = null;
-        input.OnPointerDownHandler = (_, send) => retained = send;
-        var pointer = new PointerEventData(null) { pointerId = 10, button = PointerEventData.InputButton.Left, eligibleForClick = true };
-        input.OnPointerDown(pointer);
-        retained(new Vector2(1, 0));
-        UnityEngine.InputSystem.InputSystem.Update();
-        Check(input.control != null, "Real on-screen control setup");
-        container.SetInputAllowed(false);
-        container.SetInputAllowed(true);
-        retained(new Vector2(1, 0));
-        UnityEngine.InputSystem.InputSystem.Update();
-        Check(((UnityEngine.InputSystem.InputControl<Vector2>)input.control).ReadValue() == Vector2.zero, "Canceled sender cannot restore input");
-        input.OnPointerDown(pointer);
-        var prior = retained;
         c.Hide();
-        prior(new Vector2(1, 0));
         c.Show();
-        prior(new Vector2(1, 0));
-        UnityEngine.InputSystem.InputSystem.Update();
-        Check(((UnityEngine.InputSystem.InputControl<Vector2>)input.control).ReadValue() == Vector2.zero, "Disabled sender stays invalid after re-enable");
         Check(c.EnableCount == 2 && c.DisableCount == 1, "Native activation callbacks during hide/show");
-        input.OnPointerDown(pointer);
-        retained(new Vector2(0.5f, 0));
-        UnityEngine.InputSystem.InputSystem.Update();
-        Check(((UnityEngine.InputSystem.InputControl<Vector2>)input.control).ReadValue().x > 0, "Fresh sender after real OnDisable/OnEnable");
         container.Shutdown();
         UnityEngine.Object.Destroy(root);
         yield return null;

@@ -60,7 +60,7 @@ static class Program
         try { await test();Console.WriteLine("PASS "+name); }
         catch(Exception error) { failures++;Console.WriteLine("FAIL "+name+" :: "+error); }
     }
-    static int Main() { Tests().GetAwaiter().GetResult();InputTests.Run();BindingTests.Run();Console.WriteLine($"{count-failures}/{count} passed");return failures==0?0:1; }
+    static int Main() { Tests().GetAwaiter().GetResult();BindingTests.Run();Console.WriteLine($"{count-failures}/{count} passed");return failures==0?0:1; }
     static async UniTask Tests()
     {
         await Run("Concurrent callers share one initialized instance",async()=> {

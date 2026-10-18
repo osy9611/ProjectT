@@ -5,7 +5,6 @@ namespace ProjectT.UGUI
     using System.Collections.Generic;
     using TMPro;
     using UnityEngine;
-    using UnityEngine.EventSystems;
     using UnityEngine.UI;
 
     public enum eUIContainerType
@@ -204,32 +203,6 @@ namespace ProjectT.UGUI
         protected TextMeshProUGUI GetTextMeshPro(int idx) { return Get<TextMeshProUGUI>(idx); }
         protected Button GetButton(int idx) { return Get<Button>(idx); }
         protected Image GetImage(int idx) { return Get<Image>(idx); }
-
-        public static void BindEvent(GameObject go, Action<PointerEventData, System.Action<Vector2>> action, UIDefine.eUIEvent type = UIDefine.eUIEvent.Click)
-        {
-            if (!go.TryGetComponent(out UIEventHandler handle))
-                handle = go.AddComponent<UIEventHandler>();
-
-            switch (type)
-            {
-                case UIDefine.eUIEvent.Click:
-                    handle.OnClickHandler -= action;
-                    handle.OnClickHandler += action;
-                    break;
-                case UIDefine.eUIEvent.Drag:
-                    handle.OnDragHandler -= action;
-                    handle.OnDragHandler += action;
-                    break;
-                case UIDefine.eUIEvent.Up:
-                    handle.OnPointerUpHandler -= action;
-                    handle.OnPointerUpHandler += action;
-                    break;
-                case UIDefine.eUIEvent.Down:
-                    handle.OnPointerDownHandler -= action;
-                    handle.OnPointerDownHandler += action;
-                    break;
-            }
-        }
     }
 
 }

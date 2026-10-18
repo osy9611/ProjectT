@@ -29,7 +29,6 @@ namespace ProjectT.UGUI
         private readonly Transform root;
         private bool stopped;
         private bool clearing;
-        private bool inputAllowed = true;
         private UIBase focusedUI;
 
         private sealed class PendingCreation
@@ -147,19 +146,8 @@ namespace ProjectT.UGUI
 
         public void SetInputAllowed(bool allowed)
         {
-            if (inputAllowed == allowed)
-                return;
-
-            inputAllowed = allowed;
             canvas2DGroup.interactable = allowed;
             canvas2DGroup.blocksRaycasts = allowed;
-            ApplyInputAllowedInternal(uiCanvas2D.gameObject);
-        }
-
-        private void ApplyInputAllowedInternal(GameObject target)
-        {
-            foreach (var handler in target.GetComponentsInChildren<UIEventHandler>(true))
-                handler.SetInputAllowedInternal(inputAllowed);
         }
 
         // 정리·종료 중에는 이전 화면 복원이나 포커스 갱신을 하지 않고, 새 작업도 받지 않는다.
@@ -312,7 +300,6 @@ namespace ProjectT.UGUI
             try
             {
                 widget.InitializeInternal(this, type);
-                ApplyInputAllowedInternal(instance);
                 token.ThrowIfCancellationRequested();
 
                 EnsureAvailable();

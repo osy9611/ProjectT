@@ -100,8 +100,6 @@ public class ProjectTP0PlayProbe : MonoBehaviour
             yield return Step("ui", UIInternal());
             yield return Step("scene", SceneInternal());
             yield return Step("cleanup", CleanupInternal());
-            // 9/26 배치 실행에서 실패한 Tools/UITests 엔진 검사를 같은 편집기 세션에서 다시 실행한다.
-            yield return Step("onscreen-diag", OnScreenDiagnosticInternal());
             yield return Step("ui-probe", UIProbeInternal());
         }
         finally
@@ -468,57 +466,6 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         yield return null;
         Check(Spawned().Count == 0 && ControllerContextCount() == 0, "cleanup", $"Return All -> spawned {Spawned().Count}, contexts {ControllerContextCount()}");
         Note("cleanup", $"lines after cleanup {sampleLines.Count - lines}");
-    }
-
-    // ProjectTUIPlayProbe의 동기 InputSystem.Update() 판정과 프레임 진행 판정을 비교한다.
-    private IEnumerator OnScreenDiagnosticInternal()
-    {
-        var direct = InputSystem.AddDevice<Gamepad>("P0DiagPad");
-        InputSystem.QueueStateEvent(direct, new GamepadState { leftStick = new Vector2(0.5f, 0f) });
-        InputSystem.Update();
-        Note("onscreen-diag", $"direct pad + InputSystem.Update(): {direct.leftStick.ReadValue()}");
-        yield return null;
-        Note("onscreen-diag", $"direct pad + 1 frame: {direct.leftStick.ReadValue()}");
-        InputSystem.RemoveDevice(direct);
-
-        var root = new GameObject("P0 OnScreen", typeof(RectTransform));
-        root.SetActive(false);
-        var handler = root.AddComponent<UIEventHandler>();
-        handler.controlPath = "<Gamepad>/leftStick";
-        root.SetActive(true);
-        Action<Vector2> sender = null;
-        handler.OnPointerDownHandler = (_, send) => sender = send;
-        var pointer = new UnityEngine.EventSystems.PointerEventData(null) { pointerId = 10, button = UnityEngine.EventSystems.PointerEventData.InputButton.Left, eligibleForClick = true };
-
-        handler.OnPointerDown(pointer);
-        sender(new Vector2(0.5f, 0f));
-        InputSystem.Update();
-        Note("onscreen-diag", $"initial sender + InputSystem.Update(): {Read(handler)}");
-        yield return null;
-        Check(Read(handler).x > 0f, "onscreen-diag", $"initial sender writes after 1 frame ({Read(handler)})");
-
-        var old = sender;
-        root.SetActive(false);
-        yield return null;
-        root.SetActive(true);
-        old(new Vector2(1f, 0f));
-        yield return null;
-        Check(Read(handler) == Vector2.zero, "onscreen-diag", $"old sender invalid after OnDisable/OnEnable ({Read(handler)})");
-
-        handler.OnPointerDown(pointer);
-        Check(!ReferenceEquals(sender, old), "onscreen-diag", "new sender issued after re-enable");
-        sender(new Vector2(0.5f, 0f));
-        InputSystem.Update();
-        Note("onscreen-diag", $"fresh sender + InputSystem.Update(): {Read(handler)}");
-        yield return null;
-        Check(Read(handler).x > 0f, "onscreen-diag", $"fresh sender writes after 1 frame ({Read(handler)})");
-        Destroy(root);
-        yield return null;
-    }
-
-    private static Vector2 Read(UIEventHandler handler)
-    {
-        return ((InputControl<Vector2>)handler.control).ReadValue();
     }
 
     private IEnumerator UIProbeInternal()

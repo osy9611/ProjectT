@@ -7,14 +7,6 @@ namespace ProjectT.UGUI
 
     public class UIDefine
     {
-        public enum eUIEvent
-        {
-            Click,
-            Drag,
-            Up,
-            Down
-        }
-
         public enum eUIType
         {
             Test,

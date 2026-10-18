@@ -27,49 +27,12 @@ namespace UnityEngine.UI
 namespace TMPro { public class TextMeshProUGUI : UnityEngine.MonoBehaviour { } }
 namespace UnityEngine.EventSystems
 {
-    public class PointerEventData
-    {
-        public enum InputButton { Left, Right, Middle }
-        public int pointerId;
-        public InputButton button;
-        public bool eligibleForClick;
-    }
-    public interface IPointerClickHandler { void OnPointerClick(PointerEventData eventData); }
-    public interface IPointerDownHandler { void OnPointerDown(PointerEventData eventData); }
-    public interface IPointerUpHandler { void OnPointerUp(PointerEventData eventData); }
-    public interface IDragHandler { void OnDrag(PointerEventData eventData); }
     public class EventSystem : UnityEngine.MonoBehaviour
     {
         public static EventSystem current;
         public UnityEngine.GameObject currentSelectedGameObject { get; private set; }
         public int SelectCalls;
         public void SetSelectedGameObject(UnityEngine.GameObject selected) { SelectCalls++; currentSelectedGameObject = selected; }
-    }
-}
-namespace UnityEngine.InputSystem.Layouts
-{
-    public class InputControlAttribute : Attribute { public string layout; }
-}
-namespace UnityEngine.InputSystem
-{
-    public class InputControl
-    {
-        public readonly List<object> Values = new();
-        public int ResetCount;
-    }
-}
-namespace UnityEngine.InputSystem.OnScreen
-{
-    public abstract class OnScreenControl : UnityEngine.MonoBehaviour
-    {
-        private readonly UnityEngine.InputSystem.InputControl inputControl = new();
-        public int BaseDisableCount { get; private set; }
-        public string controlPath { get => controlPathInternal; set => controlPathInternal = value; }
-        public UnityEngine.InputSystem.InputControl control => inputControl;
-        protected abstract string controlPathInternal { get; set; }
-        protected void SendValueToControl<TValue>(TValue value) where TValue : struct { inputControl.Values.Add(value); }
-        protected void SentDefaultValueToControl() { inputControl.ResetCount++; }
-        protected virtual void OnDisable() { BaseDisableCount++; }
     }
 }
 namespace ProjectT.Util
