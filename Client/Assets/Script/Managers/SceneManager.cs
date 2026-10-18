@@ -220,13 +220,7 @@ namespace ProjectT
 
                 List<Exception> errors = null;
                 ErrorCollector.Run(ref errors, entry.Scope, scope => scope.Dispose());
-
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
-
+                ErrorCollector.ThrowIfAny(error, errors);
                 throw;
             }
 
@@ -302,12 +296,7 @@ namespace ProjectT
                         scenes.Add(typeof(T), entry);
                 }
 
-                if (errors != null)
-                {
-                    errors.Insert(0, error);
-                    throw new AggregateException(errors);
-                }
-
+                ErrorCollector.ThrowIfAny(error, errors);
                 throw;
             }
         }
