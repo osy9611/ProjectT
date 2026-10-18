@@ -3,7 +3,6 @@ namespace ProjectT.UGUI
     using ProjectT.Util;
     using System;
     using System.Collections.Generic;
-    using TMPro;
     using UnityEngine;
     using UnityEngine.UI;
 
@@ -23,9 +22,9 @@ namespace ProjectT.UGUI
         [SerializeField] private Selectable firstSelected;
         private GameObject lastSelected;
 
-        protected Dictionary<Type, UnityEngine.Object[]> objects = new Dictionary<Type, UnityEngine.Object[]>();
+        private readonly Dictionary<Type, UnityEngine.Object[]> objects = new Dictionary<Type, UnityEngine.Object[]>();
 
-        protected bool isActive = false;
+        private bool isActive = false;
         public bool IsActive => isActive;
 
         private UIContainer owner;
@@ -149,24 +148,14 @@ namespace ProjectT.UGUI
             BindInternal<T>(Enum.GetNames(type));
         }
 
-        protected void Bind<T>(string[] names) where T : UnityEngine.Object
-        {
-            BindInternal<T>(names);
-        }
-
         private void BindInternal<T>(string[] names) where T : UnityEngine.Object
         {
-            if (names == null)
-                throw new ArgumentNullException(nameof(names));
             if (objects.ContainsKey(typeof(T)))
                 throw new InvalidOperationException($"UI {name} already has a {typeof(T).Name} binding group.");
 
             var bindings = new UnityEngine.Object[names.Length];
             for (int i = 0; i < names.Length; ++i)
             {
-                if (string.IsNullOrEmpty(names[i]))
-                    throw new ArgumentException($"UI {name} has an empty binding name at index {i}.", nameof(names));
-
                 if (gameObject.name == names[i])
                     bindings[i] = typeof(T) == typeof(GameObject) ? gameObject : GetComponent<T>();
                 else
@@ -190,19 +179,8 @@ namespace ProjectT.UGUI
             return bindings[idx] as T;
         }
 
-        protected T[] Get<T>() where T : UnityEngine.Object
-        {
-            if (!this.objects.TryGetValue(typeof(T), out var objects))
-                return null;
-
-            return Array.ConvertAll(objects, x => (T)x);
-        }
-
-        protected GameObject GetObject(int idx) { return Get<GameObject>(idx); }
         protected Text GetText(int idx) { return Get<Text>(idx); }
-        protected TextMeshProUGUI GetTextMeshPro(int idx) { return Get<TextMeshProUGUI>(idx); }
         protected Button GetButton(int idx) { return Get<Button>(idx); }
-        protected Image GetImage(int idx) { return Get<Image>(idx); }
     }
 
 }

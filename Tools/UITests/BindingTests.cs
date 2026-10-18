@@ -9,11 +9,9 @@ class BindingProbe : UIBase
 
     protected override void OnHide() { }
 
-    public void BindNames(string[] names) => Bind<GameObject>(names);
-
     public void BindEnum(Type type) => Bind<GameObject>(type);
 
-    public GameObject At(int index) => GetObject(index);
+    public GameObject At(int index) => Get<GameObject>(index);
 }
 
 static class BindingTests
@@ -21,6 +19,7 @@ static class BindingTests
     private enum Valid { Root }
     private enum Sparse { Root, Other = 3 }
     private enum Alias { Root, Other = 0 }
+    private enum Missing { Missing }
     public static void Run()
     {
         var p = new GameObject("Root").AddComponent<BindingProbe>();
@@ -30,18 +29,18 @@ static class BindingTests
         p.BindEnum(typeof(Valid));
         if (p.At(0) != p.gameObject)
             throw new Exception("Root enum binding failed.");
-        Expect<InvalidOperationException>(() => p.BindNames(new[] { "Root" }));
+        Expect<InvalidOperationException>(() => p.BindEnum(typeof(Valid)));
         Expect<ArgumentOutOfRangeException>(() => p.At(1));
         var retry = new GameObject("Root").AddComponent<BindingProbe>();
-        Expect<InvalidOperationException>(() => retry.BindNames(new[] { "Missing" }));
-        retry.BindNames(new[] { "Root" });
+        Expect<InvalidOperationException>(() => retry.BindEnum(typeof(Missing)));
+        retry.BindEnum(typeof(Valid));
         if (retry.At(0) != retry.gameObject)
             throw new Exception("Failed bind left partial registration.");
         var container = new UIContainer(new GameObject("RootContainer").transform, default);
         container.Initialize();
         Global.Resource = new FakeResource { Prefab = new GameObject("Broken", typeof(RectTransform)) };
         Global.Resource.Prefab.AddComponent<Probe>();
-        Probe.EnterAction = ui => ui.gameObject.AddComponent<BindingProbe>().BindNames(new[] { "Missing" });
+        Probe.EnterAction = ui => ui.gameObject.AddComponent<BindingProbe>().BindEnum(typeof(Missing));
         try
         {
             Expect<InvalidOperationException>(() => container.CreateWidget<Probe>(UIDefine.eUIType.Test, "UI"));

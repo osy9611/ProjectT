@@ -22,9 +22,7 @@ namespace UnityEngine.UI
     public class Text : UnityEngine.MonoBehaviour { }
     public class Selectable : UnityEngine.MonoBehaviour { public bool interactable = true; }
     public class Button : Selectable { }
-    public class Image : UnityEngine.MonoBehaviour { }
 }
-namespace TMPro { public class TextMeshProUGUI : UnityEngine.MonoBehaviour { } }
 namespace UnityEngine.EventSystems
 {
     public class EventSystem : UnityEngine.MonoBehaviour
