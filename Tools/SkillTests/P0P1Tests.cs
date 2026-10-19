@@ -13,7 +13,7 @@ static partial class Program
         AddSkill(1, SkillType.Melee, 0f);
         var agent = NewAgent();
 
-        agent.GiveSkill(SkillDefinitions.GetSkill(1));
+        agent.GiveSkill(TableSkill(1));
 
         Check(GetAction(agent, 1) is Action_Melee, "스킬 액션을 생성하지 않았다");
     }
@@ -73,7 +73,7 @@ static partial class Program
     {
         AddSkill(20, SkillType.Melee, 1f);
         var agent = NewAgent();
-        agent.GiveSkill(SkillDefinitions.GetSkill(20));
+        agent.GiveSkill(TableSkill(20));
         var spec = GetAction(agent, 20).Spec;
 
         agent.ActivateSkill(20);
@@ -102,7 +102,7 @@ static partial class Program
         }
 
         Check(threw, "중복 등록이 거부되지 않았다");
-        Check(GetActions(agent).Count == 1 && ReferenceEquals(GetAction(agent, 10), first), "기존 인스턴스가 유지되지 않았다");
+        Check(GivenCount(agent) == 1 && ReferenceEquals(GetAction(agent, 10), first), "기존 인스턴스가 유지되지 않았다");
     }
 
     static void ApplyFailureDoesNotRegister()
@@ -156,8 +156,11 @@ static partial class Program
 
         Check(string.Join(",", log) == "effect,skill", "정리 순서: " + string.Join(",", log));
         Check(EffectCount(agent) == 0, "효과가 남았다");
-        Check(GetActions(agent).Count == 0, "스킬이 남았다");
-        Check(GetActiveActions(agent).Count == 0, "활성 스킬이 남았다");
+        int updates = ProjectT.Skill.Tests.TestSkillAction.Updates;
+        agent.OpenInternal();
+        agent.GiveSkill(Skill(10));
+        agent.TickInternal(0.1f);
+        Check(ProjectT.Skill.Tests.TestSkillAction.Updates == updates, "활성 스킬이 남았다");
     }
 
     static void ClosedAgentRejectsRegistration()
@@ -174,7 +177,7 @@ static partial class Program
         CheckThrows<InvalidOperationException>(() => agent.GiveSkill(Skill(10)), "Release 후 GiveSkill");
         CheckThrows<InvalidOperationException>(() => agent.ApplyEffect(effect, null), "Release 후 ApplyEffect");
         CheckThrows<InvalidOperationException>(() => agent.ApplyEffect(Effect(2, EffectDurationPolicy.Instant, 0f, 0f, () => new ProjectT.Skill.Tests.TestBehavior()), null), "Release 후 Instant");
-        Check(GetActions(agent).Count == 0 && EffectCount(agent) == 0 && ProjectT.Skill.Tests.TestBehavior.Applies == 0, "닫힌 상태에서 등록되었다");
+        Check(GivenCount(agent) == 0 && EffectCount(agent) == 0 && ProjectT.Skill.Tests.TestBehavior.Applies == 0, "닫힌 상태에서 등록되었다");
     }
 
     static void NoPeriodEffectExpiresAtDuration()
@@ -280,12 +283,12 @@ static partial class Program
         Check(ProjectT.Skill.Tests.TestSkillAction.Cancels == 2, $"취소 횟수 기대 2, 실제 {ProjectT.Skill.Tests.TestSkillAction.Cancels}");
         agent.TickInternal(0.1f);
         Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 2, $"취소 후 갱신되었다. 갱신 횟수 {ProjectT.Skill.Tests.TestSkillAction.Updates}");
-        Check(GetActiveActions(agent).Count == 0, "취소된 스킬이 활성 목록에 남았다");
+        Check(ActiveCount(agent) == 0, "취소된 스킬이 활성 목록에 남았다");
 
         agent.ActivateSkill(10);
         agent.TickInternal(0.1f);
         Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 3, $"재발동 후 갱신 횟수 기대 3, 실제 {ProjectT.Skill.Tests.TestSkillAction.Updates}");
-        Check(GetActions(agent).Count == 2, "취소가 부여된 스킬을 제거했다");
+        Check(GivenCount(agent) == 2, "취소가 부여된 스킬을 제거했다");
     }
 
     static void SourceIsStored()

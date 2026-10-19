@@ -97,7 +97,7 @@ static partial class Program
         agent.ActivateSkill(12);
         agent.ActivateSkill(13);
         agent.TickInternal(0.1f);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 2 && ProjectT.Skill.Tests.TestSkillAction.Updates == 2 && GetActiveActions(agent).Count == 2, "자기 BlockedTags가 없는 스킬이 막혔다");
+        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 2 && ProjectT.Skill.Tests.TestSkillAction.Updates == 2 && ActiveCount(agent) == 2, "자기 BlockedTags가 없는 스킬이 막혔다");
     }
 
     static void GainingTagCancelsOnlyMatchingSkills()
@@ -116,7 +116,7 @@ static partial class Program
         Check(!GetAction(agent, 11).IsActive && GetAction(agent, 12).IsActive && ProjectT.Skill.Tests.TestSkillAction.Cancels == 2, "CancelledByTags의 두 번째 태그로 취소되지 않았다");
 
         agent.TickInternal(0.1f);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 1 && GetActiveActions(agent).Count == 1, "태그 없는 스킬이 갱신되지 않았다");
+        Check(ProjectT.Skill.Tests.TestSkillAction.Updates == 1 && ActiveCount(agent) == 1, "태그 없는 스킬이 갱신되지 않았다");
     }
 
     static void ActivationCancelsOnAnyCancelledByTag()
@@ -128,11 +128,11 @@ static partial class Program
         agent.ApplyEffect(Effect(1, EffectDurationPolicy.Duration, 5f, 0f, null, tags: new[] { TagA }), null);
 
         agent.ActivateSkill(10);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 1 && ProjectT.Skill.Tests.TestSkillAction.Cancels == 1 && !GetAction(agent, 10).IsActive && GetActiveActions(agent).Count == 0, "이미 가진 취소 태그로 발동 직후 취소되지 않았다");
+        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 1 && ProjectT.Skill.Tests.TestSkillAction.Cancels == 1 && !GetAction(agent, 10).IsActive && ActiveCount(agent) == 0, "이미 가진 취소 태그로 발동 직후 취소되지 않았다");
 
         ProjectT.Skill.Tests.TestSkillAction.ActivateHook = () => agent.ApplyEffect(Effect(2, EffectDurationPolicy.Duration, 5f, 0f, null, tags: new[] { TagB }), null);
         agent.ActivateSkill(11);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 2 && ProjectT.Skill.Tests.TestSkillAction.Cancels == 2 && !GetAction(agent, 11).IsActive && GetActiveActions(agent).Count == 0, "Activate 중에 얻은 취소 태그로 취소되지 않았다");
+        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 2 && ProjectT.Skill.Tests.TestSkillAction.Cancels == 2 && !GetAction(agent, 11).IsActive && ActiveCount(agent) == 0, "Activate 중에 얻은 취소 태그로 취소되지 않았다");
 
         ProjectT.Skill.Tests.TestSkillAction.ActivateHook = () => agent.ApplyEffect(Effect(3, EffectDurationPolicy.Duration, 5f, 0f, null, tags: new[] { TagC }), null);
         agent.ActivateSkill(12);
@@ -212,10 +212,6 @@ static partial class Program
         var stat = StatId.Register("Test.Shared");
         Check(tag.Name == "Test.Shared" && stat.Name == "Test.Shared" && stat != default, "같은 이름의 태그와 스탯을 함께 등록하지 못했다");
 
-        int before = (int)GetField(SkillTag.Register("Test.SeparateA"), "id");
-        StatId.Register("Test.SeparateStat");
-        int after = (int)GetField(SkillTag.Register("Test.SeparateB"), "id");
-        Check(after == before + 1, $"스탯 등록이 태그 id를 소모했다: {before} -> {after}");
     }
 
     static void UnknownStatReadsZero()

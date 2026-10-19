@@ -372,18 +372,12 @@ static partial class Program
         }
     }
 
-    static int TagCount(SkillAgent agent, SkillTag tag)
-    {
-        var counts = (IDictionary)GetField(agent, "tagCounts");
-        return counts.Contains(tag) ? (int)counts[tag] : 0;
-    }
-
     // 테이블 스킬의 기본값처럼 스턴에 막히고 취소된다.
     static SkillDefinition StunSkill(int id) => Skill(id, new[] { Stun }, new[] { Stun });
 
     static SkillDefinition Skill(int id, SkillTag[] blocked = null, SkillTag[] cancelledBy = null, float coolTime = 0f, StatId cooldownStat = default, EffectDefinition[] effects = null, SkillCost[] costs = null, Func<BaseSkillAction> factory = null)
     {
-        return new SkillDefinition(id, coolTime, factory ?? (() => new ProjectT.Skill.Tests.TestSkillAction()), blocked ?? Array.Empty<SkillTag>(), cancelledBy ?? Array.Empty<SkillTag>(), cooldownStat, effects ?? Array.Empty<EffectDefinition>(), costs ?? Array.Empty<SkillCost>());
+        return new SkillDefinition(id, coolTime, Track(factory ?? (() => new ProjectT.Skill.Tests.TestSkillAction())), blocked ?? Array.Empty<SkillTag>(), cancelledBy ?? Array.Empty<SkillTag>(), cooldownStat, effects ?? Array.Empty<EffectDefinition>(), costs ?? Array.Empty<SkillCost>());
     }
 
     static EffectDefinition TestEffect(int id, float duration, float period = 0f) => Effect(id, EffectDurationPolicy.Duration, duration, period, () => new ProjectT.Skill.Tests.TestBehavior());
@@ -424,11 +418,31 @@ static partial class Program
 
     static object GetField(object target, string name) => target.GetType().GetField(name, PrivateInstance).GetValue(target);
 
-    static IDictionary GetActions(SkillAgent agent) => (IDictionary)GetField(GetField(agent, "actionController"), "actions");
+    // Skill 도우미의 팩토리가 만든 실행 인스턴스다. 부여된 인스턴스는 공개 Owner와 Spec으로 자기 Agent와 스킬을 드러낸다.
+    static readonly List<BaseSkillAction> createdActions = new List<BaseSkillAction>();
 
-    static IList GetActiveActions(SkillAgent agent) => (IList)GetField(GetField(agent, "actionController"), "activeActions");
+    static Func<BaseSkillAction> Track(Func<BaseSkillAction> factory) => () =>
+    {
+        var action = factory();
+        if (!createdActions.Contains(action))
+            createdActions.Add(action);
+        return action;
+    };
 
-    static BaseSkillAction GetAction(SkillAgent agent, int id) => (BaseSkillAction)GetActions(agent)[id];
+    // 테이블 정의의 팩토리가 만든 인스턴스도 추적하도록 같은 값으로 다시 만든다.
+    static SkillDefinition TableSkill(int id)
+    {
+        var table = SkillDefinitions.GetSkill(id);
+        return new SkillDefinition(table.Id, table.CoolTime, Track(table.ActionFactory), table.BlockedTags, table.CancelledByTags, table.CooldownReductionStat, table.Effects, table.Costs);
+    }
+
+    static List<BaseSkillAction> GivenActions(SkillAgent agent) => createdActions.FindAll(action => action.Owner != null && action.Owner.SkillAgent == agent);
+
+    static int GivenCount(SkillAgent agent) => GivenActions(agent).Count;
+
+    static int ActiveCount(SkillAgent agent) => GivenActions(agent).FindAll(action => action.IsActive).Count;
+
+    static BaseSkillAction GetAction(SkillAgent agent, int id) => GivenActions(agent).FindLast(action => action.Spec.Definition.Id == id);
 
     static IList GetActiveEffects(SkillAgent agent) => (IList)GetField(GetField(agent, "effectController"), "activeEffects");
 

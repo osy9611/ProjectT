@@ -249,7 +249,7 @@ static partial class Program
 
         CheckThrows<InvalidOperationException>(() => agent.GiveSkill(definition), "실패하는 팩토리");
 
-        Check(GetActions(agent).Count == 0, "스킬이 등록되었다");
+        Check(GivenCount(agent) == 0, "스킬이 등록되었다");
     }
 
     static void BoundaryFramesAreNotDelayed()

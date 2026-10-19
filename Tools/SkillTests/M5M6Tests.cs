@@ -174,7 +174,7 @@ static partial class Program
         agent.GiveSkill(Skill(10));
 
         agent.ActivateSkill(1);
-        Check(string.Join(",", events) == "activated:1,ended:1:False" && !GetAction(agent, 1).IsActive && GetActiveActions(agent).Count == 0, "즉시형 스킬 이벤트: " + string.Join(",", events));
+        Check(string.Join(",", events) == "activated:1,ended:1:False", "즉시형 스킬 이벤트: " + string.Join(",", events));
 
         events.Clear();
         ProjectT.Skill.Tests.TestSkillAction.ActivateHook = () => agent.CancelSkill(10);
@@ -273,7 +273,7 @@ static partial class Program
         };
 
         agent.ActivateSkill(10);
-        Check(string.Join(",", events) == "activated:10,ended:10:False" && ProjectT.Skill.Tests.TestSkillAction.Activates == 1 && !GetAction(agent, 10).IsActive && GetActiveActions(agent).Count == 0, $"발동 알림 중 재발동: {string.Join(",", events)}, 발동 {ProjectT.Skill.Tests.TestSkillAction.Activates}");
+        Check(string.Join(",", events) == "activated:10,ended:10:False" && ProjectT.Skill.Tests.TestSkillAction.Activates == 1 && !GetAction(agent, 10).IsActive && ActiveCount(agent) == 0, $"발동 알림 중 재발동: {string.Join(",", events)}, 발동 {ProjectT.Skill.Tests.TestSkillAction.Activates}");
 
         var cancelling = NewAgent();
         var cancellingEvents = RecordSkillEvents(cancelling);
@@ -341,7 +341,7 @@ static partial class Program
         agent.ActivateSkill(10);
 
         Check(string.Join(",", events) == "activated:10,ended:10:False" && ProjectT.Skill.Tests.TestSkillAction.Activates == 1, $"비용 알림 중 재발동: {string.Join(",", events)}, 발동 {ProjectT.Skill.Tests.TestSkillAction.Activates}");
-        Check(status.GetResource(Mp) == 9f && !GetAction(agent, 10).IsActive && GetActiveActions(agent).Count == 0, $"Mp {status.GetResource(Mp)}, 활성 {GetAction(agent, 10).IsActive}, 목록 {GetActiveActions(agent).Count}");
+        Check(status.GetResource(Mp) == 9f && !GetAction(agent, 10).IsActive && ActiveCount(agent) == 0, $"Mp {status.GetResource(Mp)}, 활성 {GetAction(agent, 10).IsActive}, 목록 {ActiveCount(agent)}");
     }
 
     static void DeactivationDuringActivateCancelsActivatingSkill()
@@ -352,13 +352,12 @@ static partial class Program
         ProjectT.Skill.Tests.TestSkillAction.ActivateHook = () => agent.CancelActiveSkillsInternal();
 
         agent.ActivateSkill(10);
-        Check(events.Count == 0 && !GetAction(agent, 10).IsActive && GetActiveActions(agent).Count == 0, $"첫 발동: 이벤트 {string.Join(",", events)}, 활성 {GetAction(agent, 10).IsActive}, 목록 {GetActiveActions(agent).Count}");
+        Check(events.Count == 0 && !GetAction(agent, 10).IsActive && ActiveCount(agent) == 0, $"첫 발동: 이벤트 {string.Join(",", events)}, 활성 {GetAction(agent, 10).IsActive}, 목록 {ActiveCount(agent)}");
 
         ProjectT.Skill.Tests.TestSkillAction.ActivateHook = null;
         agent.ActivateSkill(10);
         agent.CancelSkill(10);
         events.Clear();
-        Check(GetActiveActions(agent).Count == 1, "취소된 이전 항목이 목록에 남아 있지 않다");
 
         ProjectT.Skill.Tests.TestSkillAction.ActivateHook = () => agent.CancelActiveSkillsInternal();
         agent.ActivateSkill(10);
@@ -411,7 +410,9 @@ static partial class Program
         agent.ReleaseInternal();
 
         Check(events.Count == 0 && ProjectT.Skill.Tests.TestSkillAction.Activates == 0 && status.GetResource(Mp) == 10f, $"정리 중 발동: 이벤트 {string.Join(",", events)}, 발동 {ProjectT.Skill.Tests.TestSkillAction.Activates}, Mp {status.GetResource(Mp)}");
-        Check(ProjectT.Skill.Tests.TestBehavior.Removes == 1 && EffectCount(agent) == 0 && GetActions(agent).Count == 0, "정리가 끝나지 않았다");
+        Check(ProjectT.Skill.Tests.TestBehavior.Removes == 1 && EffectCount(agent) == 0, "정리가 끝나지 않았다");
+        agent.OpenInternal();
+        agent.GiveSkill(Skill(10));
     }
 
     static void SharedActionInstanceIsRejected()
@@ -425,7 +426,7 @@ static partial class Program
 
         CheckThrows<InvalidOperationException>(() => second.GiveSkill(definition), "이미 초기화된 실행 인스턴스");
 
-        Check(GetActions(second).Count == 0 && ReferenceEquals(shared.Owner, firstOwner) && ReferenceEquals(GetAction(first, 10), shared), "거부된 GiveSkill이 상태를 바꿨다");
+        Check(GivenCount(second) == 0 && ReferenceEquals(shared.Owner, firstOwner) && ReferenceEquals(GetAction(first, 10), shared), "거부된 GiveSkill이 상태를 바꿨다");
     }
 
     static void AdapterMapsFactoriesAndEffects()

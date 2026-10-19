@@ -164,7 +164,7 @@ static partial class Program
 
         agent.ActivateSkill(10);
         agent.TickInternal(0.5f);
-        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 2 && ProjectT.Skill.Tests.TestSkillAction.Updates == 0 && GetActiveActions(agent).Count == 0, "스턴 중 스킬이 발동되거나 갱신되었다");
+        Check(ProjectT.Skill.Tests.TestSkillAction.Activates == 2 && ProjectT.Skill.Tests.TestSkillAction.Updates == 0 && ActiveCount(agent) == 0, "스턴 중 스킬이 발동되거나 갱신되었다");
 
         agent.TickInternal(0.5f);
         agent.ActivateSkill(10);
@@ -205,7 +205,7 @@ static partial class Program
         agent.TickInternal(0.1f);
 
         Check(agent.HasTag(Stun), "스턴이 적용되지 않았다");
-        Check(ProjectT.Skill.Tests.TestSkillAction.Cancels == 1 && ProjectT.Skill.Tests.TestSkillAction.Updates == 0 && GetActiveActions(agent).Count == 0, $"스턴 중 스킬이 남았다 Cancels={ProjectT.Skill.Tests.TestSkillAction.Cancels} Updates={ProjectT.Skill.Tests.TestSkillAction.Updates}");
+        Check(ProjectT.Skill.Tests.TestSkillAction.Cancels == 1 && ProjectT.Skill.Tests.TestSkillAction.Updates == 0 && ActiveCount(agent) == 0, $"스턴 중 스킬이 남았다 Cancels={ProjectT.Skill.Tests.TestSkillAction.Cancels} Updates={ProjectT.Skill.Tests.TestSkillAction.Updates}");
     }
 
     static void CooldownReductionShortensCooldown()
@@ -217,14 +217,14 @@ static partial class Program
             var status = new Status();
             status.SetBase(CooldownReduction, testCase.Reduction);
             var agent = NewAgent(status);
-            agent.GiveSkill(SkillDefinitions.GetSkill(20));
+            agent.GiveSkill(TableSkill(20));
             agent.ActivateSkill(20);
             var spec = GetAction(agent, 20).Spec;
             Check(spec.CoolDownRemaining == testCase.Expected, $"감소율 {testCase.Reduction}: 쿨다운 기대 {testCase.Expected}, 실제 {spec.CoolDownRemaining}");
         }
 
         var plain = NewAgent();
-        plain.GiveSkill(SkillDefinitions.GetSkill(20));
+        plain.GiveSkill(TableSkill(20));
         plain.ActivateSkill(20);
         Check(GetAction(plain, 20).Spec.CoolDownRemaining == 2f, "Status 없는 Actor의 쿨다운이 바뀌었다");
     }

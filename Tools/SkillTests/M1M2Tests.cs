@@ -71,7 +71,7 @@ static partial class Program
 
         CheckThrows<ArgumentException>(() => agent.GiveSkill(Skill(10, coolTime: 2f, factory: () => new ExternalGame.ExternalSkillAction())), "같은 Id의 다른 정의");
 
-        Check(GetActions(agent).Count == 1 && ReferenceEquals(GetAction(agent, 10), first), "기존 인스턴스가 유지되지 않았다");
+        Check(GivenCount(agent) == 1 && ReferenceEquals(GetAction(agent, 10), first), "기존 인스턴스가 유지되지 않았다");
     }
 
     static void ApplyEffectRefreshesBySameId()
