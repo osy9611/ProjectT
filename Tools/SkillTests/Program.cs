@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using DesignEnum;
 using DesignTable;
 using ProjectT;
@@ -163,7 +161,6 @@ namespace ExternalGame
 
 static partial class Program
 {
-    const BindingFlags PrivateInstance = BindingFlags.NonPublic | BindingFlags.Instance;
     static readonly SkillTag Stun = SkillDefinitions.StunTag;
     static readonly SkillTag TagA = SkillTag.Register("Test.A"), TagB = SkillTag.Register("Test.B"), TagC = SkillTag.Register("Test.C");
     static readonly StatId MaxHp = SkillDefinitions.MaxHpStat, Atk = SkillDefinitions.AtkStat, Def = SkillDefinitions.DefStat, MoveSpeed = SkillDefinitions.MoveSpeedStat, CooldownReduction = SkillDefinitions.CooldownReductionStat, Hp = SkillDefinitions.HpStat;
@@ -384,7 +381,7 @@ static partial class Program
 
     static EffectDefinition Effect(int id, EffectDurationPolicy policy, float duration, float period, Func<EffectBehavior> factory, IReadOnlyList<EffectModifier> modifiers = null, IReadOnlyList<SkillTag> tags = null, float power = 0f, DamageExecution execution = null, EffectStackPolicy stack = EffectStackPolicy.Refresh, int maxStack = 1, StatId? damageResource = null)
     {
-        return new EffectDefinition(id, policy, duration, period, modifiers ?? Array.Empty<EffectModifier>(), tags ?? Array.Empty<SkillTag>(), power, execution, damageResource ?? Hp, stack, maxStack, factory);
+        return new EffectDefinition(id, policy, duration, period, modifiers ?? Array.Empty<EffectModifier>(), tags ?? Array.Empty<SkillTag>(), power, execution, damageResource ?? Hp, stack, maxStack, factory == null ? null : TrackBehavior(factory));
     }
 
     static Status NewStatus()
@@ -402,6 +399,7 @@ static partial class Program
         var actor = new ProjectT.Skill.Tests.TestActor { Status = status };
         var agent = new SkillAgent(actor);
         actor.SkillAgent = agent;
+        WatchEffects(agent);
         agent.OpenInternal();
         return agent;
     }
@@ -415,8 +413,6 @@ static partial class Program
     {
         Global.Table.BuffInfos.Rows[id] = new buffInfo { buff_Id = id, buff_type = (sbyte)type, buff_duration = duration, buff_interval = interval, buff_usePercent = usePercent };
     }
-
-    static object GetField(object target, string name) => target.GetType().GetField(name, PrivateInstance).GetValue(target);
 
     // Skill 도우미의 팩토리가 만든 실행 인스턴스다. 부여된 인스턴스는 공개 Owner와 Spec으로 자기 Agent와 스킬을 드러낸다.
     static readonly List<BaseSkillAction> createdActions = new List<BaseSkillAction>();
@@ -444,29 +440,60 @@ static partial class Program
 
     static BaseSkillAction GetAction(SkillAgent agent, int id) => GivenActions(agent).FindLast(action => action.Spec.Definition.Id == id);
 
-    static IList GetActiveEffects(SkillAgent agent) => (IList)GetField(GetField(agent, "effectController"), "activeEffects");
-
-    static int EffectCount(SkillAgent agent) => GetActiveEffects(agent).Count;
-
-    static T GetActiveField<T>(object active, string name) => (T)active.GetType().GetField(name).GetValue(active);
-
-    static int GetStackCount(SkillAgent agent, int index) => GetActiveField<int>(GetActiveEffects(agent)[index], "StackCount");
-
-    static List<EffectBehavior> GetBehaviors(SkillAgent agent)
+    sealed class AppliedEffect
     {
-        var behaviors = new List<EffectBehavior>();
-        foreach (var active in GetActiveEffects(agent))
-            behaviors.Add(GetActiveField<EffectBehavior>(active, "Behavior"));
-        return behaviors;
+        public int HandleId;
+        public EffectDefinition Definition;
+        public EffectBehavior Behavior;
     }
 
-    static List<int> GetEffectIds(SkillAgent agent)
+    // 적용·제거 이벤트로 Agent에 걸린 효과를 적용 순서대로 기록한다.
+    static readonly Dictionary<SkillAgent, List<AppliedEffect>> appliedEffects = new Dictionary<SkillAgent, List<AppliedEffect>>();
+    static readonly List<EffectBehavior> createdBehaviors = new List<EffectBehavior>();
+
+    static Func<EffectBehavior> TrackBehavior(Func<EffectBehavior> factory) => () =>
     {
-        var ids = new List<int>();
-        foreach (var active in GetActiveEffects(agent))
-            ids.Add(GetActiveField<EffectDefinition>(active, "Definition").Id);
-        return ids;
+        var behavior = factory();
+        createdBehaviors.Add(behavior);
+        return behavior;
+    };
+
+    static void WatchEffects(SkillAgent agent)
+    {
+        var applied = new List<AppliedEffect>();
+        appliedEffects[agent] = applied;
+        agent.OnEffectApplied += (handle, definition) => applied.Add(new AppliedEffect { HandleId = handle.Id, Definition = definition, Behavior = ClaimBehavior(definition) });
+        agent.OnEffectRemoved += (handle, definition, reason) => applied.RemoveAll(effect => effect.HandleId == handle.Id);
     }
+
+    // 적용 알림은 행동 객체가 초기화된 뒤에 오므로 같은 정의로 만들어진 마지막 미배정 객체가 이 효과의 것이다.
+    static EffectBehavior ClaimBehavior(EffectDefinition definition)
+    {
+        int index = createdBehaviors.FindLastIndex(behavior => ReferenceEquals(behavior.Definition, definition));
+        if (index < 0)
+            return null;
+
+        var behavior = createdBehaviors[index];
+        createdBehaviors.RemoveAt(index);
+        return behavior;
+    }
+
+    static int EffectCount(SkillAgent agent) => appliedEffects[agent].Count;
+
+    // 제거 콜백이 실패하면 제거 알림이 나가지 않으므로, 정리된 효과가 남지 않았는지는 다시 열어 같은 id가 새로 적용되는지로 본다.
+    static bool ReappliesAsNew(SkillAgent agent, params int[] effectIds)
+    {
+        ProjectT.Skill.Tests.TestBehavior.RemoveHook = null;
+        agent.OpenInternal();
+        int applies = ProjectT.Skill.Tests.TestBehavior.Applies;
+        foreach (int id in effectIds)
+            agent.ApplyEffect(TestEffect(id, 1f), null);
+        return ProjectT.Skill.Tests.TestBehavior.Applies == applies + effectIds.Length;
+    }
+
+    static List<EffectBehavior> GetBehaviors(SkillAgent agent) => appliedEffects[agent].ConvertAll(effect => effect.Behavior);
+
+    static List<int> GetEffectIds(SkillAgent agent) => appliedEffects[agent].ConvertAll(effect => effect.Definition.Id);
 
     static void ResetState()
     {

@@ -34,6 +34,7 @@ static partial class Program
         owner.Status.SetResource(Hp, 10f);
         var agent = new SkillAgent(owner);
         owner.SkillAgent = agent;
+        WatchEffects(agent);
         agent.OpenInternal();
         var source = new ProjectT.Skill.Tests.PlainOwner { Status = new Status() };
         var execution = new ProjectT.Skill.Tests.RecordingDamageExecution { Result = 2f };

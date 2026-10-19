@@ -264,14 +264,15 @@ static partial class Program
 
     static void StackIsCappedAtMaxStack()
     {
-        var effect = Effect(1, EffectDurationPolicy.Duration, 5f, 0f, () => new ProjectT.Skill.Tests.TestBehavior(), stack: EffectStackPolicy.Stack, maxStack: 3);
-        var agent = NewAgent();
+        var effect = Effect(1, EffectDurationPolicy.Duration, 5f, 0f, () => new ProjectT.Skill.Tests.TestBehavior(), modifiers: new[] { new EffectModifier(Atk, StatModOp.Add, 1f) }, stack: EffectStackPolicy.Stack, maxStack: 3);
+        var status = NewStatus();
+        var agent = NewAgent(status);
         var handle = agent.ApplyEffect(effect, null);
 
         for (int i = 0; i < 4; i++)
             Check(agent.ApplyEffect(effect, null).Id == handle.Id, "중첩이 다른 핸들을 돌려줬다");
 
-        Check(GetStackCount(agent, 0) == 3 && EffectCount(agent) == 1 && ProjectT.Skill.Tests.TestBehavior.Applies == 1, $"중첩 수 기대 3, 실제 {GetStackCount(agent, 0)}");
+        Check(status.Get(Atk) == 13f && EffectCount(agent) == 1 && ProjectT.Skill.Tests.TestBehavior.Applies == 1, $"중첩 수 기대 3, Atk {status.Get(Atk)}");
     }
 
     static void StackScalesModifiers()
@@ -440,7 +441,7 @@ static partial class Program
         agent.ReleaseInternal();
 
         string reasons = string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons);
-        Check(reasons == "Expired,Released" && EffectCount(agent) == 0, $"남은 만료 효과의 사유 {reasons}, 효과 {EffectCount(agent)}");
+        Check(reasons == "Expired,Released" && ReappliesAsNew(agent, 1, 2), $"남은 만료 효과의 사유 {reasons}");
     }
 
     static void RemoveDuringTickKeepsLoop()

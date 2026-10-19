@@ -167,6 +167,7 @@ static partial class Program
     {
         var effect = TestEffect(1, 1f);
         var agent = new SkillAgent(new ProjectT.Skill.Tests.TestActor());
+        WatchEffects(agent);
 
         CheckThrows<InvalidOperationException>(() => agent.GiveSkill(Skill(10)), "Open 전 GiveSkill");
         CheckThrows<InvalidOperationException>(() => agent.ApplyEffect(effect, null), "Open 전 ApplyEffect");
@@ -310,7 +311,7 @@ static partial class Program
 
         CheckThrows<InvalidOperationException>(() => agent.ReleaseInternal(), "정리 중 ApplyEffect");
 
-        Check(EffectCount(agent) == 0, "정리 중 등록한 효과가 남았다");
+        Check(ReappliesAsNew(agent, 1, 2), "정리 중 등록한 효과가 남았다");
     }
 
     static void ConverterMapsTableRows()
