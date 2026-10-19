@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Cysharp.Threading.Tasks;
 using ProjectT;
 using ProjectT.Pool;
@@ -443,8 +442,7 @@ internal static partial class Program
         var copyObjects = new GameObject[copies.Length];
         for (var i = 0; i < copies.Length; i++)
             copyObjects[i] = copies[i].gameObject;
-        var field = typeof(SoundManager).GetField("spatialOriginal", BindingFlags.Instance | BindingFlags.NonPublic);
-        var template = field?.GetValue(setup.manager) as GameObject;
+        var template = setup.manager.RootObject.Find("SpatialSound")?.gameObject;
         Check(template != null && copyObjects.Length == 2, "Shutdown order fixture did not find template and prewarmed copies.");
         // 템플릿은 매니저 루트와 함께 파괴되므로 루트의 Destroy 호출 순서로 비교한다.
         var templateRoot = template.transform.parent.gameObject;

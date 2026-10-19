@@ -204,11 +204,7 @@ internal static partial class Program
 
     private static void AssertEmptySpatialSlot(SoundManager manager)
     {
-        var voice = SpatialVoiceAt(manager, 0);
-        Check(manager.ActiveSpatialVoiceCount == 0 && !SpatialVoiceField<bool>(voice, "InUse")
-            && ReferenceEquals(SpatialVoiceField<GameObject>(voice, "Instance"), null)
-            && ReferenceEquals(SpatialVoiceField<AudioSource>(voice, "Source"), null)
-            && SpatialVoiceField<float>(voice, "Volume") == 0f, "Slot metadata was not cleared on return.");
+        Check(manager.ActiveSpatialVoiceCount == 0 && SpatialSources(manager).Count == 0, "Spatial voice was not returned.");
     }
 
     public sealed class FailingReturn : MonoBehaviour, IPoolable
@@ -227,11 +223,7 @@ internal static partial class Program
 
     private static AudioSource Source(SoundManager manager, eSound channel)
     {
-        var field = typeof(SoundManager).GetField("audioSources", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (field?.GetValue(manager) is AudioSource[] sources)
-            return sources[(int)channel];
-
-        throw new Exception("SoundManager audioSources field is unavailable.");
+        return manager.RootObject.Find(channel.ToString()).GetComponent<AudioSource>();
     }
 
     private static AudioSource[] PooledSpatialSources(TestFixture fixture)
@@ -239,9 +231,8 @@ internal static partial class Program
         var result = new HashSet<AudioSource>();
         foreach (var source in fixture.pool.RootObject.gameObject.GetComponentsInChildren<AudioSource>(true))
             result.Add(source);
-        foreach (var source in SpatialSlotSources(fixture.manager))
-            if (source != null)
-                result.Add(source);
+        foreach (var source in SpatialSources(fixture.manager))
+            result.Add(source);
 
         var array = new AudioSource[result.Count];
         result.CopyTo(array);
@@ -250,38 +241,22 @@ internal static partial class Program
 
     private static AudioSource ActiveSpatialSource(SoundManager manager)
     {
-        foreach (var source in SpatialSlotSources(manager))
-            if (source != null && source.clip != null)
+        foreach (var source in SpatialSources(manager))
+            if (source.clip != null)
                 return source;
 
         throw new Exception("No active spatial source was found.");
     }
 
-    private static AudioSource[] SpatialSlotSources(SoundManager manager)
+    // 재생 중인 3D 음원은 매니저 루트 아래로 대여된 활성 오브젝트다. 채널 음원은 eSound 이름을 쓴다.
+    private static List<AudioSource> SpatialSources(SoundManager manager)
     {
-        var sources = new AudioSource[manager.SpatialVoiceCapacity];
-        for (var i = 0; i < sources.Length; i++)
-            sources[i] = SpatialVoiceField<AudioSource>(SpatialVoiceAt(manager, i), "Source");
+        var sources = new List<AudioSource>();
+        foreach (var source in manager.RootObject.gameObject.GetComponentsInChildren<AudioSource>())
+            if (!Enum.IsDefined(typeof(eSound), source.gameObject.name))
+                sources.Add(source);
 
         return sources;
-    }
-
-    private static object SpatialVoiceAt(SoundManager manager, int index)
-    {
-        var field = typeof(SoundManager).GetField("spatialSounds", BindingFlags.Instance | BindingFlags.NonPublic);
-        if (field?.GetValue(manager) is not Array voices)
-            throw new Exception("SoundManager spatialSounds field is unavailable.");
-
-        return voices.GetValue(index);
-    }
-
-    private static T SpatialVoiceField<T>(object voice, string name)
-    {
-        var info = voice.GetType().GetField(name);
-        if (info == null)
-            throw new Exception("Missing spatial voice field " + name + ".");
-
-        return (T)info.GetValue(voice);
     }
 
     private static bool PositionEquals(Vector3 value, float x, float y, float z)
