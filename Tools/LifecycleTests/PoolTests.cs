@@ -53,21 +53,33 @@ static partial class Program
         }
     }
 
-    // 풀·Scope 누수는 공개 API로 관찰할 수 없어 PoolManager의 Scope 상태를 직접 센다.
-    static (int Pools, int OpenScopes, int ClosedScopes) ScopeState(PoolManager manager)
+    // 살아 있는 풀은 PoolManager 루트 아래 "{원본 이름}_Pool" 오브젝트로 보인다.
+    static int PoolCount(PoolManager manager)
+    {
+        int count = 0;
+        for (int i = 0; i < manager.RootObject.childCount; ++i)
+        {
+            var child = manager.RootObject.GetChild(i).gameObject;
+            if (child != null && child.name.EndsWith("_Pool") && !UnityEngine.Object.Destroyed.Contains(child))
+                count++;
+        }
+        return count;
+    }
+
+    // Scope 해제 뒤 남는 등록과 닫힘 표시는 메모리에만 남아 공개 API로 관찰할 수 없어 직접 센다.
+    static (int OpenScopes, int ClosedScopes) ScopeEntries(PoolManager manager)
     {
         const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
         var scopes = (System.Collections.IDictionary)typeof(PoolManager).GetField("scopes", flags).GetValue(manager);
-        int pools = 0, open = 0, closed = 0;
+        int open = 0, closed = 0;
         foreach (var entry in scopes.Values)
         {
-            pools += ((System.Collections.ICollection)entry.GetType().GetField("Pools", flags).GetValue(entry)).Count;
             if ((bool)entry.GetType().GetField("IsClosed", flags).GetValue(entry))
                 closed++;
             else
                 open++;
         }
-        return (pools, open, closed);
+        return (open, closed);
     }
 
     static PoolManager StartPools(out ManagerHost host, out ResourceManager resource)
@@ -291,13 +303,10 @@ static partial class Program
         {
             var parent = new GameObject("Parent").transform;
             using var pool = new GameObjectPool(new GameObject("Prefab"), 0);
-            pool.Get(parent);
+            var first = pool.Get(parent);
+            var second = pool.Get(null);
 
-            var retainedParent = typeof(GameObjectPool)
-                .GetField("spawnParent", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                .GetValue(pool);
-
-            Check(retainedParent == null, "Pool retained the spawn parent");
+            Check(first.transform.parent == parent && second.transform.parent == null, "Pool reused the previous spawn parent");
             return UniTask.CompletedTask;
         });
 
@@ -405,14 +414,18 @@ static partial class Program
 
         await Run("pool: shutdown permits returns but rejects new leases", () =>
         {
-            var manager = StartPools(out var host, out _);
+            Addressables.Reset();
+            var host = new ManagerHost();
+            Global.BindForTests(host);
+            host.Register(new ResourceManager());
+            var manager = host.Register(new PoolManager());
+            // 호스트는 모든 매니저에 같은 종료 토큰을 준다.
+            var probe = host.Register(new Probe<A>(new List<string>(), "lifetime"));
+            host.InitializeAsync().GetAwaiter().GetResult();
             var prefab = new GameObject("Prefab");
             var instance = manager.Get(prefab, null, Global.Resource.AppScope);
-            var token = (CancellationToken)typeof(ManagerBase)
-                .GetProperty("LifetimeToken", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-                .GetValue(manager);
             bool returned = false;
-            token.Register(() =>
+            probe.Token.Register(() =>
             {
                 Check(manager.Return(instance), "Object return was rejected during shutdown");
                 ThrowsSync<OperationCanceledException>(() => manager.Get(prefab, null, Global.Resource.AppScope)).GetAwaiter().GetResult();
@@ -471,21 +484,21 @@ static partial class Program
             var scope = resources.CreateScope();
             manager.Get(prefab, null, scope);
             manager.ClearScope(scope);
-            int pools = ScopeState(manager).Pools;
+            int pools = PoolCount(manager);
             await ThrowsSync<InvalidOperationException>(() => manager.Get(prefab, null, scope));
             await ThrowsSync<InvalidOperationException>(() => manager.CreatePool(prefab, 1, scope));
             await ThrowsSync<InvalidOperationException>(() => manager.Get("asset", null, scope));
             await Throws<InvalidOperationException>(async () => { await manager.GetAsync("asset", null, scope); });
-            Check(ScopeState(manager).Pools == pools && ScopeState(manager).OpenScopes == 0, "Rejected lease created a pool or scope registration");
+            Check(PoolCount(manager) == pools && ScopeEntries(manager).OpenScopes == 0, "Rejected lease created a pool or scope registration");
             Check(Addressables.Operations.Count == 0, "Rejected lease started a resource load");
             Check(manager.Get(prefab, null, Global.Resource.AppScope) != null && manager.Get(prefab, null, resources.CreateScope()) != null, "Closing one scope blocked other scopes");
-            Check(ScopeState(manager).ClosedScopes == 1, "Clear did not close the scope");
+            await ThrowsSync<InvalidOperationException>(() => manager.Get(prefab, null, scope));
             scope.Dispose();
-            Check(ScopeState(manager).ClosedScopes == 0, "Scope disposal kept the closed mark");
+            Check(ScopeEntries(manager).ClosedScopes == 0, "Scope disposal kept the closed mark");
             var other = resources.CreateScope();
             manager.ClearScope(other);
             host.Shutdown();
-            Check(ScopeState(manager).ClosedScopes == 0, "Pool shutdown kept a closed mark");
+            Check(ScopeEntries(manager).ClosedScopes == 0, "Pool shutdown kept a closed mark");
         });
 
         await Run("pool: lease from a scope during its own clear is rejected and leaves nothing", async () =>
@@ -501,7 +514,7 @@ static partial class Program
             item.ReturnAction = () => nested = CaptureSync(() => manager.Get(other, null, scope));
             manager.ClearScope(scope);
             Check(nested is InvalidOperationException && item.Returns == 1, "Lease during clear was not rejected");
-            Check(ScopeState(manager).Pools == 0 && ScopeState(manager).OpenScopes == 0, "Lease during clear left a pool or registration");
+            Check(PoolCount(manager) == 0 && ScopeEntries(manager).OpenScopes == 0, "Lease during clear left a pool or registration");
             scope.Dispose();
             host.Shutdown();
         });

@@ -493,16 +493,17 @@ static partial class Program
             var actor = scene.Actor;
             var scope = scene.ResourceScope;
             var effect = new GameObject("Effect");
-            int pools = ScopeState(Global.Pool).Pools;
+            int pools = PoolCount(Global.Pool);
             actor.ReleasedAction = () => Global.Pool.Get(effect, null, scope);
             var error = await Capture(() => Finish(manager.TransitionAsync<FlowScene<B>>("B", LoadSceneMode.Single)));
             var errors = error is AggregateException aggregate ? new List<Exception>(aggregate.Flatten().InnerExceptions) : new List<Exception> { error };
             Check(errors.Count == 1 && errors[0] is InvalidOperationException, "Closed scope lease did not reach the close boundary");
             Check(actor.Releases == 1 && !IsRegistered(actor.Input) && !actor.gameObject.activeSelf && UnityEngine.Object.Destroyed.Contains(actor.gameObject), "Scene actor stayed active");
-            Check(ScopeState(Global.Pool).Pools == pools - 1 && ScopeState(Global.Pool).ClosedScopes == 1, "Rejected lease left a pool or the scope was not closed");
+            Check(PoolCount(Global.Pool) == pools - 1 && !scope.Token.IsCancellationRequested, "Rejected lease left a pool or the scope was released");
+            await ThrowsSync<InvalidOperationException>(() => Global.Pool.Get(effect, null, scope));
             actor.ReleasedAction = null;
             await Finish(manager.TransitionAsync<FlowScene<B>>("B", LoadSceneMode.Single));
-            Check(scope.Token.IsCancellationRequested && ScopeState(Global.Pool).ClosedScopes == 0, "Closed scene scope was not released after the retry");
+            Check(scope.Token.IsCancellationRequested && ScopeEntries(Global.Pool).ClosedScopes == 0, "Closed scene scope was not released after the retry");
             host.Shutdown();
         });
 
