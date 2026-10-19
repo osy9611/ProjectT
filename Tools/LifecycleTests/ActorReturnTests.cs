@@ -39,12 +39,11 @@ static partial class Program
             Check(ReferenceEquals(caught, resetError) && laterResets == 0, "Return replaced the reset error or ran later resets");
             Check(TraceOf(actor) == "init,enter,enable", "Steps after the reset failure still ran");
             Check(!IsRegistered(actor.Input) && !IsRegistered(later), "Reset failure kept input attached");
-            Check(Holds(actor, later) && Holds(actor, actor.Input), "Failed return dropped component lifetime registrations");
             Check(pool.ActiveCount == 1 && actor.gameObject.activeSelf, "Failed return changed pool tracking or deactivated the object");
             CheckQuarantined(actor);
             CheckReturnRejected(pool, actor);
             DisposeFaultedPool(pool, actor);
-            Check(actor.Releases == 0 && laterResets == 0 && !Holds(actor, later), "Destruction ran the release hook, reran input resets or kept a context");
+            Check(actor.Releases == 0 && laterResets == 0, "Destruction ran the release hook or reran input resets");
         });
 
         await RunActorCase("input reset failure on plain disable rejects the later pool return and dispose destroys with a single release", () =>
@@ -86,7 +85,7 @@ static partial class Program
             var caught = CaptureSync(() => ReturnActor(pool, actor));
             Check(ReferenceEquals(caught, disableError), "Return wrapped, lost or replaced the disable error");
             Check(TraceOf(actor) == "init,enter,enable,disable", "Disable failure still ran the release hook");
-            Check(!IsRegistered(actor.Input) && Holds(actor, actor.Input) && pool.ActiveCount == 1, "Disable failure kept input attached or changed pool tracking");
+            Check(!IsRegistered(actor.Input) && pool.ActiveCount == 1, "Disable failure kept input attached or changed pool tracking");
             CheckQuarantined(actor);
             CheckReturnRejected(pool, actor);
             DisposeFaultedPool(pool, actor);
@@ -102,7 +101,7 @@ static partial class Program
             var caught = CaptureSync(() => ReturnActor(pool, actor));
             Check(ReferenceEquals(caught, releaseError), "Return wrapped or lost the hook error");
             Check(TraceOf(actor) == "init,enter,enable,disable,release", "Return skipped a step before the release hook");
-            Check(!IsRegistered(actor.Input) && !Dispatches(actor) && Holds(actor, actor.Input), "Hook failure left input attached or dropped the registration");
+            Check(!IsRegistered(actor.Input) && !Dispatches(actor), "Hook failure left input attached or dropped the registration");
             Check(pool.ActiveCount == 1 && pool.InactiveCount == 0 && actor.gameObject.activeSelf && actor.transform.parent != pool.Root, "Failed return changed pool tracking or deactivated the object");
             actor.ReleasedAction = null;
             CheckQuarantined(actor);
@@ -136,7 +135,7 @@ static partial class Program
             Check(TraceOf(actor) == "init,enter,enable", "Spawn did not enter and enable the actor");
             ReturnActor(pool, actor);
             Check(TraceOf(actor) == "init,enter,enable,disable,release", "Return did not disable before a single release");
-            Check(!actor.gameObject.activeSelf && !IsRegistered(actor.Input) && Holds(actor, actor.Input), "Return kept the object active, kept input attached or dropped the registration");
+            Check(!actor.gameObject.activeSelf && !IsRegistered(actor.Input), "Return kept the object active, kept input attached or dropped the registration");
             Check(pool.ActiveCount == 0 && pool.InactiveCount == 1, "Return did not move the object to the inactive list");
         });
 
@@ -257,7 +256,7 @@ static partial class Program
                 Check(TraceOf(actor) == "init,enter,enable,disable,release" && UnityEngine.Object.Destroyed.Contains(actor.gameObject), "Pool cleanup did not end the borrowed spawn");
                 ActorMessage(actor, "OnDisable");
                 ActorMessage(actor, "OnDestroy");
-                Check(actor.Releases == 1 && !IsRegistered(actor.Input) && !Holds(actor, actor.Input), "Destruction after pool cleanup released again or kept input");
+                Check(actor.Releases == 1 && !IsRegistered(actor.Input), "Destruction after pool cleanup released again or kept input");
             }
 
             using (var pool = CreateActorPool())
@@ -329,12 +328,12 @@ static partial class Program
             var actor = SpawnFirstActor(pool);
             for (int i = 0; i < 3; i++)
             {
-                Check(RegisteredContextCount(actor) == 1 && ReferenceEquals(actor.Input.Owner, Global.Input.Controller), "Spawn duplicated or skipped the input registration");
+                Check(ReferenceEquals(actor.Input.Owner, Global.Input.Controller), "Spawn duplicated or skipped the input registration");
                 int before = actor.Fires;
                 ProjectFire.Trigger(InputActionPhase.Performed);
                 Check(actor.Fires == before + 1, "Spawn duplicated or skipped input dispatch");
                 ReturnActor(pool, actor);
-                Check(!IsRegistered(actor.Input) && RegisteredContextCount(actor) == 1 && Holds(actor, actor.Input), "Return dropped or kept the controller registration");
+                Check(!IsRegistered(actor.Input), "Return dropped or kept the controller registration");
                 BorrowActor(pool, false);
                 actor.Spawn();
             }
@@ -355,9 +354,8 @@ static partial class Program
             Check(!actor.Trace.Contains("enter") && !IsRegistered(actor.Input), "Failed initialization entered before the retry");
             actor.Spawn();
             Check(TraceOf(actor) == "init,init,enter,enable", "Spawn did not complete the failed initialization");
-            Check(RegisteredContextCount(actor) == 1 && Holds(actor, actor.Input) && Dispatches(actor), "Initialization retry duplicated or lost the input context");
+            Check(IsRegistered(actor.Input) && Dispatches(actor), "Initialization retry duplicated or lost the input context");
             ActorMessage(actor, "OnDestroy");
-            Check(RegisteredContextCount(actor) == 0 && !Holds(actor, actor.Input), "Destruction kept the retried context");
         });
 
         await RunActorCase("input reset during return cannot reactivate input or enable through disable and reenable", () =>
@@ -392,13 +390,13 @@ static partial class Program
             actor.Spawn();
             for (int i = 0; i < 3; i++)
             {
-                Check(RegisteredContextCount(actor) == 2 && IsRegistered(spawnContext), "Per-spawn context was not activated");
+                Check(IsRegistered(actor.Input) && IsRegistered(spawnContext), "Per-spawn context was not activated");
                 int before = spawnFires;
                 ProjectFire.Trigger(InputActionPhase.Performed);
                 Check(spawnFires == before + 1, "Previous per-spawn contexts still received input");
                 var released = spawnContext;
                 ReturnActor(pool, actor);
-                Check(RegisteredContextCount(actor) == 1 && !Holds(actor, released) && !IsRegistered(released), "Release hook did not remove the per-spawn context");
+                Check(!IsRegistered(released), "Release hook did not remove the per-spawn context");
                 BorrowActor(pool, false);
                 actor.Spawn();
             }

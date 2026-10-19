@@ -359,6 +359,17 @@ namespace UnityEngine.InputSystem.Users
         public static int UnpairedSubscriberCount => unpairedDeviceUsed?.GetInvocationList().Length ?? 0;
         public static int UserCount => users.Count;
 
+        public static IReadOnlyList<InputUser> all
+        {
+            get
+            {
+                var result = new List<InputUser>();
+                foreach (var key in users.Keys)
+                    result.Add(new InputUser { id = key });
+                return result;
+            }
+        }
+
         public static int listenForUnpairedDeviceActivity
         {
             get => listenCount;

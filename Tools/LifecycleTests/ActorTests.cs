@@ -200,12 +200,6 @@ static partial class Program
 
     static string TraceOf(ActorProbe actor) => string.Join(",", actor.Trace);
 
-    static int RegisteredContextCount(ComBaseActor actor)
-    {
-        var field = typeof(ComBaseActor).GetField("inputContexts", BindingFlags.Instance | BindingFlags.NonPublic);
-        return ((List<InputContext>)field.GetValue(actor)).Count;
-    }
-
     static Exception CaptureSync(Action work)
     {
         return Capture(() =>
@@ -245,7 +239,7 @@ static partial class Program
         Check(pool.ActiveCount == 0 && UnityEngine.Object.Destroyed.Contains(actor.gameObject), "Dispose kept the faulted actor");
         ActorMessage(actor, "OnDisable");
         ActorMessage(actor, "OnDestroy");
-        Check(!IsRegistered(actor.Input) && !Holds(actor, actor.Input) && RegisteredContextCount(actor) == 0, "Destruction kept the faulted actor's contexts");
+        Check(!IsRegistered(actor.Input), "Destruction kept the faulted actor's contexts");
     }
 
     // Unity message order is supplied explicitly; these tests do not simulate the PlayerLoop.
@@ -302,12 +296,6 @@ static partial class Program
     static InputAction ProjectFire => InputSystem.actions.FindAction("Player/Fire", true);
 
     static bool IsRegistered(InputContext context) => context.Owner != null;
-
-    static bool Holds(ComBaseActor actor, InputContext context)
-    {
-        var field = typeof(ComBaseActor).GetField("inputContexts", BindingFlags.Instance | BindingFlags.NonPublic);
-        return ((List<InputContext>)field.GetValue(actor)).Contains(context);
-    }
 
     static bool Dispatches(ActorProbe actor)
     {

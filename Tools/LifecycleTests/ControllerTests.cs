@@ -36,8 +36,7 @@ static partial class Program
 
     static UnityEngine.InputSystem.UI.InputSystemUIInputModule UIModule(InputManager input)
     {
-        return (UnityEngine.InputSystem.UI.InputSystemUIInputModule)typeof(InputManager)
-            .GetField("uiInputModule", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(input);
+        return input.RootObject.Find("EventSystem").GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
     }
 
     static UniTask RunControllerCase(string name, Action test)
@@ -54,10 +53,10 @@ static partial class Program
         Check(string.Join(",", trace) == expected, "Expected " + expected + "; received " + string.Join(",", trace));
     }
 
-    static InputUser UserOf(InputManager input)
+    static InputUser ActiveUser()
     {
-        return (InputUser)typeof(InputManager)
-            .GetField("user", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(input);
+        Check(InputUser.all.Count == 1, "Expected one input user; found " + InputUser.all.Count);
+        return InputUser.all[0];
     }
 
     static void NextInputFrame(ManagerHost host)

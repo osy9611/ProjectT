@@ -219,7 +219,7 @@ static partial class Program
             var mouse = new Mouse();
             InputUser.Reset(keyboard, mouse, pad);
             var host = StartInput();
-            var user = UserOf(Global.Input);
+            var user = ActiveUser();
             Check(Global.Input.CurrentDevice == keyboard && Paired(user) == "Keyboard,Mouse" && user.controlScheme?.name == "Keyboard&Mouse",
                 "Keyboard and mouse were not preferred off console: " + Paired(user));
             Check(ReferenceEquals(user.actions, InputSystem.actions), "Actions were not associated with the user.");
@@ -228,7 +228,7 @@ static partial class Program
 
             InputUser.Reset(pad);
             host = StartInput();
-            Check(Global.Input.CurrentDevice == pad && Paired(UserOf(Global.Input)) == "Gamepad", "Gamepad was not the fallback off console.");
+            Check(Global.Input.CurrentDevice == pad && Paired(ActiveUser()) == "Gamepad", "Gamepad was not the fallback off console.");
             host.Shutdown();
 
             UnityEngine.Application.isConsolePlatform = true;
@@ -236,13 +236,13 @@ static partial class Program
             {
                 InputUser.Reset(keyboard, mouse, pad);
                 host = StartInput();
-                user = UserOf(Global.Input);
+                user = ActiveUser();
                 Check(Global.Input.CurrentDevice == pad && Paired(user) == "Gamepad" && user.controlScheme?.name == "Gamepad", "Gamepad was not preferred on console.");
                 host.Shutdown();
 
                 InputUser.Reset(keyboard, mouse);
                 host = StartInput();
-                Check(Global.Input.CurrentDevice == keyboard && Paired(UserOf(Global.Input)) == "Keyboard,Mouse", "Keyboard was not the fallback on console.");
+                Check(Global.Input.CurrentDevice == keyboard && Paired(ActiveUser()) == "Keyboard,Mouse", "Keyboard was not the fallback on console.");
                 host.Shutdown();
             }
             finally
@@ -252,7 +252,7 @@ static partial class Program
 
             InputUser.Reset();
             host = StartInput();
-            user = UserOf(Global.Input);
+            user = ActiveUser();
             Check(user.valid && Global.Input.CurrentDevice == null && Paired(user) == "" && InputUser.listenForUnpairedDeviceActivity == 1,
                 "A missing device prevented the user from waiting for activity.");
             host.Shutdown();
@@ -267,7 +267,7 @@ static partial class Program
             InputUser.Reset(keyboard, mouse, pad);
             var host = StartInput();
             var input = Global.Input;
-            var user = UserOf(input);
+            var user = ActiveUser();
             InputUser.SimulateUse(pad.Axis());
             InputUser.SimulateUse(new UnityEngine.InputSystem.Controls.ButtonControl { device = pad, noisy = true });
             InputUser.SimulateUse(pad.Button(), 0.2f);
@@ -338,7 +338,7 @@ static partial class Program
             Check(!fire.enabled, "Scene or UI state re-enabled gameplay while the device was lost.");
             var reconnected = new Gamepad();
             InputUser.SimulateDeviceAdded(reconnected, pad);
-            Check(!input.IsDeviceLost && fire.enabled && UserOf(input).lostDevices.Count == 0, "Regaining the device did not restore gameplay.");
+            Check(!input.IsDeviceLost && fire.enabled && ActiveUser().lostDevices.Count == 0, "Regaining the device did not restore gameplay.");
             Check(input.CurrentDevice == reconnected, "The regained device instance did not become the current device.");
             InputUser.SimulateDeviceRemoved(reconnected);
             input.SetInputAllowed(false);
@@ -357,7 +357,7 @@ static partial class Program
             var input = Global.Input;
             var fire = InputSystem.actions.FindAction("Player/Fire", true);
             InputUser.SimulateDeviceRemoved(mouse);
-            Check(UserOf(input).lostDevices.Count == 1 && !input.IsDeviceLost && fire.enabled, "A lost mouse locked gameplay while the keyboard was paired.");
+            Check(ActiveUser().lostDevices.Count == 1 && !input.IsDeviceLost && fire.enabled, "A lost mouse locked gameplay while the keyboard was paired.");
             InputUser.SimulateDeviceRemoved(keyboard);
             Check(input.IsDeviceLost && !fire.enabled, "Losing every paired device was not device loss.");
             host.Shutdown();
@@ -428,7 +428,7 @@ static partial class Program
             InputUser.listenForUnpairedDeviceActivity = 1;
             var host = StartInput();
             var input = Global.Input;
-            var user = UserOf(input);
+            var user = ActiveUser();
             Check(InputUser.listenForUnpairedDeviceActivity == 2 && InputUser.ChangeSubscriberCount == 1 && InputUser.UnpairedSubscriberCount == 1 && InputUser.UserCount == 1,
                 "Initialization did not listen for unpaired activity.");
             Check(InputSystem.actions.devices != null && InputSystem.actions.devices.Count == 1, "Pairing did not restrict the asset devices.");
