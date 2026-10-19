@@ -33,6 +33,7 @@ namespace ProjectT.Skill
 
         // 태그와 수정자를 되돌리기 전에 호출된다. Instant는 등록되지 않으므로 호출되지 않는다.
         // Released는 Actor 정리 중이라 등록이 닫혀 있으므로 연쇄 효과는 Expired일 때만 다음 효과를 적용한다.
+        // 실패하면 태그·수정자 회수와 OnEffectRemoved 없이 예외가 전파되고, 남은 태그·수정자는 반납 정리가 비운다.
         public virtual void OnRemove(EffectRemoveReason reason)
         {
         }

@@ -428,16 +428,20 @@ static partial class Program
 
     static void FailedExpiryCallbackLeavesPendingForRelease()
     {
-        var agent = NewAgent();
+        var status = NewStatus();
+        var agent = NewAgent(status);
         ProjectT.Skill.Tests.TestBehavior.RemoveHook = (behavior, reason) =>
         {
             if (behavior.EffectId == 1 && reason == EffectRemoveReason.Expired)
                 throw new InvalidOperationException("remove");
         };
-        agent.ApplyEffect(TestEffect(1, 1f), null);
+        agent.ApplyEffect(Effect(1, EffectDurationPolicy.Duration, 1f, 0f, () => new ProjectT.Skill.Tests.TestBehavior(), modifiers: new[] { new EffectModifier(Atk, StatModOp.Add, 5f) }), null);
         agent.ApplyEffect(TestEffect(2, 1f), null);
+        int removedEvents = 0;
+        agent.OnEffectRemoved += (handle, definition, reason) => removedEvents++;
 
         CheckThrows<InvalidOperationException>(() => agent.TickInternal(1f), "만료 제거 콜백 실패");
+        Check(removedEvents == 0 && status.Get(Atk) == 15f, $"실패 직후 제거 알림 {removedEvents}, Atk {status.Get(Atk)}");
         agent.ReleaseInternal();
 
         string reasons = string.Join(",", ProjectT.Skill.Tests.TestBehavior.Reasons);
