@@ -54,6 +54,8 @@ namespace ProjectT
         }
 
         // 만료와 쿨다운이 반영된 뒤 OnUpdate가 판단하도록 먼저 틱한다. 틱 중 비활성화·반납되면 OnUpdate를 호출하지 않는다.
+        // 틱·OnUpdate 실패는 Enable 실패처럼 격리하지 않고 Active로 둔다. 남은 태그·수정자는 반납·파괴의 해제가 정리하고, 보고는 Unity 실행 경계가 한다.
+        // 다른 Actor에 건 효과의 실패도 이 경로로 올라오므로 여기서 격리하면 실패하지 않은 Actor가 격리된다.
         private void Update()
         {
             if (state == ActorState.Active && AutoTickSkills)
