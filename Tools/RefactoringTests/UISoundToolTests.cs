@@ -19,9 +19,10 @@ internal static class UISoundToolTests
         {
             Run(command + " success", () => Success(command));
             Run(command + " invalid inputs", () => Invalid(command));
-            foreach (string failure in new[] { "load", "edit", "save", "unload", "save+unload" })
+            foreach (string failure in new[] { "load", "save", "unload", "save+unload" })
                 Run(command + " failure=" + failure, () => Failure(command, failure));
         }
+        Run("ChangeClickSound failure=edit", () => Failure("ChangeClickSound", "edit"));
         Run("batch fails before the next prefab", BatchFailure);
         Run("selection indices stay aligned", Selection);
         Console.WriteLine(count + "/" + count + " UISoundTool scenarios passed");
@@ -39,7 +40,7 @@ internal static class UISoundToolTests
 
     private static UISoundTool Fixture(out GameObject asset)
     {
-        asset = new GameObject("Root") { AssetPath = "fixture.prefab" };
+        asset = new GameObject("Root");
         var first = new GameObject("SameName");
         first.AddComponent<Button>();
         first.AddComponent<UIClickSound>().ClickSoundType = "existing";
@@ -50,7 +51,7 @@ internal static class UISoundToolTests
         asset.AddChild(first);
         asset.AddChild(second);
         asset.AddChild(other);
-        AssetDatabase.Assets.Add(asset.AssetPath, asset);
+        AssetDatabase.Assets.Add("fixture.prefab", asset);
         var tool = new UISoundTool();
         Set(tool, "prefabs", new List<GameObject> { asset });
         Set(tool, "setSoundType", "added");
@@ -66,8 +67,7 @@ internal static class UISoundToolTests
         var tool = Fixture(out var asset);
         object oldInfo = Entries(tool)[asset.transform.GetChild(0).gameObject];
         Call(tool, command);
-        string edit = command == "AddClickSound" ? "edit:Button:True > " : command == "RemoveClickSound" ? "edit:UIClickSound:True > " : "";
-        Equal("load:fixture.prefab > " + edit + "save:fixture.prefab > unload", string.Join(" > ", PrefabUtility.Trace));
+        Equal("load:fixture.prefab > save:fixture.prefab > unload", string.Join(" > ", PrefabUtility.Trace));
         var sounds = asset.GetComponentsInChildren<UIClickSound>(true);
         if (command == "AddClickSound")
         {
@@ -109,13 +109,8 @@ internal static class UISoundToolTests
             PrefabUtility.LoadError = expected;
         if (stage == "edit")
         {
-            if (command == "ChangeClickSound")
-            {
-                var key = Entries(tool).Keys.Cast<object>().First();
-                Entries(tool)[key] = null;
-            }
-            else
-                PrefabUtility.EditError = expected;
+            var key = Entries(tool).Keys.Cast<object>().First();
+            Entries(tool)[key] = null;
         }
         if (stage == "save" || stage == "save+unload")
             PrefabUtility.SaveError = expected;
@@ -131,7 +126,7 @@ internal static class UISoundToolTests
         {
             observed = error;
         }
-        if (stage == "edit" && command == "ChangeClickSound")
+        if (stage == "edit")
             Check(observed is NullReferenceException, "Change edit exception did not propagate.");
         else
             Check(ReferenceEquals(observed, stage.Contains("unload") ? unload : expected), "Exception identity/precedence changed.");

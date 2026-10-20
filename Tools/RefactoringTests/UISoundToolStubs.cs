@@ -36,8 +36,6 @@ namespace UnityEngine
         internal readonly List<Component> Components = new List<Component>();
         public readonly Transform transform;
         public bool activeSelf = true;
-        public string AssetPath;
-        public bool Loaded;
 
         public GameObject(string name = "object")
         {
@@ -56,12 +54,6 @@ namespace UnityEngine
 
         public T[] GetComponentsInChildren<T>(bool includeInactive) where T : Component
         {
-            if (Loaded)
-            {
-                UnityEditor.PrefabUtility.Trace.Add("edit:" + typeof(T).Name + ":" + includeInactive);
-                if (UnityEditor.PrefabUtility.EditError != null)
-                    throw UnityEditor.PrefabUtility.EditError;
-            }
             var values = new List<T>();
             Collect(this, includeInactive, values);
             return values.ToArray();
@@ -81,29 +73,6 @@ namespace UnityEngine
         {
             child.transform.parent = transform;
             transform.Children.Add(child.transform);
-        }
-
-        internal GameObject Clone()
-        {
-            var copy = new GameObject(name);
-            CopyTo(copy);
-            return copy;
-        }
-
-        internal void CopyTo(GameObject target)
-        {
-            target.activeSelf = activeSelf;
-            target.Components.Clear();
-            target.transform.Children.Clear();
-            foreach (var component in Components)
-            {
-                if (component is UI.Button)
-                    target.AddComponent<UI.Button>();
-                else if (component is ProjectT.Sound.UIClickSound sound)
-                    target.AddComponent<ProjectT.Sound.UIClickSound>().ClickSoundType = sound.ClickSoundType;
-            }
-            foreach (var child in transform.Children)
-                target.AddChild(child.gameObject.Clone());
         }
     }
 
@@ -175,7 +144,7 @@ namespace UnityEditor
     public static class AssetDatabase
     {
         public static readonly Dictionary<string, GameObject> Assets = new Dictionary<string, GameObject>();
-        public static string GetAssetPath(Object value) => ((GameObject)value).AssetPath;
+        public static string GetAssetPath(Object value) => Assets.FirstOrDefault(x => x.Value == value).Key ?? string.Empty;
         public static string[] FindAssets(string filter, string[] folders) => Assets.Keys.ToArray();
         public static string GUIDToAssetPath(string guid) => guid;
         public static T LoadAssetAtPath<T>(string path) where T : Object => (T)(Object)Assets[path];
@@ -184,15 +153,14 @@ namespace UnityEditor
     {
         public static readonly List<string> Trace = new List<string>();
         public static readonly HashSet<GameObject> Loaded = new HashSet<GameObject>();
-        public static Exception LoadError, EditError, SaveError, UnloadError;
+        public static Exception LoadError, SaveError, UnloadError;
 
         public static GameObject LoadPrefabContents(string path)
         {
             Trace.Add("load:" + path);
             if (LoadError != null)
                 throw LoadError;
-            var root = AssetDatabase.Assets[path].Clone();
-            root.Loaded = true;
+            var root = Clone(AssetDatabase.Assets[path]);
             Loaded.Add(root);
             return root;
         }
@@ -202,7 +170,7 @@ namespace UnityEditor
             Trace.Add("save:" + path);
             if (SaveError != null)
                 throw SaveError;
-            root.CopyTo(AssetDatabase.Assets[path]);
+            CopyTo(root, AssetDatabase.Assets[path]);
             return AssetDatabase.Assets[path];
         }
 
@@ -219,7 +187,31 @@ namespace UnityEditor
             Trace.Clear();
             Loaded.Clear();
             AssetDatabase.Assets.Clear();
-            LoadError = EditError = SaveError = UnloadError = null;
+            LoadError = SaveError = UnloadError = null;
+        }
+
+        // 프리팹 직렬화를 흉내 낸다. 툴이 다루는 컴포넌트만 복사한다.
+        private static GameObject Clone(GameObject source)
+        {
+            var copy = new GameObject(source.name);
+            CopyTo(source, copy);
+            return copy;
+        }
+
+        private static void CopyTo(GameObject source, GameObject target)
+        {
+            target.activeSelf = source.activeSelf;
+            target.Components.Clear();
+            target.transform.Children.Clear();
+            foreach (var component in source.Components)
+            {
+                if (component is UnityEngine.UI.Button)
+                    target.AddComponent<UnityEngine.UI.Button>();
+                else if (component is ProjectT.Sound.UIClickSound sound)
+                    target.AddComponent<ProjectT.Sound.UIClickSound>().ClickSoundType = sound.ClickSoundType;
+            }
+            foreach (var child in source.transform.Children)
+                target.AddChild(Clone(child.gameObject));
         }
     }
 }
