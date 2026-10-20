@@ -48,9 +48,9 @@ internal static class UISoundToolTests
         second.AddComponent<Button>();
         var other = new GameObject("NonButton") { activeSelf = false };
         other.AddComponent<UIClickSound>().ClickSoundType = "non-button";
-        asset.AddChild(first);
-        asset.AddChild(second);
-        asset.AddChild(other);
+        first.transform.SetParent(asset.transform, false);
+        second.transform.SetParent(asset.transform, false);
+        other.transform.SetParent(asset.transform, false);
         AssetDatabase.Assets.Add("fixture.prefab", asset);
         var tool = new UISoundTool();
         Set(tool, "prefabs", new List<GameObject> { asset });

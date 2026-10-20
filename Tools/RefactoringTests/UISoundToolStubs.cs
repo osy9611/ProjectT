@@ -4,84 +4,6 @@ using System.Linq;
 
 namespace UnityEngine
 {
-    public class Object
-    {
-        public string name;
-
-        public static void DestroyImmediate(Object value)
-        {
-            var component = (Component)value;
-            component.gameObject.Components.Remove(component);
-        }
-    }
-
-    public class Component : Object
-    {
-        public GameObject gameObject;
-        public Transform transform => gameObject.transform;
-    }
-
-    public class Transform : Component
-    {
-        internal readonly List<Transform> Children = new List<Transform>();
-        public Transform parent;
-        public int childCount => Children.Count;
-        public Transform GetChild(int index) => Children[index];
-        public int GetSiblingIndex() => parent.Children.IndexOf(this);
-        public T GetComponent<T>() where T : Component => gameObject.GetComponent<T>();
-    }
-
-    public class GameObject : Object
-    {
-        internal readonly List<Component> Components = new List<Component>();
-        public readonly Transform transform;
-        public bool activeSelf = true;
-
-        public GameObject(string name = "object")
-        {
-            this.name = name;
-            transform = new Transform { gameObject = this };
-        }
-
-        public T AddComponent<T>() where T : Component, new()
-        {
-            var value = new T { gameObject = this };
-            Components.Add(value);
-            return value;
-        }
-
-        public T GetComponent<T>() where T : Component => Components.OfType<T>().FirstOrDefault();
-
-        public T[] GetComponentsInChildren<T>(bool includeInactive) where T : Component
-        {
-            var values = new List<T>();
-            Collect(this, includeInactive, values);
-            return values.ToArray();
-        }
-
-        private static void Collect<T>(GameObject root, bool inactive, List<T> values) where T : Component
-        {
-            values.AddRange(root.Components.OfType<T>());
-            foreach (var child in root.transform.Children)
-            {
-                if (inactive || child.gameObject.activeSelf)
-                    Collect(child.gameObject, inactive, values);
-            }
-        }
-
-        public void AddChild(GameObject child)
-        {
-            child.transform.parent = transform;
-            transform.Children.Add(child.transform);
-        }
-    }
-
-    public struct Vector2
-    {
-        public static Vector2 zero => default;
-        public Vector2(float x, float y) { }
-    }
-
     public enum EventType { DragUpdated, DragPerform }
     public class Event { public static Event current = new Event(); public EventType type; }
     public static class GUILayout
@@ -201,8 +123,13 @@ namespace UnityEditor
         private static void CopyTo(GameObject source, GameObject target)
         {
             target.activeSelf = source.activeSelf;
-            target.Components.Clear();
-            target.transform.Children.Clear();
+            foreach (var component in target.Components.ToArray())
+            {
+                if (!(component is Transform))
+                    target.RemoveComponentInternal(component);
+            }
+            foreach (var child in target.transform.Children.ToArray())
+                child.SetParent(null, false);
             foreach (var component in source.Components)
             {
                 if (component is UnityEngine.UI.Button)
@@ -211,7 +138,7 @@ namespace UnityEditor
                     target.AddComponent<ProjectT.Sound.UIClickSound>().ClickSoundType = sound.ClickSoundType;
             }
             foreach (var child in source.transform.Children)
-                target.AddChild(Clone(child.gameObject));
+                Clone(child.gameObject).transform.SetParent(target.transform, false);
         }
     }
 }
