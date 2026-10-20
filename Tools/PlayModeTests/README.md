@@ -95,9 +95,9 @@ UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreen
 
 # 턴제 전투 Skill System 검사
 
-결과: **pass=61 fail=0** (2026-10-14, HEAD 1ba983d9, PoolManager `Release` 제거·`GameObjectPool` 생성자 전환 후 재확인). 이전: **pass=61 fail=0** (2026-10-11, `TurnBattleSample` 씬). AI 전투는 콘솔(`Tools/TurnGameTests`)과 같은 8라운드·유닛별 발동 수로 끝났다.
+결과: **pass=61 fail=0** (2026-10-14, HEAD 1ba983d9, PoolManager `Release` 제거·`GameObjectPool` 생성자 전환 후 재확인). 이전: **pass=61 fail=0** (2026-10-11, `TurnBattleSample` 씬).
 
-`Unity/ProjectTTurnBattleProbe.cs`는 `TurnBattleRunner` 공개 API로 콘솔 테스트와 같은 시나리오를 실제 `ComBaseActor`(`TurnUnit`)와 풀 경로로 실행한다. 리플렉션은 쓰지 않는다.
+`Unity/ProjectTTurnBattleProbe.cs`는 `TurnBattleRunner` 공개 API로 턴제 전투 시나리오를 실제 `ComBaseActor`(`TurnUnit`)와 풀 경로로 실행한다. 리플렉션은 쓰지 않는다.
 
 ## 실행
 
@@ -106,7 +106,7 @@ UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreen
 3. `[Turn] PASS/FAIL` 줄과 `PROJECTT_TURN_BATTLE_RESULT`를 확인한다. 끝나면 새 전투가 시작되어 직접 플레이할 수 있다.
 4. Play Mode를 종료하고 임시 폴더와 `.meta`를 삭제한다.
 
-## 콘솔 테스트에 없는 Unity 전용 항목
+## Unity 전용 항목
 
 | 항목 | 확인 내용 |
 |---|---|

@@ -4,7 +4,6 @@ $projects = @(
     'NotificationTests/NotificationTests.csproj',
     'SkillTests/SkillTests.csproj',
     'SoundTests/SoundTests.csproj',
-    'TurnGameTests/TurnGameTests.csproj',
     'UITests/UITests.csproj',
     'RefactoringTests/Downloader/Downloader.csproj',
     'RefactoringTests/FirebaseCache/FirebaseCache.csproj',

@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="..\Tests.Build.props" />
-  <ItemGroup>
-    <Compile Include="Game.cs;Program.cs" />
-    <Compile Include="$(ProductScript)Sample\TurnBattle\TurnBattleDefinitions.cs" />
-    <!-- AbilitySystem은 asmdef 없이 테스트 어셈블리에 함께 컴파일되므로 InternalsVisibleTo가 필요 없다. -->
-    <Compile Include="$(ProductScript)AbilitySystem\**\*.cs" />
-  </ItemGroup>
-</Project>

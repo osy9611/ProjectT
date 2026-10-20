@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using ProjectT.Skill;
 using ProjectT.Stat;
 
-// Unity를 참조하지 않는다. Tools/TurnGameTests 콘솔 테스트가 같은 정의를 컴파일해 Unity 샘플과 같은 규칙을 검증한다.
 namespace ProjectT.Sample.TurnBattle
 {
     public static class TurnIds

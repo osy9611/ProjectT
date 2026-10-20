@@ -10,6 +10,5 @@
   <Project Path="NotificationTests/NotificationTests.csproj" />
   <Project Path="SkillTests/SkillTests.csproj" />
   <Project Path="SoundTests/SoundTests.csproj" />
-  <Project Path="TurnGameTests/TurnGameTests.csproj" />
   <Project Path="UITests/UITests.csproj" />
 </Solution>

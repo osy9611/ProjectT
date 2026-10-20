@@ -8,7 +8,7 @@ using ProjectT.Sample.TurnBattle;
 using ProjectT.Skill;
 using UnityEngine;
 
-// TurnBattleSample 씬에서 TurnBattleRunner의 공개 API로 Tools/TurnGameTests와 같은 시나리오를 실제 ComBaseActor·풀 경로로 실행한다.
+// TurnBattleSample 씬에서 TurnBattleRunner의 공개 API로 턴제 전투 시나리오를 실제 ComBaseActor·풀 경로로 실행한다.
 public class ProjectTTurnBattleProbe : MonoBehaviour
 {
     private static readonly List<string> s_results = new List<string>();
