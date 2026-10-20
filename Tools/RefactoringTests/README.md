@@ -19,7 +19,7 @@
 & Tools/RefactoringTests/run-build.ps1 -ScriptRoot '<변경 전 Assets/Script 경로>'
 ```
 
-`run-unity.ps1`은 Unity 6000.3.14f1을 사용한다. 에디터가 종료된 상태와 정상 라이선스가 필요하다. `-UnityPath`로 실행 파일을 지정할 수 있다. 실제 프로젝트에 임시 `Assets/ProjectTRefactoringHarness`를 만들고, 에디터 배치 모드에서 프리팹 및 코스튬을 검사한 뒤 해당 폴더를 정리한다. 동일 이름의 기존 폴더가 있으면 실행을 중단한다.
+`run-unity.ps1`은 Unity 6000.3.14f1을 사용한다. 에디터가 종료된 상태와 정상 라이선스가 필요하다. `-UnityPath`로 실행 파일을 지정할 수 있다. 실제 프로젝트에 임시 `Assets/Tests/RefactoringFixtures`를 만들고, 에디터 배치 모드에서 프리팹을 검사한 뒤 해당 폴더를 정리한다. 같은 검사를 Test Runner EditMode의 `RefactoringProbeTests.UISoundToolPrefabEdits`로도 실행할 수 있다.
 
 Unity 검증 항목은 프리팹 추가·변경·삭제, 비활성 자식과 동일 이름 형제 처리, 렌더러 생성자 필드, 첫 자식 분리와 좌표 유지, 부착 Transform 초기화, 잘못된 코스튬 인자의 조기 반환, Mesh/Material/Color 적용이다. 이전 실행은 24개 assertion이었다. R2에서 프리팹 실패·해제·선택 검사를 보강했고 참조 컴파일은 성공했으나, 실행 중인 Unity 때문에 확장 fixture의 실제 실행은 미검증이다. 기존 Mesh 교체 동작도 특성 테스트로 고정한다.
 

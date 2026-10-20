@@ -13,16 +13,18 @@ using Object = UnityEngine.Object;
 
 public static class RefactoringProbe
 {
-    private const string Folder = "Assets/ProjectTRefactoringHarness/Fixtures";
+    private const string Folder = "Assets/Tests/RefactoringFixtures";
     private static readonly List<Object> objects = new List<Object>();
     private static int checks;
+
+    internal static int Checks => checks;
 
     public static void Run()
     {
         int exitCode = 0;
         try
         {
-            AssetDatabase.CreateFolder("Assets/ProjectTRefactoringHarness", "Fixtures");
+            CreateFixtures();
             PrefabSoundEdits();
             Debug.Log("PROJECTT_REFACTORING_PASS " + checks + " checks");
         }
@@ -33,14 +35,26 @@ public static class RefactoringProbe
         }
         finally
         {
-            foreach (var item in objects)
-            {
-                if (item != null)
-                    Object.DestroyImmediate(item);
-            }
-            AssetDatabase.DeleteAsset(Folder);
+            DeleteFixtures();
         }
         EditorApplication.Exit(exitCode);
+    }
+
+    internal static void CreateFixtures()
+    {
+        checks = 0;
+        AssetDatabase.CreateFolder("Assets/Tests", "RefactoringFixtures");
+    }
+
+    internal static void DeleteFixtures()
+    {
+        foreach (var item in objects)
+        {
+            if (item != null)
+                Object.DestroyImmediate(item);
+        }
+        objects.Clear();
+        AssetDatabase.DeleteAsset(Folder);
     }
 
     private static GameObject Create(string name, params Type[] components)
@@ -50,7 +64,7 @@ public static class RefactoringProbe
         return instance;
     }
 
-    private static void PrefabSoundEdits()
+    internal static void PrefabSoundEdits()
     {
         var root = Create("SoundFixture");
         var first = Create("SameName", typeof(RectTransform), typeof(Button), typeof(UIClickSound));
