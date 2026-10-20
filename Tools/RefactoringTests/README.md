@@ -6,7 +6,6 @@
 
 ```powershell
 & Tools/run-tests.ps1
-& Tools/RefactoringTests/run-unity.ps1
 ```
 
 `run-build.ps1`은 실제 BuildMgr와 AddressableBuild 소스를 .NET 9에서 컴파일한다. Addressables API(AssetDatabase, AddressableAssetSettings), FirebaseUploader, Unity BuildPipeline, EditorApplication.Exit는 호출을 기록하는 대체물이다. 실제 업로드·플레이어 빌드·서버 파일 삭제는 수행하지 않는다. `PreBuild`의 정상/실패/대기와 Firebase 설정·Addressables 빌드 오류 11개와 CLI 인자 12개(미지원 타깃·값 누락·잘못된 빌드 번호·중복·iOS 등)에서 실행 순서, 버전 적용, 단계 시간 로그, 종료 코드를 확인한다.
@@ -19,18 +18,15 @@
 & Tools/RefactoringTests/run-build.ps1 -ScriptRoot '<변경 전 Assets/Script 경로>'
 ```
 
-`run-unity.ps1`은 Unity 6000.3.14f1을 사용한다. 에디터가 종료된 상태와 정상 라이선스가 필요하다. `-UnityPath`로 실행 파일을 지정할 수 있다. 실제 프로젝트에 임시 `Assets/Tests/RefactoringFixtures`를 만들고, 에디터 배치 모드에서 프리팹을 검사한 뒤 해당 폴더를 정리한다. 같은 검사를 Test Runner EditMode의 `RefactoringProbeTests.UISoundToolPrefabEdits`로도 실행할 수 있다.
-
-Unity 검증 항목은 프리팹 추가·변경·삭제, 비활성 자식과 동일 이름 형제 처리, 렌더러 생성자 필드, 첫 자식 분리와 좌표 유지, 부착 Transform 초기화, 잘못된 코스튬 인자의 조기 반환, Mesh/Material/Color 적용이다. 이전 실행은 24개 assertion이었다. R2에서 프리팹 실패·해제·선택 검사를 보강했고 참조 컴파일은 성공했으나, 실행 중인 Unity 때문에 확장 fixture의 실제 실행은 미검증이다. 기존 Mesh 교체 동작도 특성 테스트로 고정한다.
+Unity 쪽 검사는 Test Runner EditMode 탭의 `RefactoringProbeTests.UISoundToolPrefabEdits`로 실행한다. SetUp이 `Assets/Tests/RefactoringFixtures`를 만들고 TearDown이 정리하며, `Client/Assets/Tests/Editor/RefactoringProbe`의 검사 14개가 모두 실행됐는지 단언한다. 검사 항목은 실제 프리팹에 대한 UISoundTool 추가·변경·삭제, 비활성 자식과 동일 이름 형제 처리, 편집 실패 전파와 프리팹 내용 해제, 선택 인덱스 조정이다.
 
 ## R2 UISoundTool 검증
 
 ```powershell
 dotnet run --project Tools/RefactoringTests/UISoundTool
-& Tools/RefactoringTests/run-unity.ps1 -PrefabOnly -OutputPath Tools/RefactoringTests/bin/r2-unity
 ```
 
-첫 명령은 실제 UISoundTool 소스를 CP949로 읽어 .NET 9에서 컴파일한다. Unity 편집 API는 호출을 기록하는 대체물이며 정상/실패/선택 처리 23개 시나리오와 TRACE를 확인한다. `-p:UISoundToolPath=`로 원본 스냅샷을 지정할 수 있다. 두 번째 명령은 에디터가 종료된 상태에서 실제 Unity 프리팹 fixture만 실행한다. 2026-09-27의 전후 23/23 및 실제 엔진 실행 제한은 [R2 보고서](../../reports/tests/RefactoringTests/UISoundToolReport.md)를 참고한다.
+첫 명령은 실제 UISoundTool 소스를 CP949로 읽어 .NET 9에서 컴파일한다. Unity 편집 API는 호출을 기록하는 대체물이며 정상/실패/선택 처리 23개 시나리오와 TRACE를 확인한다. `-p:UISoundToolPath=`로 원본 스냅샷을 지정할 수 있다. 테스트가 UISoundTool의 internal 필드·메서드를 직접 쓰므로 스냅샷도 같은 멤버가 internal이어야 컴파일된다. 실제 Unity 프리팹 검사는 위 Test Runner 테스트가 맡는다. 2026-09-27의 전후 23/23 및 실제 엔진 실행 제한은 [R2 보고서](../../reports/tests/RefactoringTests/UISoundToolReport.md)를 참고한다.
 
 ## A1 Downloader 검증
 

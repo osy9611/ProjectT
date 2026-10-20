@@ -16,27 +16,6 @@ public static class RefactoringProbe
 
     internal static int Checks => checks;
 
-    public static void Run()
-    {
-        int exitCode = 0;
-        try
-        {
-            CreateFixtures();
-            PrefabSoundEdits();
-            Debug.Log("PROJECTT_REFACTORING_PASS " + checks + " checks");
-        }
-        catch (Exception error)
-        {
-            exitCode = 1;
-            Debug.LogException(error);
-        }
-        finally
-        {
-            DeleteFixtures();
-        }
-        EditorApplication.Exit(exitCode);
-    }
-
     internal static void CreateFixtures()
     {
         checks = 0;

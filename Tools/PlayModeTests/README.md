@@ -1,15 +1,16 @@
 # P0 Play Mode 검사
 
-`Client/Assets/Tests/Probes/ProjectTP0PlayProbe.cs`는 FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, 입력, UI, Scene)를 실행 중인 Unity 에디터의 Play Mode에서 순서대로 실행한다. 샘플 버튼 함수는 private이라 같은 함수를 리플렉션으로 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 단계에서 `ProjectTUIPlayProbe.Verify`(같은 폴더)도 같은 세션에서 실행한다.
+`Client/Assets/Tests/Probes/ProjectTP0PlayProbe.cs`는 FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, 입력, UI, Scene)를 실행 중인 Unity 에디터의 Play Mode에서 순서대로 실행한다. 샘플 버튼 함수는 internal 메서드로 직접 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 단계에서 `ProjectTUIPlayProbe.Verify`(같은 폴더)도 같은 세션에서 실행한다.
 
-UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreenControl sender 검사(`Fresh sender after real OnDisable/OnEnable` 포함)도 삭제했다. 아래 결과 기록의 pass 수와 해당 실패는 삭제 전 구성 기준이다. 삭제 후 구성의 pass 수는 아직 기록하지 않았다.
+UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreenControl sender 검사(`Fresh sender after real OnDisable/OnEnable` 포함)도 삭제했다. 아래 결과 기록의 pass 수와 해당 실패는 삭제 전 구성 기준이다. 삭제 후 구성의 기준은 pass=103 fail=0이다(2026-10-20 Test Runner 실행).
 
 ## 실행
 
-1. `Assets/Scenes/Sample/FeatureSample.unity`를 열고 Play Mode에 진입한다.
-2. Global이 Ready가 되면 `ProjectTP0PlayProbe.Run()`을 호출한다(MCP RunCommand 또는 에디터 스크립트).
-3. 콘솔의 `[P0] PASS/FAIL/NOTE` 줄과 `PROJECTT_P0_PLAYMODE_RESULT pass=N fail=M`을 확인한다. `ProjectTP0PlayProbe.Results`로도 읽을 수 있다.
-4. Play Mode를 종료한다.
+Unity 에디터에서 Window > General > Test Runner를 열고 EditMode 탭의 `ProjectTSamplePlayModeTests.P0FeatureSample`을 실행한다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다.
+
+- 테스트는 FeatureSample 씬을 열고 Play Mode에 들어가 Global이 Ready가 되면 `ProjectTP0PlayProbe.Run()`을 호출한다. 프로브가 끝나면 Play Mode를 빠져나와 `pass=103 fail=0`을 단언한다.
+- 의도한 예외 2건(Double Request 거부의 `Scene transition is unavailable.`, Enter Fail의 `[Sample] SampleSceneB OnEnter failure test`)은 `LogAssert.Expect`로 처리한다. 다른 Error·Exception 로그는 테스트를 실패시킨다.
+- 실패하면 테스트 메시지에 `[P0] FAIL`과 `ERROR LOG` 줄이 담긴다. 전체 결과는 콘솔의 `[P0] PASS/FAIL/NOTE` 줄과 `PROJECTT_P0_PLAYMODE_RESULT`에 남는다.
 
 프로브는 실행 중에만 `backgroundBehavior=IgnoreFocus`, `editorInputBehaviorInPlayMode=AllDeviceInputAlwaysGoesToGameView`인 설정 복제본을 쓰고 끝나면 원래 설정으로 되돌린다. 에셋은 수정하지 않는다. 게임 뷰에 포커스가 없으면 원래 설정에서는 두 가지 문제가 생긴다.
 - `ResetAndDisableNonBackgroundDevices`가 가상 장치를 끈다.
@@ -100,9 +101,7 @@ UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreen
 
 ## 실행
 
-1. `Assets/Scenes/Sample/TurnBattleSample.unity`로 Play Mode에 진입한 뒤 `ProjectTTurnBattleProbe.Run()`을 호출한다.
-2. `[Turn] PASS/FAIL` 줄과 `PROJECTT_TURN_BATTLE_RESULT`를 확인한다. 끝나면 새 전투가 시작되어 직접 플레이할 수 있다.
-3. Play Mode를 종료한다.
+Test Runner EditMode 탭의 `ProjectTSamplePlayModeTests.TurnBattleSample`을 실행한다. 테스트는 TurnBattleSample 씬에서 `ProjectTTurnBattleProbe.Run()`을 호출하고, Play Mode를 빠져나온 뒤 `pass=61 fail=0`을 단언한다. 실패하면 테스트 메시지에 `[Turn] FAIL` 줄이 담긴다.
 
 ## Unity 전용 항목
 
