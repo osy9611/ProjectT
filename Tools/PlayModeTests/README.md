@@ -1,16 +1,15 @@
 # P0 Play Mode 검사
 
-`Unity/ProjectTP0PlayProbe.cs`는 FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, 입력, UI, Scene)를 실행 중인 Unity 에디터의 Play Mode에서 순서대로 실행한다. 샘플 버튼 함수는 private이라 같은 함수를 리플렉션으로 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 단계에서 `Tools/UITests/Unity/ProjectTUIPlayProbe.Verify`도 같은 세션에서 실행한다.
+`Client/Assets/Tests/Probes/ProjectTP0PlayProbe.cs`는 FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, 입력, UI, Scene)를 실행 중인 Unity 에디터의 Play Mode에서 순서대로 실행한다. 샘플 버튼 함수는 private이라 같은 함수를 리플렉션으로 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 단계에서 `ProjectTUIPlayProbe.Verify`(같은 폴더)도 같은 세션에서 실행한다.
 
 UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreenControl sender 검사(`Fresh sender after real OnDisable/OnEnable` 포함)도 삭제했다. 아래 결과 기록의 pass 수와 해당 실패는 삭제 전 구성 기준이다. 삭제 후 구성의 pass 수는 아직 기록하지 않았다.
 
 ## 실행
 
-1. `Client/Assets/ProjectTP0ProbeHarness/`를 만들고 `Unity/ProjectTP0PlayProbe.cs`와 `../UITests/Unity/ProjectTUIPlayProbe.cs`를 복사한다.
-2. 컴파일이 끝나면 `Assets/Scenes/Sample/FeatureSample.unity`를 열고 Play Mode에 진입한다.
-3. Global이 Ready가 되면 `ProjectTP0PlayProbe.Run()`을 호출한다(MCP RunCommand 또는 에디터 스크립트).
-4. 콘솔의 `[P0] PASS/FAIL/NOTE` 줄과 `PROJECTT_P0_PLAYMODE_RESULT pass=N fail=M`을 확인한다. `ProjectTP0PlayProbe.Results`로도 읽을 수 있다.
-5. Play Mode를 종료하고 임시 폴더와 `.meta`를 삭제한다.
+1. `Assets/Scenes/Sample/FeatureSample.unity`를 열고 Play Mode에 진입한다.
+2. Global이 Ready가 되면 `ProjectTP0PlayProbe.Run()`을 호출한다(MCP RunCommand 또는 에디터 스크립트).
+3. 콘솔의 `[P0] PASS/FAIL/NOTE` 줄과 `PROJECTT_P0_PLAYMODE_RESULT pass=N fail=M`을 확인한다. `ProjectTP0PlayProbe.Results`로도 읽을 수 있다.
+4. Play Mode를 종료한다.
 
 프로브는 실행 중에만 `backgroundBehavior=IgnoreFocus`, `editorInputBehaviorInPlayMode=AllDeviceInputAlwaysGoesToGameView`인 설정 복제본을 쓰고 끝나면 원래 설정으로 되돌린다. 에셋은 수정하지 않는다. 게임 뷰에 포커스가 없으면 원래 설정에서는 두 가지 문제가 생긴다.
 - `ResetAndDisableNonBackgroundDevices`가 가상 장치를 끈다.
@@ -97,14 +96,13 @@ UIEventHandler를 삭제하면서 `onscreen-diag` 단계와 ui-probe의 OnScreen
 
 결과: **pass=61 fail=0** (2026-10-14, HEAD 1ba983d9, PoolManager `Release` 제거·`GameObjectPool` 생성자 전환 후 재확인). 이전: **pass=61 fail=0** (2026-10-11, `TurnBattleSample` 씬).
 
-`Unity/ProjectTTurnBattleProbe.cs`는 `TurnBattleRunner` 공개 API로 턴제 전투 시나리오를 실제 `ComBaseActor`(`TurnUnit`)와 풀 경로로 실행한다. 리플렉션은 쓰지 않는다.
+`Client/Assets/Tests/Probes/ProjectTTurnBattleProbe.cs`는 `TurnBattleRunner` 공개 API로 턴제 전투 시나리오를 실제 `ComBaseActor`(`TurnUnit`)와 풀 경로로 실행한다. 리플렉션은 쓰지 않는다.
 
 ## 실행
 
-1. `Client/Assets/ProjectTTurnProbeHarness/`에 `Unity/ProjectTTurnBattleProbe.cs`를 복사하고 컴파일을 기다린다.
-2. `Assets/Scenes/Sample/TurnBattleSample.unity`로 Play Mode에 진입한 뒤 `ProjectTTurnBattleProbe.Run()`을 호출한다.
-3. `[Turn] PASS/FAIL` 줄과 `PROJECTT_TURN_BATTLE_RESULT`를 확인한다. 끝나면 새 전투가 시작되어 직접 플레이할 수 있다.
-4. Play Mode를 종료하고 임시 폴더와 `.meta`를 삭제한다.
+1. `Assets/Scenes/Sample/TurnBattleSample.unity`로 Play Mode에 진입한 뒤 `ProjectTTurnBattleProbe.Run()`을 호출한다.
+2. `[Turn] PASS/FAIL` 줄과 `PROJECTT_TURN_BATTLE_RESULT`를 확인한다. 끝나면 새 전투가 시작되어 직접 플레이할 수 있다.
+3. Play Mode를 종료한다.
 
 ## Unity 전용 항목
 

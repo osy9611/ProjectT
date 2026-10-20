@@ -18,8 +18,8 @@ New-Item -ItemType Directory -Force -Path $output | Out-Null
 $log = Join-Path $output 'unity-editor.log'
 $process = $null
 try {
-    New-Item -ItemType Directory -Path (Join-Path $target 'Editor') | Out-Null
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Unity/RefactoringProbe.cs') -Destination (Join-Path $target 'Editor/RefactoringProbe.cs')
+    # RefactoringProbe (Assets/Tests/Editor) creates its fixtures under this folder.
+    New-Item -ItemType Directory -Path $target | Out-Null
     $arguments = '-batchmode -nographics -projectPath "' + $project + '" -executeMethod RefactoringProbe.Run -logFile "' + $log + '"'
     $process = Start-Process -FilePath $UnityPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
     $deadline = [DateTime]::UtcNow.AddMinutes(4)

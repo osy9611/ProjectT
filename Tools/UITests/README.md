@@ -65,7 +65,7 @@ Bind는 필수 참조 바인딩이다. enum은 0부터 연속한 고유 값이�
 
 ## Unity Play Mode smoke 실행
 
-Unity를 종료한 뒤 프로젝트 루트에서 `./Tools/UITests/run-unity.ps1`을 실행한다. 필요하면 `-UnityPath`로 Editor 실행 파일을 지정한다. 이 실행기는 Tools 아래 검증 소스를 임시 Assets 폴더에 복사하고 빈 씬에서 실행한 후 임시 폴더를 정리한다. 기존 임시 경로나 실행 중 Editor가 있으면 중단한다. 테스트 씬을 저장하지 않는다.
+Unity를 종료한 뒤 프로젝트 루트에서 `./Tools/UITests/run-unity.ps1`을 실행한다. 필요하면 `-UnityPath`로 Editor 실행 파일을 지정한다. 이 실행기는 `Client/Assets/Tests/Editor/ProjectTUIPlayMode.Run`으로 빈 씬에서 `Client/Assets/Tests/Probes/ProjectTUIPlayProbe`를 실행한다. 실행 중 Editor가 있으면 중단한다. 테스트 씬을 저장하지 않는다.
 
 유효한 Editor 라이선스, 복원된 프로젝트 패키지와 Unity 사용자 캐시 접근 권한이 필요하다. 로그는 `Tools/UITests/bin/unity-playmode.log`에 남긴다. 180초 제한과 종료 코드, 성공 마커를 모두 검사한다. 검사 전에 실제 Global을 원격 리소스·데이터 로드 없이 띄우고 WhenReadyAsync로 준비를 기다린다. UIContainer가 포커스 변경을 Global.Input으로 알리기 때문이며, 초기화가 실패하면 그 예외를 남기고 실패로 끝난다. batch 실행은 종료 코드로 결과를 넘기고, 열린 에디터에서 실행하면 에디터를 닫지 않고 Play Mode만 끝낸다. 2026-10-16 열린 에디터(포커스 있음)에서 `PROJECTT_UI_PLAYMODE_PASS`를 확인했다. 검증 대상은 지연 Destroy 후 이전 화면 복원, OnShow 중 중첩 표시 실패, 실제 활성화 콜백이다. OnScreenControl sender 검사는 UIEventHandler와 함께 삭제했다. EventSystem의 자동 포인터 라우팅과 Addressables 로딩은 이 smoke 테스트 범위에 포함하지 않는다.
 
