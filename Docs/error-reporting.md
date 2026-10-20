@@ -1,9 +1,7 @@
 # ErrorReporter 설계
 
-작성일: 2026-10-04
-기준 커밋: `88d52596` 에러 리포터 기능추가 및 컨트롤러 리펙토링 진행
+기준 커밋: `7a4f0178`
 코드 위치: `Client/Assets/Script/Common/ErrorReport/`, `Client/Assets/Script/Common/Global.cs`
-관련 문서: [분석 보고서](ERROR_REPORTING_ANALYSIS.md) · [리팩토링 결과 보고서](ERROR_REPORTING_REFACTORING_REPORT.md)
 
 ## 1. 목적과 범위
 
@@ -13,7 +11,8 @@
 | --- | --- |
 | 공개 진입점 | `Global.LogException(Exception)`, `Global.LogError(string)` — 게임 코드는 이 둘만 사용 |
 | 자동 수집 | Unity 콜백에서 빠져나간 예외, `Debug.LogError`·`LogException`·`LogAssert`, UniTask 미관찰 예외 |
-| 보고하지 않음 | `OperationCanceledException` (정상 취소), `Debug.Log`·`LogWarning` |
+| 보고하지 않음 | `Debug.Log`·`LogWarning`, null |
+| 취소 예외 | 정상 취소는 호출 지점의 catch(`when` 조건)나 `SuppressCancellationThrow`가 거른다. `Report`까지 온 `OperationCanceledException`은 예상하지 못한 취소로 보고한다(2026-10-17 변경). UniTask 미관찰 예외 경로는 `PropagateOperationCanceledException = false`라 취소가 들어오지 않는다 |
 | 현재 sink | `FileErrorSink` (`persistentDataPath/ErrorReports/errors.log`) |
 | 범위 밖 | Crashlytics·서버 전송, 씬·빌드 등 문맥 정보 부착 |
 
@@ -21,11 +20,13 @@
 
 **해결할 문제:**
 - 기존 `Global.LogException`은 예외를 문자열로 바꿔 `Debug.LogError`로 출력했다. 타입과 내부 예외 구조가 사라지고, 외부 추적 수단이 없었다.
-- Unity 콜백 예외, 소켓 스레드 오류, `Console.WriteLine`처럼 프로젝트 코드가 받지 못하거나 빌드에서 사라지는 경로가 있었다.
+- Unity 콜백 예외, 메인 스레드 밖에서 남은 로그, `Console.WriteLine`처럼 프로젝트 코드가 받지 못하거나 빌드에서 사라지는 경로가 있었다.
 
 **기존 구조로 어려운 이유:**
 - `ErrorCollector`는 정리 경로의 실패를 모아 **다시 throw**하는 제어 흐름 도구다. 여기서 보고하면 상위 경계에서 또 보고되어 중복이 생기고, 대부분의 오류 경로는 이곳을 지나지 않는다.
 - 매니저(`ManagerBase`)로 만들면 Global 규칙상 Ready일 때만 조회되므로 초기화 실패·종료 중 오류를 받을 수 없다.
+
+**`IErrorSink`를 두는 이유:** 운영 sink는 `FileErrorSink` 하나지만 Crashlytics·자체 서버 sink를 추가할 예정이다. 테스트도 `ListSink`·`ThrowingSink`·`LoggingSink` 세 구현으로 집계, 실패 sink 격리, 재귀 방지를 검증한다.
 
 **추가 비용:** 정적 클래스 1개, 데이터 구조체 1개, 인터페이스 1개, sink 구현 1개. `Global`의 `Init`·`Update`·`OnApplicationPause`·`Shutdown`에 각 1~2줄.
 
@@ -39,7 +40,8 @@ Client/Assets/Script/Common/
  │    ├─ Init                    ──► ErrorReporter.SetSinks(FileErrorSink)
  │    ├─ Update (finally)        ──► ErrorReporter.Flush
  │    ├─ OnApplicationPause(true)──► ErrorReporter.Flush
- │    └─ Shutdown (finally)      ──► ErrorReporter.Flush → SetSinks()
+ │    └─ Shutdown                ──► host.Shutdown 예외를 LogException
+ │                                    finally: ErrorReporter.Flush → SetSinks()
  │
  └─ ErrorReport/
       ├─ ErrorReporter.cs   (static)  수집 큐 · 집계 · sink 전달
@@ -50,7 +52,7 @@ Client/Assets/Script/Common/
 
 | 타입 | 책임 | 접근 범위 |
 | --- | --- | --- |
-| `ErrorReporter` | 어느 스레드에서든 오류를 받아 큐에 넣고, 메인 스레드에서 지문·횟수를 집계해 sink에 전달 | `public static class`, 멤버는 모두 `internal` (게임 코드는 Global을 통해서만 사용) |
+| `ErrorReporter` | 어느 스레드에서든 오류를 받아 큐에 넣고, 메인 스레드에서 지문·횟수를 집계해 sink에 전달 | `public static class`, 호출 가능한 멤버는 모두 `internal` (게임 코드는 Global을 통해서만 사용) |
 | `ErrorEvent` | 오류 한 건의 데이터와 지문 계산 규칙 | `public readonly struct`, 생성자·지문 함수는 `internal` |
 | `IErrorSink` | 전송 대상 계약. Flush 한 번에 한 묶음을 받음 | `public interface` |
 | `FileErrorSink` | 묶음을 파일에 한 번에 추가, 크기 상한 회전, 일시적 파일 오류 복구 | `public sealed class` |
@@ -61,7 +63,7 @@ Client/Assets/Script/Common/
  [생산자: 아무 스레드]                         [큐]                 [소비자: 메인 스레드]
 
  Global.LogException(ex) ─► Report ─┐
-   · OCE·null 무시                   │
+   · null 무시                       │
    · Debug.LogException (콘솔)       │
    · Aggregate → 내부 예외별 분리     │
                                      ├─► EnqueueInternal ─► ConcurrentQueue ─► Flush ─► sink.Write(묶음)
@@ -73,7 +75,7 @@ Client/Assets/Script/Common/
                                                                                 └─ 실패한 sink 격리
 ```
 
-**생산자와 소비자를 나눈 이유:** 소켓 콜백처럼 메인 스레드가 아닌 곳에서도 오류가 나므로 생산자는 큐에 넣기만 한다. 집계용 `Dictionary`, 파일 I/O, sink 호출은 스레드에 안전하지 않고 비용이 커서 메인 스레드에서 프레임당 한 번 몰아서 처리한다.
+**생산자와 소비자를 나눈 이유:** Unity는 `logMessageReceivedThreaded`를 로그를 남긴 스레드에서 호출한다. 패키지 내부 스레드나 `FirebaseDB.GetBuildVersion`의 `ContinueWith`처럼 스레드 풀에서 도는 코드도 로그를 남기므로 생산자는 큐에 넣기만 한다. 집계용 `Dictionary`, 파일 I/O, sink 호출은 스레드에 안전하지 않고 비용이 커서 메인 스레드에서 프레임당 한 번 몰아서 처리한다.
 
 ## 5. 수집 경로
 
@@ -83,7 +85,7 @@ Client/Assets/Script/Common/
 | `AggregateException` (`ErrorCollector`가 묶은 오류 등) | `Report` → 내부 예외별 분리, 같은 `Id` 공유 | 내부 예외 각각의 타입 | 있음 | 내부 예외 각각 |
 | `Global.LogError(msg)` | `Debug.LogError` → 로그 훅 | `Log` | 없음 | Unity가 붙인 호출 위치 스택 |
 | Unity 콜백(Awake·Update 등)에서 빠져나간 예외 | 로그 훅 (`LogType.Exception`) | 로그 문자열의 `:` 앞 타입 이름 (`NullReferenceException`) | 없음 | Unity 스택 |
-| 외부 코드의 `Debug.LogError` (Firebase Provider, 패키지) | 로그 훅 | `Log` | 없음 | Unity 스택 |
+| 외부 코드의 `Debug.LogError` (Addressables 등 패키지) | 로그 훅 | `Log` | 없음 | Unity 스택 |
 | UniTask 미관찰 예외 | `UniTaskScheduler.UnobservedTaskException` → `Report` | 예외 타입 | 있음 | 예외 스택 |
 | 큐 상한 초과로 버린 이벤트 | `Flush`가 요약 이벤트 생성 | `Log` (`"N error events dropped"`) | 없음 | 없음 |
 
@@ -91,21 +93,20 @@ Client/Assets/Script/Common/
 
 ## 6. 처리 단계
 
-### 6.1 Report — 아무 스레드 ([ErrorReporter.cs:45](Client/Assets/Script/Common/ErrorReport/ErrorReporter.cs))
+### 6.1 Report — 아무 스레드 ([ErrorReporter.cs:46](../Client/Assets/Script/Common/ErrorReport/ErrorReporter.cs))
 
 ```
 Report(error)
- ├─ null 또는 OperationCanceledException ─► 종료
+ ├─ null ─► 종료
  ├─ AggregateException?
- │    ├─ Flatten 후 모두 OCE ─► 종료
  │    ├─ 콘솔: Debug.LogException(원본 Aggregate) 1회
- │    └─ OCE가 아닌 내부 예외마다 같은 Id로 Enqueue
+ │    └─ 내부 예외마다(취소 포함) 같은 Id로 Enqueue
  └─ 일반 예외
       ├─ 콘솔: Debug.LogException(error)
       └─ Enqueue
 ```
 
-### 6.2 로그 훅 — Unity가 로그를 남긴 스레드 ([ErrorReporter.cs:122](Client/Assets/Script/Common/ErrorReport/ErrorReporter.cs))
+### 6.2 로그 훅 — Unity가 로그를 남긴 스레드 ([ErrorReporter.cs:117](../Client/Assets/Script/Common/ErrorReport/ErrorReporter.cs))
 
 ```
 OnLogMessageReceived(condition, stackTrace, type)
@@ -115,7 +116,7 @@ OnLogMessageReceived(condition, stackTrace, type)
  └─ Enqueue
 ```
 
-### 6.3 Flush — 메인 스레드 ([ErrorReporter.cs:76](Client/Assets/Script/Common/ErrorReport/ErrorReporter.cs))
+### 6.3 Flush — 메인 스레드 ([ErrorReporter.cs:71](../Client/Assets/Script/Common/ErrorReport/ErrorReporter.cs))
 
 ```
 Flush()
@@ -131,7 +132,7 @@ Flush()
 
 ## 7. 지문(Fingerprint)과 반복 제한
 
-### 7.1 지문 규칙 ([ErrorEvent.cs:44](Client/Assets/Script/Common/ErrorReport/ErrorEvent.cs))
+### 7.1 지문 규칙 ([ErrorEvent.cs:44](../Client/Assets/Script/Common/ErrorReport/ErrorEvent.cs))
 
 지문은 "같은 오류인가"를 판별하는 키다. 메인 스레드 Flush에서 계산한다.
 
@@ -153,8 +154,9 @@ Flush()
 
 | 오류 | 지문 |
 | --- | --- |
-| `BuffController.Register`에서 던진 `InvalidOperationException` | `System.InvalidOperationException\|ProjectT.Skill.BuffController.Register (System.Int32 buffId)  in …/BuffController.cs:56` |
-| `Global.LogError($"SkillInfo Not Found SkillID {id}")` (빌드) | `Log\|[ERROR][#-#-# #:#:#] [Global] SkillInfo Not Found SkillID #\|ProjectT.Skill.SkillActionController:RegisterSkill (int) (at Assets/…:62)` |
+| `SkillActionController.RegisterSkill`에서 던진 `InvalidOperationException` | `System.InvalidOperationException\|ProjectT.Skill.SkillActionController.RegisterSkill (ProjectT.Skill.SkillDefinition definition)  in …/SkillActionController.cs:40` |
+| `Global.LogError(msg)` (빌드) | `Log\|[ERROR][#-#-# #:#:#] [Global] <msg 첫 줄>\|<호출 위치 프레임>` |
+| `FeatureSampleRunner`의 `Debug.LogError("[Sample] repeated error")` | `Log\|[Sample] repeated error\|ProjectT.Sample.FeatureSampleRunner:DrawErrorInternal () (at Assets/Script/Sample/FeatureSampleRunner.cs:198)` |
 | Addressables 내부의 `Debug.LogError` | `Log\|<메시지 첫 줄>\|` |
 | Update에서 빠져나간 NRE | `NullReferenceException\|ProjectT.Foo:Bar () (at Assets/…/Foo.cs:42)` |
 
@@ -196,8 +198,15 @@ Flush()
       · 이 시점부터 오류를 큐에 받음 (sink는 아직 없음)
 
 Global.Awake → Init (활성 인스턴스만)
- └─ SetSinks(FileErrorSink)          · 교체 방식이라 재생성돼도 sink 중복 없음
-                                     · 중복 Global은 Init에서 반환해 여기까지 오지 않음
+ ├─ SetSinks(FileErrorSink)          · 교체 방식이라 재생성돼도 sink 중복 없음
+ │                                   · 중복 Global은 Init에서 반환해 여기까지 오지 않음
+ └─ InitializeAsync().Forget(LogException)
+      · 초기화 실패: ManagerHost가 시작한 매니저를 정리하고 Failed가 된 뒤 오류를 초기화 결과로 전달
+        정리 오류가 있거나 원래 오류가 취소 예외면 AggregateException으로 감싼다
+        Global의 Forget 경계에서 한 번 보고
+      · 초기화 중 종료: 취소로 끝나며 InitializeAsync가 삼킨다
+        종료 뒤 늦게 실패한 매니저의 오류는 ManagerHost의 Forget(Global.LogException)이 보고
+      · WhenReady·WhenReadyAsync는 성공 또는 취소로만 끝나 대기자에게 초기화 오류가 가지 않는다
 
 매 프레임 Global.Update
  └─ try { host.Update } finally { Flush }   · 매니저가 예외를 던져도 Flush 실행
@@ -206,7 +215,9 @@ OnApplicationPause(true)
  └─ Flush                            · 모바일은 종료 콜백 없이 프로세스가 끝날 수 있음
 
 Global.Shutdown (OnApplicationQuit / OnDestroy)
- ├─ host.Shutdown + ShutdownErrors 보고 (초기화 실패로 이미 Failed면 InitializeAsync에서 보고했으므로 생략)
+ ├─ try: host.Shutdown               · 매니저 종료 오류를 ErrorCollector로 모아 AggregateException으로 던진다
+ │                                   · 이미 Failed·Stopping·Stopped면 아무것도 하지 않고 반환
+ ├─ catch: LogException(error)       · 종료 오류를 한 번 보고
  └─ finally: Flush → SetSinks() → s_instance = null
                                      · 종료 오류까지 기록한 뒤 이 인스턴스의 sink 해제
 ```
@@ -240,12 +251,13 @@ Report(ex)
 파일 형식:
 
 ```
-2026-10-04T06:39:13.1234567Z [3f2a…c91e] #1 System.InvalidOperationException|ProjectT.Skill.BuffController.Register (…) in …/BuffController.cs:56
-System.InvalidOperationException: Buff already registered
-  at ProjectT.Skill.BuffController.Register (System.Int32 buffId) …
-2026-10-04T06:39:14.0000000Z [77b0…01aa] #100 Log|[Global] SkillInfo Not Found SkillID #|ProjectT.Skill.SkillActionController:RegisterSkill (int) (at …:62)
-[Global] SkillInfo Not Found SkillID 4021
-ProjectT.Skill.SkillActionController:RegisterSkill (int) (at Assets/Script/Skill/Action/SkillActionController.cs:62)
+2026-10-04T06:39:13.1234567Z [3f2a…c91e] #1 System.InvalidOperationException|ProjectT.Skill.SkillActionController.RegisterSkill (…) in …/SkillActionController.cs:40
+System.InvalidOperationException: [SkillActionController] ActionFactory returned an action that is already registered. SkillID 1001
+  at ProjectT.Skill.SkillActionController.RegisterSkill (ProjectT.Skill.SkillDefinition definition) …
+2026-10-04T06:39:14.0000000Z [77b0…01aa] #10 Log|[Sample] repeated error|ProjectT.Sample.FeatureSampleRunner:DrawErrorInternal () (at …:198)
+[Sample] repeated error
+UnityEngine.Debug:LogError (object)
+ProjectT.Sample.FeatureSampleRunner:DrawErrorInternal () (at Assets/Script/Sample/FeatureSampleRunner.cs:198)
 …
 2026-10-04T06:40:02.5000000Z 3 error batches dropped
 ```
@@ -255,10 +267,12 @@ ProjectT.Skill.SkillActionController:RegisterSkill (int) (at Assets/Script/Skill
 
 ## 12. try/catch 위치
 
-AGENTS.md의 "catch는 큰 흐름의 경계에만" 규칙에 따라 catch는 두 곳뿐이다.
+AGENTS.md의 "catch는 큰 흐름의 경계에만" 규칙에 따라 오류 보고 코드와 Global 연결부의 catch는 네 곳이다.
 
 | 위치 | 경계 종류 | 동작 |
 | --- | --- | --- |
+| `Global.Shutdown`의 catch | 매니저 종료 경계 | `host.Shutdown`이 던진 종료 오류를 `LogException`으로 한 번 보고하고 finally의 Flush로 기록 |
+| `Global.InitializeAsync`의 `when (Stopping·Stopped)` | 확인된 정상 취소 | 초기화 중 종료로 생긴 취소만 삼킨다. 초기화 실패는 걸리지 않고 Forget 경계로 간다 |
 | `ErrorReporter.Flush`의 sink별 catch | 최종 보고 경계 | 실패한 sink만 격리하고 나머지 sink에 계속 전달. 실패는 다시 throw하지 않고 한 번 보고 |
 | `FileErrorSink.Write`의 `when (IsTransientInternal)` | 외부 I/O 복구 | 일시적 파일 오류에서 회전 건너뛰기·묶음 버리기로 복구 |
 
@@ -270,20 +284,20 @@ AGENTS.md의 "catch는 큰 흐름의 경계에만" 규칙에 따라 catch는 두
 
 ```csharp
 // 처리할 수 없는 예외: 호출자에게 전파한다. 최종 경계(Forget, Unity 콜백)가 자동 보고한다.
-throw new InvalidOperationException($"Buff not found: {buffId}");
+throw new InvalidOperationException($"[SkillAgent] Registration is closed. SkillID {definition.Id}");
 
 // 비동기 실행 경계
 DoAsync().Forget(Global.LogException);
 
-// 예외 객체를 직접 잡은 경계(소켓 콜백 등)에서만 직접 보고
-catch (Exception ex)
+// 예외를 잡고도 흐름을 이어가야 하는 경계(씬 전환, 매니저 종료 등)에서만 직접 보고
+// SceneManager.TransitionWithCallbackAsync: 실패를 보고한 뒤 completed 콜백은 항상 호출한다
+catch (Exception error)
 {
-    Global.LogException(ex);
-    onDisconnected?.Invoke(this);
+    Global.LogException(error);
 }
 
 // 예외가 아닌 처리된 오류 (테이블 누락 등)
-Global.LogError($"SkillInfo Not Found SkillID {skillID}");
+Global.LogError(message);
 ```
 
 하지 말 것:
@@ -294,9 +308,11 @@ Global.LogError($"SkillInfo Not Found SkillID {skillID}");
 | catch에서 `LogException` 후 `throw` | 상위 경계에서 한 번 더 보고된다 |
 | `ErrorCollector`나 개별 함수에서 보고 | 중복 보고. `ErrorCollector`는 모아서 다시 throw만 한다 |
 | `Console.WriteLine` | Unity 빌드에서 출력되지 않아 오류가 사라진다 |
-| `OperationCanceledException` 보고 | 정상 취소다. 자동으로 무시되지만 일부러 문자열로 남기지 않는다 |
+| 정상 취소를 거르지 않고 `Forget(Global.LogException)`에 넘김 | 보고 경계는 취소를 거르지 않으므로 오류로 보고된다. 정상 취소는 호출 지점에서 `catch (OperationCanceledException) when (token.IsCancellationRequested)`나 `SuppressCancellationThrow`로 처리한다 |
 
 ### 13.2 새 sink 추가 (예: Crashlytics)
+
+Crashlytics SDK는 아직 설치되어 있지 않다. 아래 `CrashlyticsErrorSink`는 추가 방법을 보이는 예시 코드다.
 
 1. `IErrorSink` 구현. 메인 스레드에서 묶음 단위로 호출되며, 묶음 리스트는 호출 후 재사용되므로 보관하지 않는다.
 
@@ -328,12 +344,17 @@ ErrorReporter.SetSinks(
 
 ## 14. 테스트
 
-`Tools/LifecycleTests/ErrorReporterTests.cs` (14개, `Tools/LifecycleTests/run.ps1`로 실행). Unity API는 `UnityStubs.cs`가 흉내 내며, `Debug.LogError`는 Unity 형식 스택을 넘긴다.
+테스트는 `Tools/LifecycleTests/ErrorReporterTests.cs`에 있고 `LifecycleTests` 프로젝트로 실행된다. 시나리오는 20개다. 초기화 실패 보고 시나리오는 대기자 0·1·3명으로 세 번 실행한다. Unity API는 `Tools/Shared/UnityStubs/UnityEngine.cs`가 흉내 내며, `Debug.LogError`는 Unity 형식 스택을 로그 훅에 넘긴다. Unity 엔진 위의 테스트(`Client/Assets/Tests`)에는 ErrorReporter 테스트가 없다.
+
+```
+powershell -File Tools/run-tests.ps1                              # 전체. 통과 시 "ALL PASSED: 10 test runs"
+dotnet run --project Tools/LifecycleTests/LifecycleTests.csproj   # LifecycleTests만
+```
 
 | # | 검증 내용 |
 | --- | --- |
 | 1 | Aggregate를 내부 예외별로 나누고 같은 id로 한 번만 전달, 콘솔 출력 1회 |
-| 2 | OCE·취소뿐인 Aggregate·null 무시 |
+| 2 | 보고 경계까지 온 취소(단일·Aggregate 내부)는 보고, null 무시 |
 | 3 | 자신의 콘솔 출력은 재수집 안 함, 외부 로그는 수집, `LogError` 지문이 호출 위치를 가리킴 |
 | 4 | UniTask 미관찰 예외 경로 |
 | 5 | 지문 규칙 (같은 프레임 다른 메시지 분리, 숫자 정규화, 다른 줄 분리, 엔진 프레임뿐이면 메시지, IL 오프셋 무시, 예외 타입 파싱) |
@@ -342,10 +363,12 @@ ErrorReporter.SetSinks(
 | 8 | 지문 사전 상한과 Overflow |
 | 9 | 실패한 sink 격리, 재귀 없음 |
 | 10 | `host.Update` 예외에도 Flush 실행 |
-| 11 | 종료 오류 1회 보고 (초기화 실패 / 초기화 중 종료) |
-| 12 | Global 재생성·중복 인스턴스에서 sink 중복 없음 |
-| 13 | 파일 회전 |
-| 14 | 일시적 파일 잠금 후 복구와 버린 묶음 기록 |
+| 11 | `host.Shutdown` 종료 오류 1회 보고 |
+| 12 | 취소 예외로 인한 초기화 실패가 호출자에게 전달되고 메시지가 남음, 초기화 중 종료 뒤 늦게 실패한 매니저 오류 1회 보고 |
+| 13 | 초기화 실패를 대기자 0·1·3명에서 1회만 보고 |
+| 14 | Global 재생성·중복 인스턴스에서 sink 중복 없음 |
+| 15 | 파일 회전 |
+| 16 | 일시적 파일 잠금 후 복구와 버린 묶음 기록 |
 
 ## 15. 제약과 알려진 한계
 
@@ -356,14 +379,23 @@ ErrorReporter.SetSinks(
 | 종류 이름 | `Report` 경로는 전체 타입 이름, 로그 훅 경로는 짧은 타입 이름을 쓴다. 대시보드 연동 시 통일 필요 |
 | 회전 실패 지속 | `errors.1.log`가 계속 잠겨 있으면 `errors.log`가 상한을 넘을 수 있다 |
 | Global 내부 오류 | `ProjectT.Global` 프레임을 건너뛰므로 Global 자체 코드의 오류는 다음 프레임이나 메시지로 지문이 정해진다 |
-| 종료 후 오류 | `Shutdown` 이후 발생한 오류는 큐에 남고(상한 1000) 기록되지 않는다 |
-| 에디터 | Play Mode 종료 후에도 훅이 구독된 채 Edit Mode 오류를 큐에 받는다. 상한으로 1000건에서 멈추고 다음 Play 진입 때 초기화된다 |
+| 종료 후 오류 | `Shutdown` 이후 발생한 오류는 큐에 남고(상한 1000) 기록되지 않는다. `Application.quitting`에서 한 번 더 Flush하는 방법은 기각했다. 늦게 온 오류는 프로세스 종료와 경쟁해 얻는 것이 적고 생명주기 연동만 늘어난다 |
+| 에디터 | Play Mode 종료 후에도 훅이 구독된 채 Edit Mode 오류를 큐에 받는다. 상한으로 1000건에서 멈추고 다음 Play 진입 때 초기화되므로, Edit Mode에서 훅을 해제하는 에디터 전용 코드는 두지 않는다 |
 | 문맥 정보 | 씬·빌드 버전·매니저 상태는 아직 붙지 않는다 |
 
 ## 16. 다음 단계
 
+전송 대상은 Firebase Crashlytics를 권장한다. 비치명 예외 보고와 자동 묶기를 지원하고, Firebase App이 이미 설치되어 있어 추가 비용이 가장 작다. Crashlytics는 세션당 저장하는 비치명 예외 수에 제한이 있어 7장의 클라이언트 쪽 반복 제한이 함께 필요하다. Firebase Analytics(GA4)는 이벤트 파라미터 값 100자, 이벤트당 파라미터 25개 제한 때문에 스택을 담을 수 없다. 그래서 오류율 같은 지표 이벤트에만 쓴다.
+
 | 단계 | 내용 |
 | --- | --- |
-| 2 | Crashlytics SDK와 `CrashlyticsErrorSink`, IL2CPP 심볼 업로드를 `BuildMgr`에 연결, 종류 이름 통일 |
-| 3 | 씬·빌드 버전·매니저 상태 문맥, Analytics 오류율 이벤트 |
-| 4 (선택) | 자체 서버 HTTP sink, 오프라인 재전송 |
+| 1 | Crashlytics SDK와 `CrashlyticsErrorSink`, IL2CPP 심볼 업로드를 `BuildMgr`에 연결, 종류 이름 통일 |
+| 2 | 씬·빌드 버전·매니저 상태 문맥, Analytics 오류율 이벤트 |
+| 3 (선택) | 자체 서버 HTTP sink, 오프라인 재전송 |
+
+## 17. 보류
+
+| 항목 | 내용 |
+| --- | --- |
+| `LogError` 전송 범위 | 외부 sink에 예외만 보낼지, `Global.LogError`로 남긴 처리된 오류까지 보낼지 정하지 않았다 |
+| 사용자 ID | 이벤트에 사용자 ID(Firebase Auth UID)를 넣을지, 넣는다면 개인정보 고지 문구를 어떻게 할지 정하지 않았다 |

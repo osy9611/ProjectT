@@ -18,6 +18,13 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 - [ GitHub 위키](https://github.com/osy9611/ProjectT/wiki)
 - [ Project J](https://github.com/osy9611/ProjectJ)
 
+## 설계 문서 ##
+- [구조](Docs/architecture.md)
+- [Actor 생명주기](Docs/actor-lifecycle.md)
+- [스킬·효과 시스템](Docs/ability-system.md)
+- [오류 보고](Docs/error-reporting.md)
+- [남은 과제](Docs/open-issues.md)
+
 ## 영상 링크 ##
 - [ 영상 링크 ](https://youtu.be/zOuUQhBBtfM)
 
@@ -31,7 +38,7 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 | **UI 시스템** | Scene / Popup / Element UI 구조 | **Static / Dynamic / System UI 구조로 변경** |
 | **빌드 자동화** | Jenkins 기반 빌드 자동화 | **Firebase 연동, 세분화된 빌드 프로세스** |
 | **씬 관리** | Addressable 기반 씬 로딩 | **데이터 유지 및 상태 관리 추가** |
-| **스킬 시스템** | Switch 기반 등록 + 직접 실행 | **Attribute 자동 등록 + 모듈 분리 (Action/Buff Controller)** |
+| **스킬 시스템** | Switch 기반 등록 + 직접 실행 | **SkillAgent·Effect·SkillTag·Status 기반 모듈화, 팩토리 등록** |
 
 ## 주요 시스템 개요
 
@@ -61,8 +68,9 @@ ProjectT는 Project J의 기존 시스템을 최적화하고 유지보수성을 
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/SceneManager)**
 
 ### SkillSystem
-- 기존 Switch 기반 스킬/버프 로직을 Attribute 기반 자동 등록 구조로 변경
-- BaseAction/BaseBuff 기반으로 스킬과 버프를 모듈화
+- 기존 Switch 기반 스킬/버프 로직을 SkillAgent·Effect·SkillTag·Status 기반 구조로 변경
+- SkillDefinition·EffectDefinition의 팩토리로 스킬 행동과 효과 동작을 등록 (리플렉션 등록 없음)
+- 자세한 구조: [Docs/ability-system.md](Docs/ability-system.md)
 - **[더 보기](https://github.com/osy9611/ProjectT/wiki/Skill-System)**
 
   <a href="https://github.com/osy9611/ProjectT/wiki/Skill-System">

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="700" viewBox="0 0 680 700" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+<title>스킬 발동 흐름</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#73726C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="680" height="700" fill="#FFFFFF"/>
+<rect x="140" y="30" width="400" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.8"/>
+<text x="340.0" y="49" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#2C2C2A">ActivateSkill(id)</text>
+<text x="340.0" y="68" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">등록 닫힘 · 미등록 · 활성 중이면 무시</text>
+<line x1="340" y1="86" x2="340" y2="106" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="108" width="400" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.8"/>
+<text x="340.0" y="127" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#2C2C2A">BlockedTags 확인</text>
+<text x="340.0" y="146" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">하나라도 보유하면 무시</text>
+<line x1="340" y1="164" x2="340" y2="184" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="186" width="400" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="340.0" y="205" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">CanActivate()</text>
+<text x="340.0" y="224" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">쿨다운 · 비용 부족이면 무시</text>
+<line x1="340" y1="242" x2="340" y2="262" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="264" width="400" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="340.0" y="283" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">Activate()</text>
+<text x="340.0" y="302" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">파생 구현 · ApplyEffects(target)</text>
+<line x1="340" y1="320" x2="340" y2="340" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="342" width="400" height="56" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="340.0" y="361" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3C3489">Commit()</text>
+<text x="340.0" y="380" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534AB7">쿨다운 시작 · 비용 차감</text>
+<line x1="340" y1="398" x2="340" y2="418" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="420" width="400" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.8"/>
+<text x="340.0" y="439" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#2C2C2A">CancelledByTags · 비활성화 확인</text>
+<text x="340.0" y="458" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5F5E5A">해당하면 이벤트 없이 취소</text>
+<line x1="340" y1="476" x2="340" y2="496" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="498" width="400" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
+<text x="340.0" y="517" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#085041">OnSkillActivated</text>
+<text x="340.0" y="536" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">활성 목록 등록 후 알림</text>
+<line x1="340" y1="554" x2="340" y2="574" stroke="#73726C" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="140" y="576" width="400" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
+<text x="340.0" y="595" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#085041">End / Cancel → OnSkillEnded</text>
+<text x="340.0" y="614" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0F6E56">OnEnd 뒤 발동마다 1회</text>
+<rect x="140" y="656" width="14" height="14" rx="3" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.8"/>
+<text x="160" y="667" font-size="12" fill="#5F5E5A">코어 판정</text>
+<rect x="250" y="656" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
+<text x="270" y="667" font-size="12" fill="#5F5E5A">파생 클래스 재정의</text>
+<rect x="410" y="656" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
+<text x="430" y="667" font-size="12" fill="#5F5E5A">이벤트</text>
+</svg>

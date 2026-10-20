@@ -79,3 +79,6 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 # 보고서·설계 문서는 커밋하지 않는다
 reports/
+
+# Refactoring history documents (local only)
+Docs/archive/
