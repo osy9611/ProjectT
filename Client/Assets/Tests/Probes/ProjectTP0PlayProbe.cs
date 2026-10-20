@@ -2,7 +2,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using Cysharp.Threading.Tasks;
 using ProjectT;
 using ProjectT.Sample;
@@ -16,11 +15,9 @@ using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 using UnityEngine.UI;
 
 // FeatureSample 씬의 샘플 버튼 경로(Actor·Pool, Input, UI, Scene)를 실제 Play Mode에서 순서대로 실행하고 결과를 콘솔에 남긴다.
-// 샘플 버튼 함수는 private이므로 리플렉션으로 같은 함수를 호출한다. 입력은 가상 Gamepad 이벤트로 넣는다.
+// 샘플 버튼 함수는 internal 메서드로 직접 호출하고, 입력은 가상 Gamepad 이벤트로 넣는다.
 public class ProjectTP0PlayProbe : MonoBehaviour
 {
-    private const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
-
     private static readonly List<string> s_results = new List<string>();
     private readonly List<string> sampleLines = new List<string>();
     private readonly List<string> errors = new List<string>();
@@ -161,42 +158,43 @@ public class ProjectTP0PlayProbe : MonoBehaviour
 
     private IEnumerator ActorInternal()
     {
-        Call(runner, "SpawnInternal");
-        Call(runner, "SpawnInternal");
-        Call(runner, "SpawnInternal");
+        runner.SpawnInternal();
+        runner.SpawnInternal();
+        runner.SpawnInternal();
         var actors = Spawned();
         Check(actors.Count == 3, "actor", $"Spawn x3 -> spawned {actors.Count}");
         foreach (var actor in actors)
-            Check(State(actor) == "Active" && actor.gameObject.activeSelf && ContextOwned(actor), "actor", $"{actor.name} Id{actor.Id} Active with registered input context ({State(actor)})");
+            Check(actor.gameObject.activeSelf && ContextOwned(actor), "actor", $"{actor.name} Id{actor.Id} Active with registered input context");
 
-        Check(ControllerContextCount() == 3, "actor", $"controller contexts after spawn = {ControllerContextCount()}");
+        Check(RegisteredContexts(actors) == 3, "actor", $"registered actor contexts after spawn = {RegisteredContexts(actors)}");
         Check(actors[0].Id != actors[1].Id && actors[1].Id != actors[2].Id, "actor", "OnEnter assigns distinct Id");
 
         var last = actors[2];
-        Call(runner, "ToggleLastInternal");
-        Check(!last.gameObject.activeSelf && State(last) == "Entered" && !ContextOwned(last), "actor", $"Toggle off -> Entered, context detached ({State(last)})");
-        Check(ControllerContextCount() == 2, "actor", $"controller contexts after toggle off = {ControllerContextCount()}");
+        runner.ToggleLastInternal();
+        Check(!last.gameObject.activeSelf && !HasLine($"Actor{last.Id} OnRelease") && !ContextOwned(last), "actor", "Toggle off -> inactive without release, context detached");
+        Check(RegisteredContexts(actors) == 2, "actor", $"registered actor contexts after toggle off = {RegisteredContexts(actors)}");
         Check(HasLine($"Actor{last.Id} Disable"), "actor", "Toggle off calls Disable");
 
-        Call(runner, "ToggleLastInternal");
-        Check(last.gameObject.activeSelf && State(last) == "Active" && ContextOwned(last), "actor", $"Toggle on -> Active, context re-registered ({State(last)})");
-        Check(ControllerContextCount() == 3, "actor", $"controller contexts after toggle on = {ControllerContextCount()}");
+        runner.ToggleLastInternal();
+        Check(last.gameObject.activeSelf && ContextOwned(last), "actor", "Toggle on -> Active, context re-registered");
+        Check(RegisteredContexts(actors) == 3, "actor", $"registered actor contexts after toggle on = {RegisteredContexts(actors)}");
 
         int oldId = last.Id;
-        Call(runner, "RespawnInternal");
+        runner.RespawnInternal();
         actors = Spawned();
         var respawned = actors[actors.Count - 1];
         Check(HasLine($"Actor{oldId} OnRelease"), "actor", "Respawn returns last (OnRelease)");
-        Check(actors.Count == 3 && State(respawned) == "Active" && respawned.Id > oldId, "actor", $"Respawn rents new spawn Id{respawned.Id} Active (reused instance: {ReferenceEquals(respawned, last)})");
-        Check(ControllerContextCount() == 3, "actor", $"controller contexts after respawn = {ControllerContextCount()}");
+        Check(actors.Count == 3 && respawned.gameObject.activeSelf && ContextOwned(respawned) && respawned.Id > oldId, "actor", $"Respawn rents new spawn Id{respawned.Id} Active (reused instance: {ReferenceEquals(respawned, last)})");
+        Check(RegisteredContexts(actors) == 3, "actor", $"registered actor contexts after respawn = {RegisteredContexts(actors)}");
 
         var returned = actors[actors.Count - 1];
-        Call(runner, "ReturnLastInternal");
-        Check(!returned.gameObject.activeSelf && State(returned) == "None" && !ContextOwned(returned), "actor", $"Return Last -> inactive, None, context detached ({State(returned)})");
-        Check(Spawned().Count == 2 && ControllerContextCount() == 2, "actor", $"after Return Last spawned {Spawned().Count}, contexts {ControllerContextCount()}");
+        int returnedId = returned.Id;
+        runner.ReturnLastInternal();
+        Check(!returned.gameObject.activeSelf && HasLine($"Actor{returnedId} OnRelease") && !ContextOwned(returned), "actor", "Return Last -> inactive, released, context detached");
+        Check(Spawned().Count == 2 && RegisteredContexts(Spawned()) == 2, "actor", $"after Return Last spawned {Spawned().Count}, contexts {RegisteredContexts(Spawned())}");
 
-        Call(runner, "SpawnInternal");
-        Check(ReferenceEquals(Spawned()[2], returned) && State(returned) == "Active", "actor", "Spawn after Return reuses pooled instance");
+        runner.SpawnInternal();
+        Check(ReferenceEquals(Spawned()[2], returned) && returned.gameObject.activeSelf && ContextOwned(returned), "actor", "Spawn after Return reuses pooled instance");
         yield return null;
         Check(errors.Count == 0, "actor", "no errors during actor steps");
     }
@@ -212,41 +210,41 @@ public class ProjectTP0PlayProbe : MonoBehaviour
             "skill", $"Spawn sets Hp {status.GetResource(SkillDefinitions.HpStat)}/{status.Get(SkillDefinitions.MaxHpStat)}, Atk {status.Get(SkillDefinitions.AtkStat)}");
 
         int activated = CountLines(activatedLine);
-        Call(runner, "UseSkillLastInternal");
+        runner.UseSkillLastInternal();
         Check(CountLines(activatedLine) == activated + 1 && HasLine($"Actor{id} Skill {SampleActor.SkillId} Ended Completed"), "skill", "Use Skill activates and completes");
 
-        Call(runner, "UseSkillLastInternal");
+        runner.UseSkillLastInternal();
         Check(CountLines(activatedLine) == activated + 1, "skill", "Use Skill during cooldown is ignored");
 
         yield return new WaitForSeconds(3.2f);
-        Call(runner, "UseSkillLastInternal");
+        runner.UseSkillLastInternal();
         Check(CountLines(activatedLine) == activated + 2, "skill", "Use Skill after cooldown activates");
 
-        Call(runner, "ApplyEffectLastInternal", 1);
+        runner.ApplyEffectLastInternal(1);
         Check(HasLine($"Actor{id} Effect 1 Applied") && Mathf.Approximately(status.Get(SkillDefinitions.AtkStat), SampleActor.BaseAtk * 1.2f), "skill", $"Atk Buff applies modifier (Atk {status.Get(SkillDefinitions.AtkStat)})");
 
-        Call(runner, "ApplyEffectLastInternal", 5);
+        runner.ApplyEffectLastInternal(5);
         Check(actor.SkillAgent.HasTag(SkillDefinitions.StunTag) && HasLine($"Actor{id} Tag State.Stun Added"), "skill", "Stun grants State.Stun");
 
         yield return new WaitForSeconds(3.2f);
         activated = CountLines(activatedLine);
-        Call(runner, "UseSkillLastInternal");
+        runner.UseSkillLastInternal();
         Check(CountLines(activatedLine) == activated, "skill", "Use Skill while stunned is blocked");
 
         yield return new WaitForSeconds(2.2f);
         Check(!actor.SkillAgent.HasTag(SkillDefinitions.StunTag) && HasLine($"Actor{id} Effect 5 Removed Expired") && HasLine($"Actor{id} Tag State.Stun Removed"), "skill", "Stun expires and removes State.Stun");
 
-        Call(runner, "UseSkillLastInternal");
+        runner.UseSkillLastInternal();
         Check(CountLines(activatedLine) == activated + 1, "skill", "Use Skill after stun activates");
 
         // Atk 버프(10초)가 남은 상태로 반납·재스폰해 이전 스폰의 효과와 스탯이 넘어가지 않는지 본다.
-        Call(runner, "RespawnInternal");
+        runner.RespawnInternal();
         var respawned = Spawned()[Spawned().Count - 1];
         Check(ReferenceEquals(respawned, actor) && respawned.Id != id, "skill", $"Respawn reuses instance with new Id{respawned.Id}");
         Check(status.Get(SkillDefinitions.AtkStat) == SampleActor.BaseAtk && status.GetResource(SkillDefinitions.HpStat) == SampleActor.BaseHp && !respawned.SkillAgent.HasTag(SkillDefinitions.StunTag),
             "skill", $"Respawn resets Atk {status.Get(SkillDefinitions.AtkStat)}, Hp {status.GetResource(SkillDefinitions.HpStat)}, no tags");
 
-        Call(runner, "UseSkillLastInternal");
+        runner.UseSkillLastInternal();
         Check(HasLine($"Actor{respawned.Id} Skill {SampleActor.SkillId} Activated"), "skill", "Respawned actor re-registers skill without cooldown carry-over");
         yield return null;
         Check(errors.Count == 0, "skill", "no errors during skill steps");
@@ -297,7 +295,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
             stopped &= actor.MoveDirection == Vector2.zero;
         Check(stopped, "input", "stick release cancels Move");
 
-        var blocker = (ProjectT.Controller.InputContext)Get(runner, "blocker");
+        var blocker = runner.Blocker;
         input.AddContext(blocker);
         before = JumpCounts(actors);
         int blockerLines = CountLines("Blocker consumed Jump");
@@ -321,7 +319,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         yield return null;
         Check(input.IsDeviceLost, "input", "removing paired pad -> IsDeviceLost");
         Check(HasLine("Notify InputDeviceLost"), "input", "InputDeviceLost published");
-        Check(!(bool)Get(input.Controller, "inputAllowed"), "input", "device lost blocks controller input");
+        Check(!PlayerMapEnabled(), "input", "device lost disables the Player action map");
 
         InputSystem.AddDevice(pad);
         yield return null;
@@ -341,7 +339,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         var a = ui.FindWidget<SampleUI>(UIDefine.eUIType.SampleStaticA);
         Check(a != null && a.IsActive && ReferenceEquals(ui.TopWidget, a), "ui", "Static A shown and on top");
         yield return null;
-        Check(!(bool)Get(Global.Input.Controller, "inputAllowed"), "ui", "focused Static UI blocks game input");
+        Check(!PlayerMapEnabled(), "ui", "focused Static UI blocks game input");
         int[] before = JumpCounts(actors);
         yield return PressSouthInternal();
         Check(SameCounts(before, JumpCounts(actors)), "ui", "Jump not delivered while Static UI focused");
@@ -367,7 +365,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         Check(ui.TopWidget == null || !ui.TopWidget.gameObject.activeSelf, "ui", $"Close A empties visible stack (top {ui.TopWidget?.name ?? "None"})");
         yield return null;
         yield return null;
-        Check((bool)Get(Global.Input.Controller, "inputAllowed"), "ui", "game input allowed after Static UI closed");
+        Check(PlayerMapEnabled(), "ui", "game input allowed after Static UI closed");
         before = JumpCounts(actors);
         yield return PressSouthInternal();
         Check(AllIncreased(before, JumpCounts(actors)), "ui", "Jump delivered after Static UI closed");
@@ -400,7 +398,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         ui.RemoveWidget(UIDefine.eUIType.SampleStaticB);
         ui.RemoveWidget(UIDefine.eUIType.SampleSystem);
         yield return null;
-        Check((bool)Get(Global.Input.Controller, "inputAllowed"), "ui", "game input allowed after UI cleanup");
+        Check(PlayerMapEnabled(), "ui", "game input allowed after UI cleanup");
     }
 
     private IEnumerator SceneInternal()
@@ -412,10 +410,10 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         Check(scene.CurrentScene is SampleSceneA, "scene", $"Single A -> current {scene.CurrentScene?.GetType().Name}");
         Check(Spawned().Count == appActors, "scene", $"App scope actors survive Single transition ({Spawned().Count}/{appActors})");
 
-        Call(runner, "SpawnInternal");
+        runner.SpawnInternal();
         var sceneActor = Spawned()[Spawned().Count - 1];
         int sceneActorId = sceneActor.Id;
-        Check(State(sceneActor) == "Active" && HasLine("(SampleSceneA scope)"), "scene", "Spawn in SampleSceneA scope");
+        Check(sceneActor.gameObject.activeSelf && ContextOwned(sceneActor) && HasLine("(SampleSceneA scope)"), "scene", "Spawn in SampleSceneA scope");
         var placedA = PlaceActorInternal(scene.GetScene<SampleSceneA>(), UnitySceneManager.GetActiveScene(), "SampleSceneA");
 
         int unityScenes = UnitySceneManager.sceneCount;
@@ -430,7 +428,7 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         Check(!scene.HasScene<SampleSceneB>() && UnitySceneManager.sceneCount == unityScenes, "scene", $"Additive B unloaded (unity scenes {UnitySceneManager.sceneCount})");
         Check(HasLine("SampleSceneB OnFinalize"), "scene", "SampleSceneB OnFinalize called");
         Check(!scene.IsTransitioning && scene.IsInputAllowed && scene.CurrentScene is SampleSceneA, "scene", "after unload: not transitioning, input allowed, current A");
-        Check(sceneActor != null && State(sceneActor) == "Active", "scene", "A scope actor unaffected by additive unload");
+        Check(sceneActor != null && sceneActor.gameObject.activeSelf && ContextOwned(sceneActor), "scene", "A scope actor unaffected by additive unload");
         CheckPlacedInternal(placedB, "Additive B unload");
         Check(placedA != null && placedA.UpdatesAfterStop == 0 && string.Join(",", placedA.Trace) == "enter,enable", "scene", "placed actor in A unaffected by additive unload");
 
@@ -439,10 +437,10 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         CheckPlacedInternal(placedA, "Single B transition");
         Check(HasLine($"Actor{sceneActorId} OnRelease"), "scene", "A scope actor released on scene stop");
         Check(sceneActor == null, "scene", "A scope actor destroyed with scene scope pool");
-        Check(Spawned().FindAll(actor => actor != null).Count == appActors, "scene", "App scope actors still alive");
+        Check(Spawned().Count == appActors, "scene", "App scope actors still alive");
 
         int failures = CountLines("Transition SampleSceneB result: Failure");
-        Call(FindAnyObjectByType<SceneSampleRunner>(), "DoubleRequestInternal");
+        FindAnyObjectByType<SceneSampleRunner>().DoubleRequestInternal();
         float deadline = Time.realtimeSinceStartup + 30f;
         while (CountLines("Transition SampleSceneA result:") == 0 && Time.realtimeSinceStartup < deadline)
             yield return null;
@@ -460,11 +458,12 @@ public class ProjectTP0PlayProbe : MonoBehaviour
     private IEnumerator CleanupInternal()
     {
         int lines = sampleLines.Count;
+        var returned = new List<SampleActor>(Spawned());
         while (Spawned().Count > 0)
-            Call(runner, "ReturnLastInternal");
+            runner.ReturnLastInternal();
 
         yield return null;
-        Check(Spawned().Count == 0 && ControllerContextCount() == 0, "cleanup", $"Return All -> spawned {Spawned().Count}, contexts {ControllerContextCount()}");
+        Check(Spawned().Count == 0 && RegisteredContexts(returned) == 0, "cleanup", $"Return All -> spawned {Spawned().Count}, contexts {RegisteredContexts(returned)}");
         Note("cleanup", $"lines after cleanup {sampleLines.Count - lines}");
     }
 
@@ -553,29 +552,36 @@ public class ProjectTP0PlayProbe : MonoBehaviour
         return widget == null ? "-" : widget.IsActive ? "Shown" : "Hidden";
     }
 
-    private List<SampleActor> Spawned()
+    private IReadOnlyList<SampleActor> Spawned()
     {
-        var list = (List<SampleActor>)Get(runner, "spawned");
-        list.RemoveAll(actor => actor == null);
-        return list;
+        runner.RemoveDestroyedInternal();
+        return runner.Spawned;
     }
 
-    private static int ControllerContextCount()
+    private static int RegisteredContexts(IReadOnlyList<SampleActor> actors)
     {
-        return ((IList)Get(Global.Input.Controller, "contexts")).Count;
-    }
+        int count = 0;
+        foreach (var actor in actors)
+        {
+            if (ContextOwned(actor))
+                count++;
+        }
 
-    private static string State(SampleActor actor)
-    {
-        return Get(actor, "state").ToString();
+        return count;
     }
 
     private static bool ContextOwned(SampleActor actor)
     {
-        return Get(Get(actor, "context"), "Owner") != null;
+        return actor.Context.Owner != null;
     }
 
-    private static int[] JumpCounts(List<SampleActor> actors)
+    // Controller는 입력 허용 상태에 맞춰 프로젝트 전역 에셋의 Player 맵을 켜고 끈다.
+    private static bool PlayerMapEnabled()
+    {
+        return InputSystem.actions.FindActionMap("Player", true).enabled;
+    }
+
+    private static int[] JumpCounts(IReadOnlyList<SampleActor> actors)
     {
         var counts = new int[actors.Count];
         for (int i = 0; i < actors.Count; i++)
@@ -657,38 +663,6 @@ public class ProjectTP0PlayProbe : MonoBehaviour
     {
         s_results.Add(line);
         Debug.Log(line);
-    }
-
-    private static object Get(object target, string name)
-    {
-        for (var type = target.GetType(); type != null; type = type.BaseType)
-        {
-            var field = type.GetField(name, Flags);
-            if (field != null)
-                return field.GetValue(target);
-
-            var property = type.GetProperty(name, Flags);
-            if (property != null)
-                return property.GetValue(target);
-        }
-
-        throw new MissingMemberException(target.GetType().Name, name);
-    }
-
-    private static void Call(object target, string name, params object[] args)
-    {
-        var method = target.GetType().GetMethod(name, Flags);
-        if (method == null)
-            throw new MissingMethodException(target.GetType().Name, name);
-
-        try
-        {
-            method.Invoke(target, args.Length == 0 ? null : args);
-        }
-        catch (TargetInvocationException error)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException).Throw();
-        }
     }
 }
 #endif

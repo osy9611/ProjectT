@@ -83,7 +83,7 @@ namespace ProjectT.Sample
         }
 
         // 전환 중 두 번째 요청은 거부되어야 하며, 거부 결과는 완료 콜백의 Failure로 전달된다.
-        private void DoubleRequestInternal()
+        internal void DoubleRequestInternal()
         {
             TransitionInternal<SampleSceneA>("SampleSceneA", LoadSceneMode.Single, false);
             TransitionInternal<SampleSceneB>("SampleSceneB", LoadSceneMode.Single, false);

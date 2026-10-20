@@ -9,7 +9,7 @@ namespace ProjectT.Sound
     public class UISoundTool : EditorWindow
     {
         //UI 클릭 컴포넌트 정보 관련 클래스
-        class UIClickSoundInfo
+        internal class UIClickSoundInfo
         {
             public UIClickSound ClickSound;
             public string ClickSoundType = string.Empty;
@@ -58,12 +58,12 @@ namespace ProjectT.Sound
         }
 
         private string selectedFolderPath;
-        private List<GameObject> prefabs = new List<GameObject>();
-        private int selectPrefabIndex = -1;
-        private Dictionary<GameObject, UIClickSoundInfo> prefabSounds = new Dictionary<GameObject, UIClickSoundInfo>();
+        internal List<GameObject> prefabs = new List<GameObject>();
+        internal int selectPrefabIndex = -1;
+        internal Dictionary<GameObject, UIClickSoundInfo> prefabSounds = new Dictionary<GameObject, UIClickSoundInfo>();
         private Vector2 prefabListPos = Vector2.zero;
         private Vector2 prefabComInfoPos = Vector2.zero;
-        private string setSoundType = string.Empty;
+        internal string setSoundType = string.Empty;
 
         [MenuItem("Tools/ClickSound")]
         static public void ShowWindow()
@@ -254,7 +254,7 @@ namespace ProjectT.Sound
             }
         }
 
-        private void GetPrefabComponentList(int index)
+        internal void GetPrefabComponentList(int index)
         {
             if (!IsValidPrefabIndex(index))
                 return;
@@ -273,7 +273,7 @@ namespace ProjectT.Sound
             }
         }
 
-        private void AddClickSound()
+        internal void AddClickSound()
         {
             System.Action<GameObject> edit = AddClickSoundInternal;
             foreach (var prefab in prefabs)
@@ -303,7 +303,7 @@ namespace ProjectT.Sound
             }
         }
 
-        private void RemoveClickSound()
+        internal void RemoveClickSound()
         {
             System.Action<GameObject> edit = RemoveClickSoundInternal;
             for (int i = 0; i < prefabs.Count; ++i)
@@ -327,7 +327,7 @@ namespace ProjectT.Sound
                 DestroyImmediate(component);
         }
 
-        private void ChangeClickSound()
+        internal void ChangeClickSound()
         {
             if (!IsValidPrefabIndex(selectPrefabIndex) || prefabs[selectPrefabIndex] == null)
                 return;
@@ -363,7 +363,7 @@ namespace ProjectT.Sound
             }
         }
 
-        private void RemovePrefabIndex(int index)
+        internal void RemovePrefabIndex(int index)
         {
             if (index >= 0 && index < prefabs.Count)
             {

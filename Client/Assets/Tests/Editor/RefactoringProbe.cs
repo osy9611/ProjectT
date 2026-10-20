@@ -1,8 +1,5 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using ProjectT;
 using ProjectT.Sound;
 using UnityEditor;
@@ -78,17 +75,17 @@ public static class RefactoringProbe
         var tool = ScriptableObject.CreateInstance<UISoundTool>();
         objects.Add(tool);
         int previewScenes = EditorSceneManager.previewSceneCount;
-        Field(tool, "prefabs").SetValue(tool, new List<GameObject> { null, root, prefab });
-        Field(tool, "setSoundType").SetValue(tool, "added");
-        Call(tool, "AddClickSound");
+        tool.prefabs = new List<GameObject> { null, root, prefab };
+        tool.setSoundType = "added";
+        tool.AddClickSound();
         var sounds = AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentsInChildren<UIClickSound>(true);
         Check(sounds.Length == 2, "Add includes inactive children and skips invalid assets");
         Check(sounds[0].ClickSoundType == "existing" && sounds[1].ClickSoundType == "added", "Add preserves existing components");
-        Call(tool, "AddClickSound");
+        tool.AddClickSound();
         Check(AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentsInChildren<UIClickSound>(true).Length == 2, "Add is idempotent");
-        Call(tool, "GetPrefabComponentList", 2);
-        var entries = (IDictionary)Field(tool, "prefabSounds").GetValue(tool);
-        object firstKey = null;
+        tool.GetPrefabComponentList(2);
+        var entries = tool.prefabSounds;
+        GameObject firstKey = null;
         foreach (var key in entries.Keys)
         {
             firstKey = key;
@@ -99,7 +96,7 @@ public static class RefactoringProbe
         bool failed = false;
         try
         {
-            Call(tool, "ChangeClickSound");
+            tool.ChangeClickSound();
         }
         catch (NullReferenceException)
         {
@@ -113,42 +110,25 @@ public static class RefactoringProbe
         entries[firstKey] = savedEntry;
         int index = 0;
         foreach (var info in entries.Values)
-            info.GetType().GetField("ClickSoundType").SetValue(info, "changed" + index++);
-        Call(tool, "ChangeClickSound");
+            info.ClickSoundType = "changed" + index++;
+        tool.ChangeClickSound();
         sounds = AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentsInChildren<UIClickSound>(true);
         Check(sounds[0].ClickSoundType != sounds[1].ClickSoundType && sounds[0].ClickSoundType.StartsWith("changed") && sounds[1].ClickSoundType.StartsWith("changed"), "Change preserves sibling addressing for duplicate names");
         Check(!ReferenceEquals(savedEntry, entries[firstKey]), "Successful Change refreshes component selection");
-        Field(tool, "selectPrefabIndex").SetValue(tool, -1);
-        Call(tool, "ChangeClickSound");
-        Field(tool, "selectPrefabIndex").SetValue(tool, 1);
-        Call(tool, "ChangeClickSound");
-        Check(ReferenceEquals(entries, Field(tool, "prefabSounds").GetValue(tool)) && entries.Count == 2, "Invalid selection or asset path leaves component list unchanged");
-        Call(tool, "GetPrefabComponentList", 2);
-        Call(tool, "RemovePrefabIndex", 0);
-        Check((int)Field(tool, "selectPrefabIndex").GetValue(tool) == 1 && entries.Count == 2, "Removing an earlier prefab adjusts selection");
-        Call(tool, "RemoveClickSound");
+        tool.selectPrefabIndex = -1;
+        tool.ChangeClickSound();
+        tool.selectPrefabIndex = 1;
+        tool.ChangeClickSound();
+        Check(ReferenceEquals(entries, tool.prefabSounds) && entries.Count == 2, "Invalid selection or asset path leaves component list unchanged");
+        tool.GetPrefabComponentList(2);
+        tool.RemovePrefabIndex(0);
+        Check(tool.selectPrefabIndex == 1 && entries.Count == 2, "Removing an earlier prefab adjusts selection");
+        tool.RemoveClickSound();
         Check(AssetDatabase.LoadAssetAtPath<GameObject>(path).GetComponentsInChildren<UIClickSound>(true).Length == 0, "Remove includes inactive children");
-        Call(tool, "RemovePrefabIndex", 1);
-        Check((int)Field(tool, "selectPrefabIndex").GetValue(tool) == -1 && entries.Count == 0, "Removing selected prefab clears selection");
+        tool.RemovePrefabIndex(1);
+        Check(tool.selectPrefabIndex == -1 && entries.Count == 0, "Removing selected prefab clears selection");
         Check(EditorSceneManager.previewSceneCount == previewScenes, "Successful edits unload prefab contents");
         Debug.Log("REFACTOR_CASE prefab sound add/change/remove passed");
-    }
-
-    private static FieldInfo Field(object target, string name)
-    {
-        return target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
-    }
-
-    private static void Call(object target, string name, params object[] args)
-    {
-        try
-        {
-            target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(target, args);
-        }
-        catch (TargetInvocationException error)
-        {
-            ExceptionDispatchInfo.Capture(error.InnerException).Throw();
-        }
     }
 
     private static void Check(bool value, string message)

@@ -1,9 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using ProjectT.Sound;
 using UnityEditor;
 using UnityEngine;
@@ -53,26 +50,26 @@ internal static class UISoundToolTests
         other.transform.SetParent(asset.transform, false);
         AssetDatabase.Assets.Add("fixture.prefab", asset);
         var tool = new UISoundTool();
-        Set(tool, "prefabs", new List<GameObject> { asset });
-        Set(tool, "setSoundType", "added");
-        Call(tool, "GetPrefabComponentList", 0);
+        tool.prefabs = new List<GameObject> { asset };
+        tool.setSoundType = "added";
+        tool.GetPrefabComponentList(0);
         int index = 0;
-        foreach (var info in Entries(tool).Values)
-            info.GetType().GetField("ClickSoundType").SetValue(info, "changed" + index++);
+        foreach (var info in tool.prefabSounds.Values)
+            info.ClickSoundType = "changed" + index++;
         return tool;
     }
 
     private static void Success(string command)
     {
         var tool = Fixture(out var asset);
-        object oldInfo = Entries(tool)[asset.transform.GetChild(0).gameObject];
-        Call(tool, command);
+        object oldInfo = tool.prefabSounds[asset.transform.GetChild(0).gameObject];
+        Execute(tool, command);
         Equal("load:fixture.prefab > save:fixture.prefab > unload", string.Join(" > ", PrefabUtility.Trace));
         var sounds = asset.GetComponentsInChildren<UIClickSound>(true);
         if (command == "AddClickSound")
         {
             Check(sounds.Length == 3 && sounds[0].ClickSoundType == "existing" && sounds[1].ClickSoundType == "added" && sounds[2].ClickSoundType == "non-button", "Add changed existing data or missed inactive button.");
-            Call(tool, command);
+            Execute(tool, command);
             Check(asset.GetComponentsInChildren<UIClickSound>(true).Length == 3, "Add is not idempotent.");
         }
         else if (command == "RemoveClickSound")
@@ -82,22 +79,22 @@ internal static class UISoundToolTests
         else
         {
             Check(sounds.Select(x => x.ClickSoundType).SequenceEqual(new[] { "changed0", "changed1" }), "Change failed to apply distinct sibling-path entries.");
-            Check(!Entries(tool).Values.Cast<object>().Contains(oldInfo), "Successful Change did not refresh entries.");
+            Check(!tool.prefabSounds.Values.Cast<object>().Contains(oldInfo), "Successful Change did not refresh entries.");
         }
     }
 
     private static void Invalid(string command)
     {
         var tool = Fixture(out var asset);
-        var entries = Entries(tool).Values.Cast<object>().ToArray();
-        Set(tool, "prefabs", new List<GameObject> { null, new GameObject() });
+        var entries = tool.prefabSounds.Values.Cast<object>().ToArray();
+        tool.prefabs = new List<GameObject> { null, new GameObject() };
         foreach (int index in new[] { -1, 0, 1, 2 })
         {
-            Set(tool, "selectPrefabIndex", index);
-            Call(tool, command);
+            tool.selectPrefabIndex = index;
+            Execute(tool, command);
         }
         Check(PrefabUtility.Trace.Count == 0, "Invalid asset scheduled editing.");
-        Check(entries.SequenceEqual(Entries(tool).Values.Cast<object>()), "Skipped command refreshed component list.");
+        Check(entries.SequenceEqual(tool.prefabSounds.Values.Cast<object>()), "Skipped command refreshed component list.");
     }
 
     private static void Failure(string command, string stage)
@@ -109,18 +106,18 @@ internal static class UISoundToolTests
             PrefabUtility.LoadError = expected;
         if (stage == "edit")
         {
-            var key = Entries(tool).Keys.Cast<object>().First();
-            Entries(tool)[key] = null;
+            var key = tool.prefabSounds.Keys.First();
+            tool.prefabSounds[key] = null;
         }
         if (stage == "save" || stage == "save+unload")
             PrefabUtility.SaveError = expected;
         if (stage == "unload" || stage == "save+unload")
             PrefabUtility.UnloadError = unload;
-        var entries = Entries(tool).Values.Cast<object>().ToArray();
+        var entries = tool.prefabSounds.Values.Cast<object>().ToArray();
         Exception observed = null;
         try
         {
-            Call(tool, command);
+            Execute(tool, command);
         }
         catch (Exception error)
         {
@@ -133,7 +130,7 @@ internal static class UISoundToolTests
         var trace = PrefabUtility.Trace;
         Check(trace.Count(x => x == "unload") == (stage == "load" ? 0 : 1), "Unload must run exactly once after load succeeded.");
         Check(trace.Count(x => x.StartsWith("save:")) == (stage == "load" || stage == "edit" ? 0 : 1), "Save happened after an edit failure or did not happen.");
-        Check(entries.SequenceEqual(Entries(tool).Values.Cast<object>()), "Failure refreshed component entries.");
+        Check(entries.SequenceEqual(tool.prefabSounds.Values.Cast<object>()), "Failure refreshed component entries.");
         if (stage != "unload")
             Check(asset.GetComponentsInChildren<UIClickSound>(true).Select(x => x.ClickSoundType).SequenceEqual(new[] { "existing", "non-button" }), "Failed edit/save mutated persistent data.");
     }
@@ -144,11 +141,11 @@ internal static class UISoundToolTests
         {
             PrefabUtility.Reset();
             var tool = Fixture(out var asset);
-            Set(tool, "prefabs", new List<GameObject> { asset, asset });
+            tool.prefabs = new List<GameObject> { asset, asset };
             PrefabUtility.SaveError = new InvalidOperationException("stop batch");
             try
             {
-                Call(tool, command);
+                Execute(tool, command);
                 throw new Exception("Batch failure was swallowed.");
             }
             catch (InvalidOperationException error)
@@ -162,27 +159,22 @@ internal static class UISoundToolTests
     private static void Selection()
     {
         var tool = Fixture(out var asset);
-        Set(tool, "prefabs", new List<GameObject> { null, asset });
-        Call(tool, "GetPrefabComponentList", 1);
-        Call(tool, "RemovePrefabIndex", 0);
-        Check((int)Get(tool, "selectPrefabIndex") == 0 && Entries(tool).Count == 2, "Selection shifted incorrectly.");
-        Call(tool, "RemovePrefabIndex", 0);
-        Check((int)Get(tool, "selectPrefabIndex") == -1 && Entries(tool).Count == 0, "Selected removal did not clear entries.");
+        tool.prefabs = new List<GameObject> { null, asset };
+        tool.GetPrefabComponentList(1);
+        tool.RemovePrefabIndex(0);
+        Check(tool.selectPrefabIndex == 0 && tool.prefabSounds.Count == 2, "Selection shifted incorrectly.");
+        tool.RemovePrefabIndex(0);
+        Check(tool.selectPrefabIndex == -1 && tool.prefabSounds.Count == 0, "Selected removal did not clear entries.");
     }
 
-    private static IDictionary Entries(object tool) => (IDictionary)Get(tool, "prefabSounds");
-    private static object Get(object tool, string name) => tool.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(tool);
-    private static void Set(object tool, string name, object value) => tool.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(tool, value);
-
-    private static void Call(object tool, string name, params object[] args)
+    private static void Execute(UISoundTool tool, string command)
     {
-        try
+        switch (command)
         {
-            tool.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(tool, args);
-        }
-        catch (TargetInvocationException error) when (error.InnerException != null)
-        {
-            ExceptionDispatchInfo.Capture(error.InnerException).Throw();
+            case "AddClickSound": tool.AddClickSound(); break;
+            case "RemoveClickSound": tool.RemoveClickSound(); break;
+            case "ChangeClickSound": tool.ChangeClickSound(); break;
+            default: throw new ArgumentException("Unknown command " + command);
         }
     }
 

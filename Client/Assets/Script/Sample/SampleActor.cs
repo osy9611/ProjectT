@@ -22,6 +22,7 @@ namespace ProjectT.Sample
         private InputContext context;
         private PivotInfo hudPivot;
         private SampleHpHud hud;
+        internal InputContext Context => context;
         public int Id { get; private set; }
         public Vector2 MoveDirection { get; private set; }
         public int JumpCount { get; private set; }

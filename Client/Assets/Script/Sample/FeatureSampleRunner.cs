@@ -23,6 +23,9 @@ namespace ProjectT.Sample
         private bool ready;
         private Vector2 scroll;
 
+        internal IReadOnlyList<SampleActor> Spawned => spawned;
+        internal InputContext Blocker => blocker;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
@@ -95,8 +98,7 @@ namespace ProjectT.Sample
 
         private void DrawActorPoolInternal()
         {
-            // 씬 Scope 풀의 인스턴스는 Single 전환에서 파괴되므로 목록에서 뺀다.
-            spawned.RemoveAll(component => component == null);
+            RemoveDestroyedInternal();
             GUILayout.Label($"[Actor·Pool] spawned {spawned.Count}");
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Spawn"))
@@ -204,7 +206,13 @@ namespace ProjectT.Sample
             GUILayout.EndHorizontal();
         }
 
-        private void SpawnInternal()
+        // 씬 Scope 풀의 인스턴스는 Single 전환에서 파괴되므로 목록에서 뺀다.
+        internal void RemoveDestroyedInternal()
+        {
+            spawned.RemoveAll(component => component == null);
+        }
+
+        internal void SpawnInternal()
         {
             // 활성 씬이 있으면 씬 Scope 풀에서 대여해, 씬 정지 시 풀 정리와 Actor 반납을 함께 확인한다.
             var scene = Global.Scene.CurrentScene;
@@ -216,7 +224,7 @@ namespace ProjectT.Sample
             Write($"Spawn {obj.name} ({(scene == null ? "App" : scene.GetType().Name)} scope)");
         }
 
-        private void ReturnLastInternal()
+        internal void ReturnLastInternal()
         {
             if (spawned.Count == 0)
                 return;
@@ -227,7 +235,7 @@ namespace ProjectT.Sample
             Write("Return to pool");
         }
 
-        private void ToggleLastInternal()
+        internal void ToggleLastInternal()
         {
             if (spawned.Count == 0)
                 return;
@@ -236,7 +244,7 @@ namespace ProjectT.Sample
             obj.SetActive(!obj.activeSelf);
         }
 
-        private void RespawnInternal()
+        internal void RespawnInternal()
         {
             if (spawned.Count == 0)
                 return;
@@ -245,7 +253,7 @@ namespace ProjectT.Sample
             SpawnInternal();
         }
 
-        private void UseSkillLastInternal()
+        internal void UseSkillLastInternal()
         {
             if (spawned.Count == 0)
                 return;
@@ -253,7 +261,7 @@ namespace ProjectT.Sample
             spawned[spawned.Count - 1].UseSkill();
         }
 
-        private void ApplyEffectLastInternal(int effectId)
+        internal void ApplyEffectLastInternal(int effectId)
         {
             if (spawned.Count == 0)
                 return;
