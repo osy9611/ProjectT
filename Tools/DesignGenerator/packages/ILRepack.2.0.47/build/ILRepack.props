@@ -1,5 +1,0 @@
-﻿<Project>
-  <PropertyGroup>
-    <ILRepack>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\tools\ILRepack.exe'))</ILRepack>
-  </PropertyGroup>
-</Project>
