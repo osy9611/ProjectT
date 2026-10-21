@@ -1,6 +1,6 @@
 # RefactoringTests 실행
 
-저장소 루트에서 PowerShell로 `& Tools/run-tests.ps1`을 실행하면 이 폴더의 Downloader, FirebaseCache, UISoundTool, UploadFlow 프로젝트와 `run-build.ps1`이 다른 콘솔 테스트와 함께 실행된다. 하나만 실행하려면 `dotnet run --project Tools/RefactoringTests/<프로젝트>`나 `& Tools/RefactoringTests/run-build.ps1`을 쓴다. .NET 9 SDK가 필요하고, Downloader와 FirebaseCache는 Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지도 필요하다. 각 실행의 마지막 줄 통과 수가 전체 수와 같거나 `ALL PASSED`로 시작하면 통과다. 전체 기준선과 수치는 [architecture.md의 테스트 절](../../Docs/architecture.md#테스트)에 있다. 로그와 컴파일 결과는 git이 무시하는 `bin/`에 생긴다.
+저장소 루트에서 PowerShell로 `& Tools/run-tests.ps1`을 실행하면 이 폴더의 Downloader, FirebaseCache, UISoundTool, UploadFlow 프로젝트와 `run-build.ps1`이 다른 콘솔 테스트와 함께 실행된다. 하나만 실행하려면 `dotnet run --project Tools/RefactoringTests/<프로젝트>`나 `& Tools/RefactoringTests/run-build.ps1`을 쓴다. .NET 9 SDK가 필요하고, Downloader와 FirebaseCache는 Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지도 필요하다. 각 실행의 마지막 줄 통과 수가 전체 수와 같거나 `ALL PASSED`로 시작하면 통과다. 전체 기준선과 수치는 [testing.md](../../Docs/testing.md)에 있다. 로그와 컴파일 결과는 git이 무시하는 `bin/`에 생긴다.
 
 ## 무엇을 검사하나
 

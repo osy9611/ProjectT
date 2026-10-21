@@ -1,8 +1,8 @@
 # 남은 지적과 보류 결정
 
-코드 품질 백로그(09_backlog.md)의 1~28번은 모두 끝났다. 이 문서는 그다음 작업을 고를 때 보는 목록이다. A는 아직 처리하지 않은 지적, B는 의도적으로 남긴 결정과 알려진 위험이다. 모든 항목은 main 7a4f0178 코드에서 grep과 read로 다시 확인했다.
+코드 품질 백로그(09_backlog.md)의 1~28번은 모두 끝났다. 이 문서는 그다음 작업을 고를 때 보는 목록이다. A는 아직 처리하지 않은 지적, B는 의도적으로 남긴 결정과 알려진 위험이다. 모든 항목은 main [`7a4f0178`](https://github.com/osy9611/ProjectT/commit/7a4f0178) 코드에서 grep과 read로 다시 확인했다.
 
-근거 표기에서 "리뷰 NN"은 `Docs/archive/PROJECT_CODE_QUALITY_REVIEW/NN_*.md`, "UI 리뷰 NN"은 `Docs/archive/UI_CODE_QUALITY_REVIEW/NN_*.md`, "백로그 N"은 `Docs/archive/PROJECT_CODE_QUALITY_REVIEW/09_backlog.md`의 N번 항목이다. `Docs/archive/`는 로컬 보관 폴더라 git에 없다. 성격은 결함, 정리, 구조 중 하나다. 공개 API, 직렬화 데이터, 생명주기 순서가 바뀌는 항목은 AGENTS.md에 따라 착수 전에 확인을 받는다.
+근거 표기에서 "리뷰 NN"은 `Docs/archive/PROJECT_CODE_QUALITY_REVIEW/NN_*.md`, "UI 리뷰 NN"은 `Docs/archive/UI_CODE_QUALITY_REVIEW/NN_*.md`, "백로그 N"은 `Docs/archive/PROJECT_CODE_QUALITY_REVIEW/09_backlog.md`의 N번 항목이다. `Docs/archive/`는 로컬 보관 폴더라 git에 없다. 성격은 결함, 정리, 구조 중 하나다. 항목을 고를 때와 진행할 때의 작업 규칙은 [AGENTS.md](../AGENTS.md)를 따른다. 공개 API, 직렬화 데이터, 생명주기 순서가 바뀌는 항목은 [착수 전에 확인](../AGENTS.md#착수-전-확인)을 받는다.
 
 ## A. 남은 유효 지적
 
@@ -10,7 +10,7 @@
 
 | 위치 | 문제 | 근거 | 성격 |
 |---|---|---|---|
-| `Managers/SceneManager.cs` | `EnterEntryAsync`가 `scenes.Add`를 GameObject 생성 뒤에 해서 catch에 `else if (!scenes.ContainsKey)` 분기(:295)가 생겼다. `SceneEntry.IsAddressable`은 `Instance`에서 알 수 있는 값이다. | 리뷰 01 F6 | 정리 |
+| `Managers/SceneManager.cs` | `EnterEntryAsync`가 `scenes.Add`를 GameObject 생성 뒤에 해서 catch에 `else if (!scenes.ContainsKey)` 분기가 생겼다. `SceneEntry.IsAddressable`은 `Instance`에서 알 수 있는 값이다. | 리뷰 01 F6 | 정리 |
 | `Managers/SceneManager.cs` | 콜백형 `Transition<T>`과 `eSceneTransitionResult`가 `TransitionAsync`와 함께 공개 진입점을 둘로 만든다. `PrevSceneName`은 샘플 라벨에만 쓰인다. 공개 API 변경이다. | 리뷰 01 F7 | 구조 |
 | `Test.cs` | Title·Download 씬 버튼(`GoTitle`, `GoDownload`)의 씬 이동 진입점이 테스트 클래스다. 호출 없는 `TESTTask`·`InitAddressable`·`CheckUpdateFile`·`AddSpriteAtlas`, 미사용 필드, 주석 코드 약 50줄이 있다. | 리뷰 01 F8 | 구조 |
 | `TestReflection.cs`, `TestTutorial.cs` | 두 파일 모두 씬·프리팹 참조가 없다. `TestReflection`은 본문 대부분이 주석이고 `ParallelJob`은 쓰는 곳이 없다. | 리뷰 01 F8 | 정리 |
@@ -39,8 +39,8 @@
 | `AbilitySystem/Skill/SkillAgent.cs`, `AbilitySystem/Skill/Action/SkillActionController.cs` | `GiveSkill`·`ActivateSkill`·`CancelSkill`이 `SkillActionController`로 넘기기만 하고, 세 객체가 서로를 역참조한다. | 리뷰 03 F6 | 구조 |
 | `AbilitySystem/Skill/Action/BaseSkillAction.cs`, `SkillActionController.cs` | 발동 순서(`TryActivateInternal`, `CompleteActivationInternal`, `Activating`·`Ending`, `pendingEndReason`)가 두 클래스의 네 메서드에 나뉘어 있다. | 리뷰 03 F7 | 구조 |
 | `SkillAdapter/Action_Normal.cs`, `Action_Melee.cs`, `Action_Range.cs` | 내용이 같은 자리표시자 세 벌이다. | 리뷰 03 F9 | 정리 |
-| `AbilitySystem/Skill/SkillAgent.cs:186`, `AbilitySystem/Stat/Status.cs:171` | "정리는 알리지 않는다"가 "구독자는 Disable에서 해제한다"는 관례에 기댄다. `TurnUnit`은 `OnInit`에서 구독하고 `OnRelease`의 `tags.Clear()`로 보정한다. | 리뷰 03 F11 | 구조 |
-| `Actor/TestActor.cs`, `SkillActionController.cs:69` | `TestActor`는 `Scenes/Test.unity`만 참조하는 빈 파생 클래스다. `OnUpdate(float deletaTime)` 매개변수 이름이 오타다. | 리뷰 03 기타 | 정리 |
+| `AbilitySystem/Skill/SkillAgent.cs`의 `ReleaseInternal`, `AbilitySystem/Stat/Status.cs`의 `ReleaseInternal` | "정리는 알리지 않는다"가 "구독자는 Disable에서 해제한다"는 관례에 기댄다. `TurnUnit`은 `OnInit`에서 구독하고 `OnRelease`의 `tags.Clear()`로 보정한다. | 리뷰 03 F11 | 구조 |
+| `Actor/TestActor.cs`, `SkillActionController.cs`의 `OnUpdate` | `TestActor`는 `Scenes/Test.unity`만 참조하는 빈 파생 클래스다. `OnUpdate(float deletaTime)` 매개변수 이름이 오타다. | 리뷰 03 기타 | 정리 |
 
 ### UI와 Sound
 
@@ -65,9 +65,11 @@
 | `Tools/DesignGenerator/DesignGenerator/Table/TableGenerator.cs` | 7개·9개 복합 PK 입력에서 `datas` 필드 타입이 잘못 생성되어 CS1003·CS0305로 컴파일에 실패한다. 재현 기록 이후 이 파일은 바뀌지 않았다. | `Docs/archive/ADDITIONAL_REFACTORING_ANALYSIS.md` 4절(로컬 보관) | 결함 |
 | `Sample/FeatureSampleRunner.cs`, `UISampleRunner.cs`, `SoundSampleRunner.cs`, `SceneSampleRunner.cs`, `TurnBattle/TurnBattleRunner.cs` | 대기 부트스트랩이 다섯 벌이다. 샘플 6개 파일이 `FeatureSampleRunner.Write`에 의존한다. | 리뷰 06 F7 | 구조 |
 | 루트 `Assembly-CSharp.csproj`, `Tools/TEMP/`, `Tools/LifecycleTests/*.cs.meta` | 0바이트 untracked csproj, 파일 없는 디렉터리 트리, 추적 중인 `.cs.meta` 7개가 남아 있다. | 리뷰 06 F11 | 정리 |
-| `AbilitySystem/Skill/Effect/EffectController.cs:8`, `Common/Global.cs:163` | 주석이 지금 코드와 맞지 않는다. 핸들 0은 이제 Instant에서만 나오는데 "적용 중 정리"를 적고 있다. `Log` 주석은 삭제된 "소켓 스레드"를 적고 있다. | 백로그 6, 코드 대조 | 정리 |
-| `Tools/RefactoringTests/README.md:64,68` | "git이 추적하는 `bin/Release`"라고 안내하지만 24a 이후 `Tools/DesignGenerator` 아래 추적 bin은 0개다. | 백로그 24a | 정리 |
+| `AbilitySystem/Skill/Effect/EffectController.cs`의 `EffectHandle.Id`, `Common/Global.cs`의 `Log` | 주석이 지금 코드와 맞지 않는다. 핸들 0은 이제 Instant에서만 나오는데 "적용 중 정리"를 적고 있다. `Log` 주석은 삭제된 "소켓 스레드"를 적고 있다. | 백로그 6, 코드 대조 | 정리 |
 | `DesignTable/Gen/` | `DesignGenerator.exe.config`와 `DesignTool.exe.config`가 없다. `App.config`의 bindingRedirect가 실행 시 적용되지 않을 수 있다(추정). | 백로그 24a | 결함 |
+| `Tools/DesignGenerator` | 생성 DLL을 결정적(deterministic)으로 컴파일할지 정하지 않았다. | 옛 위키 TableGenerator | 정리 |
+| `Tools/DesignGenerator`의 `--merge` | ILRepack 병합 산출물을 Unity가 로드하지 못한다. 그래서 병합은 기본으로 끄고 `ValidateForUnity`가 산출물을 검사한다. | 옛 위키 TableGenerator | 결함 |
+| `Tools/DesignGenerator` | Excel COM 변환 전체 경로와 Unity에서 생성 DLL을 로드하는 경로는 검증하지 않았다. | 옛 위키 TableGenerator | 미검증 |
 
 ## B. 보류 결정과 알려진 위험
 
@@ -86,14 +88,8 @@
 | 13 LocalStorage 삭제 | 저장 엔진과 매니저 등록을 지웠다. 기존 저장 파일은 읽지 않고 무시한다. | 로컬 저장 기능이 다시 필요할 때 |
 | 8 디스패치 루프 2개 | `ManagerHost`의 `OnUpdate`·`OnAppPause` 루프는 합치지 않았다. 합치면 매 프레임 할당이나 분기가 생긴다. | 훅을 다시 추가할 때 |
 | 21 StopAllSpatialSounds 집계 | 오류 집계를 3단에서 1단(`ErrorCollector.Run`과 `ThrowIfAny`)으로 줄이고 그대로 뒀다. | Sound 오류 처리를 다시 볼 때 |
+| 외부 오류 sink 범위 | 외부 sink에 예외만 보낼지 `Global.LogError`로 남긴 처리된 오류까지 보낼지, 이벤트에 사용자 ID를 넣을지 정하지 않았다([error-reporting.md](error-reporting.md#설계-결정)). | Crashlytics sink를 도입할 때 |
 | 22b 종료 오류 | `ManagerHost` 종료가 여러 오류를 `AggregateException`으로 던지고 Global 보고 경계가 둘이다. | 종료 순서를 바꿀 때 |
 | 24 Build Profile | `Client/Assets/Settings/Build Profiles/New Windows Profile.asset`을 지우지 않고 유지했다. | 빌드 설정을 정리할 때 |
 | Check 하네스 미통합 | `static void Check(`가 Tools 아래 11개 파일에 있다. 같은 사본은 4줄짜리뿐이고 나머지는 의도적으로 다르며, 합치면 프로젝트 간 결합이 생겨 하지 않았다(리뷰 07 5단계). | 테스트 프레임워크를 바꿀 때 |
 | AbilitySystem asmdef 없음 | asmdef를 의도적으로 지워 Assembly-CSharp에 컴파일된다. `internal`이 어셈블리 전체에 열려 있어 비의존은 리뷰로 지킨다. | AbilitySystem을 다른 프로젝트에서 재사용할 때 |
-
-## C. 작업 방식
-
-- 항목 하나를 별도 세션에서 진행하고, 원래 세션에는 결과와 다음 작업만 보고한다.
-- 선택지를 판정한 뒤 착수 전에 사용자 확인을 받는다. 커밋, 병합, push도 승인 뒤에 한다.
-- 단계마다 patch와 커밋을 나눠 각 단계가 검증된 상태로 끝나게 한다.
-- 시작 전과 끝난 뒤 `Tools/run-tests.ps1`을 실행해 [architecture.md의 기준선](architecture.md#테스트)과 비교한다. 씬, 풀, UI, 입력에 닿으면 `Client/Assets/Tests/Editor`의 Unity Test Runner 테스트도 전후로 실행한다.

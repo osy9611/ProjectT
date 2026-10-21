@@ -1,6 +1,6 @@
 # LifecycleTests 실행
 
-프로젝트 루트에서 `dotnet run --project Tools/LifecycleTests`를 실행한다. .NET 9 SDK와, Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지가 필요하다. 패키지가 없으면 빌드가 "Open the Unity project once" 오류로 멈춘다. 출력 마지막 줄이 `ALL PASSED`이면 통과이고, 통과 수는 `PASS`로 시작하는 줄의 수다. 실패가 있어도 러너는 모든 시나리오를 실행하고 `FAIL` 줄과 마지막 줄의 실패 수를 출력한다. 전체 기준선과 수치는 [architecture.md의 테스트 절](../../Docs/architecture.md#테스트)에 있다.
+프로젝트 루트에서 `dotnet run --project Tools/LifecycleTests`를 실행한다. .NET 9 SDK와, Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지가 필요하다. 패키지가 없으면 빌드가 "Open the Unity project once" 오류로 멈춘다. 출력 마지막 줄이 `ALL PASSED`이면 통과이고, 통과 수는 `PASS`로 시작하는 줄의 수다. 실패가 있어도 러너는 모든 시나리오를 실행하고 `FAIL` 줄과 마지막 줄의 실패 수를 출력한다. 전체 기준선과 수치는 [testing.md](../../Docs/testing.md)에 있다.
 
 ## 무엇을 검사하나
 
@@ -22,7 +22,7 @@
 검사 범위는 다음과 같다.
 
 - `Global` 조회, 매니저 초기화와 Ready 대기, 역순 종료, 초기화 실패 복구.
-- `Pool`과 `PoolManager`의 대여, 반환, Scope별 정리.
+- `Pool`과 `PoolManager`의 대여, 반납, Scope별 정리.
 - `ResourceManager`의 로드, Scope 해제, 스프라이트, preload.
 - `SceneManager` 전환과 언로드, `SceneBase` 계약.
 - `Controller`, `InputContext`, `InputManager`의 우선순위와 소비.
@@ -46,4 +46,4 @@ GC 할당량은 측정하지 않는다. Play Mode 경로는 [PlayModeTests 실�
 - 매니저 사용 계약(Global 조회, Ready, 종료 순서): [architecture.md의 진입점과 매니저 생명주기](../../Docs/architecture.md#진입점과-매니저-생명주기)
 - 예외 처리 경계: [architecture.md의 오류 처리](../../Docs/architecture.md#오류-처리), [error-reporting.md](../../Docs/error-reporting.md)
 - Actor 생명주기와 입력 컨텍스트: [actor-lifecycle.md](../../Docs/actor-lifecycle.md)
-- Skill 연결: [ability-system.md](../../Docs/ability-system.md)
+- 스킬 시스템 연결: [ability-system.md](../../Docs/ability-system.md)

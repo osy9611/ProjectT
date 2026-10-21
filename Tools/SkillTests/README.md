@@ -1,6 +1,6 @@
 # SkillTests 실행
 
-프로젝트 루트에서 `dotnet run --project Tools/SkillTests`를 실행한다. .NET 9 SDK가 필요하고 UniTask는 쓰지 않는다. 출력 마지막 줄 `<통과 수>/<전체 수> passed`에서 두 수가 같으면 통과다. 전체 기준선과 수치는 [architecture.md의 테스트 절](../../Docs/architecture.md#테스트)에 있다.
+프로젝트 루트에서 `dotnet run --project Tools/SkillTests`를 실행한다. .NET 9 SDK가 필요하고 UniTask는 쓰지 않는다. 출력 마지막 줄 `<통과 수>/<전체 수> passed`에서 두 수가 같으면 통과다. 전체 기준선과 수치는 [testing.md](../../Docs/testing.md)에 있다.
 
 ## 무엇을 검사하나
 
@@ -34,4 +34,5 @@
 
 ## 관련 문서
 
-- [ability-system.md](../../Docs/ability-system.md). 테스트 구성은 [ability-system.md의 테스트 절](../../Docs/ability-system.md#테스트)에 있다.
+- [ability-system.md](../../Docs/ability-system.md)
+- 시스템별 테스트 대응: [testing.md의 시스템별 테스트](../../Docs/testing.md#시스템별-테스트)

@@ -1,6 +1,6 @@
 # SoundTests 실행
 
-프로젝트 루트에서 `dotnet run --project Tools/SoundTests`를 실행한다. .NET 9 SDK와, Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지가 필요하다. 출력 마지막 줄 `<통과 수>/<전체 수> sound tests passed`에서 두 수가 같으면 통과다. 전체 기준선과 수치는 [architecture.md의 테스트 절](../../Docs/architecture.md#테스트)에 있다.
+프로젝트 루트에서 `dotnet run --project Tools/SoundTests`를 실행한다. .NET 9 SDK와, Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지가 필요하다. 출력 마지막 줄 `<통과 수>/<전체 수> sound tests passed`에서 두 수가 같으면 통과다. 전체 기준선과 수치는 [testing.md](../../Docs/testing.md)에 있다.
 
 ## 무엇을 검사하나
 
@@ -34,7 +34,7 @@
 - 실제 Unity 파괴 프레임과 콜백 순서. Play Mode에서 확인한다.
 - 관리 힙 GC 할당량.
 
-Unity 참조로 `Assembly-CSharp`와 `Assembly-CSharp-Editor`를 컴파일하려면 `./Tools/SoundTests/compile-unity.ps1`을 실행한다. Unity 프로젝트를 한 번 열어 Bee 응답 파일이 있어야 한다. 이 스크립트는 [architecture.md의 Unity 참조 컴파일](../../Docs/architecture.md#unity-참조-컴파일)에 설명이 있다.
+Unity 참조로 `Assembly-CSharp`와 `Assembly-CSharp-Editor`를 컴파일하려면 `./Tools/SoundTests/compile-unity.ps1`을 실행한다. Unity 프로젝트를 한 번 열어 Bee 응답 파일이 있어야 한다. 이 스크립트는 [testing.md의 Unity 참조 컴파일](../../Docs/testing.md#unity-참조-컴파일)에 설명이 있다.
 
 ## 변경 전후 비교
 

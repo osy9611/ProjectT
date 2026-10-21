@@ -1,15 +1,21 @@
 # Actor 생명주기
 
-Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn()`으로 스폰을 시작해 풀 반납이나 파괴로 스폰을 끝낸다. 상태는 private enum `ActorState` 하나로 관리하며, 각 호출은 허용된 상태에서만 진행되고 나머지 상태에서는 무시되거나 예외를 던진다. 생명주기 단계가 실패하면 첫 예외를 그대로 전파하고 Actor를 `Faulted` 또는 `EndFaulted`로 격리한다. 격리된 Actor는 다시 쓰지 않고 파괴로 정리한다.
+Actor는 MonoBehaviour 하나(`ComBaseActor`)다. 풀에서 대여한 뒤 `Spawn()`으로 스폰을 시작하고, 반납이나 파괴로 스폰을 끝낸다. 상태는 private enum `ActorState` 하나가 정하며, 생명주기 단계가 실패하면 첫 예외를 그대로 전파하고 Actor를 격리 상태(`Faulted`, `EndFaulted`)로 바꿔 파괴할 때까지 다시 쓰지 않는다.
 
-기준 커밋은 `7a4f0178`이다. 대상 코드는 다음과 같다.
+## 대상 코드
 
 - `Client/Assets/Script/Actor/ComBaseActor.cs`
-- `Client/Assets/Script/Pool/Pool.cs`, `PooledObject.cs`, `GameObjectPool.cs`, `IPoolable.cs`
-- `Client/Assets/Script/Managers/PoolManager.cs`, `SceneManager.cs`, `InputManager.cs`
-- `Client/Assets/Script/Input/InputContext.cs`, `Controller.cs`
+- `Client/Assets/Script/Pool/Pool.cs`
+- `Client/Assets/Script/Pool/PooledObject.cs`
+- `Client/Assets/Script/Pool/GameObjectPool.cs`
+- `Client/Assets/Script/Pool/IPoolable.cs`
+- `Client/Assets/Script/Managers/PoolManager.cs`
+- `Client/Assets/Script/Managers/SceneManager.cs`
+- `Client/Assets/Script/Managers/InputManager.cs`
+- `Client/Assets/Script/Input/InputContext.cs`
+- `Client/Assets/Script/Input/Controller.cs`
 
-입력 시스템 전체는 [architecture.md](architecture.md)가, 스킬·효과 규칙은 [ability-system.md](ability-system.md)가 다룬다. 이 문서는 Actor와 맞닿는 계약만 적는다.
+이 문서는 Actor와 맞닿는 계약만 적는다. 입력 시스템 전체는 [architecture.md](architecture.md#input)에, 스킬·효과 규칙은 [ability-system.md](ability-system.md)에 있다.
 
 ## 수명은 컴포넌트 수명과 스폰 수명 두 겹이다
 
@@ -20,8 +26,8 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 ```
 
 - 컴포넌트 수명 동안 한 번만 만드는 것(`SkillAgent`, `Status`, 재사용할 `InputContext`)은 `OnInit`에서 만든다.
-- 스폰 단위 상태는 `OnEnter`에서 초기화하고 `OnRelease`에서 정리한다. 풀은 GameObject와 `ComBaseActor`를 그대로 재사용하므로 이전 스폰의 값이 남지 않게 하는 책임은 이 두 훅에 있다.
-- 이벤트 구독은 `Enable`에서 하고 `Disable`에서 해제한다. `Status.ReleaseInternal`과 `SkillAgent.ReleaseInternal`은 구독자가 `Disable`에서 이미 빠졌다고 보고 알림 없이 값을 비운다.
+- 스폰 단위 상태는 `OnEnter`에서 초기화하고 `OnRelease`에서 비운다. 풀은 GameObject와 `ComBaseActor`를 그대로 재사용하므로 이전 스폰의 값이 남지 않게 하는 책임은 이 두 훅에 있다.
+- 이벤트 구독은 `Enable`에서 하고 `Disable`에서 해제한다. `Status.ReleaseInternal`과 `SkillAgent.ReleaseInternal`은 구독자가 `Disable`에서 이미 빠졌다고 보고 이벤트 없이 값을 비운다.
 
 | 훅 | 호출 시점 |
 | --- | --- |
@@ -32,23 +38,23 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 | `OnRelease` | 스폰 종료(반납, 파괴). `OnEnter`를 시작한 스폰에만 호출한다 |
 | `OnUpdate`, `OnLateUpdate` | `Active`인 동안 매 프레임 |
 
-## 상태
+## 상태는 ActorState 하나가 정한다
 
 | 값 | 뜻 |
 | --- | --- |
 | `None` | 스폰하지 않은 상태. 처음 상태이자 스폰 종료가 성공한 뒤의 상태 |
 | `Entering` | `OnEnter` 실행 중 |
-| `EnterFailed` | `OnEnter`가 실패한 스폰. 활성화와 재스폰을 하지 않고 반납·파괴에서 정리한다 |
+| `EnterFailed` | 진입 실패. `OnEnter`가 실패한 스폰이다. 활성화와 재스폰을 하지 않고 반납·파괴의 스폰 종료가 비운다 |
 | `Entered` | 스폰했지만 비활성. `OnEnter`가 끝났거나 비활성화가 끝난 상태 |
 | `Active` | 스폰했고 활성. 입력·프레임·스킬 틱을 받는다 |
 | `Deactivating` | 일반 비활성화(`OnDisable`) 진행 중. 콜백에서의 재활성화는 허용하고 반납만 막는다 |
-| `Ending` | 풀 반납에 의한 스폰 종료 진행 중 |
-| `Faulted` | 비활성화가 중간에 실패한 Actor. 파괴가 스폰을 끝낸다 |
-| `EndFaulted` | 스폰 종료가 중간에 실패한 Actor. 파괴에서 다시 정리하지 않는다 |
+| `Ending` | 반납에 의한 스폰 종료 진행 중 |
+| `Faulted` | 격리 상태. 비활성화가 중간에 실패한 Actor다. 파괴가 스폰을 끝낸다 |
+| `EndFaulted` | 격리 상태. 스폰 종료가 중간에 실패한 Actor다. 파괴에서 스폰 종료를 다시 실행하지 않는다 |
 | `Destroying` | `OnDestroy`의 스폰 종료 진행 중 |
 | `Destroyed` | `OnDestroy`가 끝난 상태 |
 
-## 상태 전이표
+## 호출마다 진행하는 상태와 거부하는 상태가 정해져 있다
 
 | 호출 | 진행하는 상태와 결과 | 무시하는 상태 | 예외 |
 | --- | --- | --- | --- |
@@ -56,19 +62,19 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 | `OnEnable` | `Entered`, `Deactivating` → `Active` → `Enable` | 그 밖의 모든 상태 | 없음 |
 | `OnDisable` | `Active` → `Deactivating` → `Entered`. 실패 시 `Faulted` | 그 밖의 모든 상태 | 없음 |
 | `IPoolable.OnReturn` | `EnterFailed`, `Entered`, `Active` → `Ending` → `None`. 실패 시 `EndFaulted`. `None`, `Destroyed`는 `SpawnSerial`만 올리고 끝낸다 | 없음 | `Entering`, `Ending`, `Destroying`, `Deactivating`, `Faulted`, `EndFaulted`, 스킬·효과·Status 호출 중은 `InvalidOperationException` |
-| `OnDestroy` | `Destroying`을 거쳐 항상 `Destroyed`. `Faulted`와 스폰 중인 상태는 스폰 종료를 실행한다 | `None`, `EndFaulted`는 스폰 종료를 건너뛴다 | 스폰 종료의 예외를 전파한다. 상태는 그래도 `Destroyed`가 된다 |
+| `OnDestroy` | `Destroying`을 거쳐 항상 `Destroyed`. `Faulted`, `EnterFailed`와 스폰 중인 상태는 스폰 종료를 실행한다 | `None`, `EndFaulted`는 스폰 종료를 건너뛴다 | 스폰 종료의 예외를 전파한다. 상태는 그래도 `Destroyed`가 된다 |
 | `RegisterInputContext` | `Active`이면 Controller에도 추가한다. 그 밖의 상태는 목록에만 기록한다 | 이미 등록한 컨텍스트 | `Destroying`, `Destroyed`는 `ObjectDisposedException`. 다른 Controller에 붙은 컨텍스트는 `InvalidOperationException` |
 | `Update`의 자동 틱, `TickSkills`, `OnUpdate`, `OnLateUpdate` | `Active` | 그 밖의 모든 상태 | 없음 |
 
 `Spawn()`은 `OnEnter`가 끝난 뒤 상태가 `Entering`이 아니면 활성화하지 않고 돌아간다.
 
-## 초기화와 스폰
+## 초기화가 끝나지 않은 Actor는 Spawn이 다시 초기화한다
 
 `Awake`는 `protected virtual`이다. 파생 클래스가 재정의할 수 있어야 하기 때문이다. 파생 클래스가 `base.Awake()`를 빠뜨리거나 `OnInit`이 실패하면 `initialized`가 false로 남고, 다음 `Spawn()`이 초기화를 다시 실행한다.
 
-- 초기화(`InitializeInternal`)는 `ComPivotAgent`를 가져오고, `skillAgent`와 `status`를 null로 비운 뒤 `OnInit`을 호출한다. 실패한 `OnInit`이 추가한 에이전트가 재초기화에서 중복 추가로 막히지 않게 하려는 것이다.
+- 초기화(`InitializeInternal`)는 `ComPivotAgent`를 가져오고, `skillAgent`와 `status`를 null로 비운 뒤 `OnInit`을 호출한다. 실패한 `OnInit`이 추가한 모듈이 재초기화에서 중복 추가로 막히지 않게 하려는 것이다.
 - `initialized`는 `OnInit`이 끝난 뒤에 true가 된다. 훅이 실패하면 다음 단계로 넘어가지 않는다.
-- 초기화가 안 된 Actor가 비활성 계층에 있으면 `Spawn()`은 `InvalidOperationException`을 던진다. 이 경우 `Awake`가 아직 오지 않았으므로 여기서 초기화하면 나중에 `Awake`가 `OnInit`을 한 번 더 부른다.
+- 초기화가 안 된 Actor가 비활성 계층에 있으면 `Spawn()`은 `InvalidOperationException`을 던진다. 이 경우 `Awake`가 아직 오지 않았으므로, 여기서 초기화하면 나중에 `Awake`가 `OnInit`을 한 번 더 부른다.
 
 `Spawn()`의 순서는 다음과 같다.
 
@@ -78,11 +84,18 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 4. `OnEnter`를 호출한다. 실패하면 `EnterFailed`로 두고 예외를 전파한다.
 5. `Entered`로 바꾸고, `isActiveAndEnabled`이면 활성화한다.
 
-풀에서 꺼낸 Actor의 첫 대여 순서는 `GameObjectPool.Get` → `IPoolable.OnGet`(Actor는 할 일 없음) → `SetActive(true)` → `Awake`·`OnInit` → `OnEnable`(상태 `None`이라 무시) → 호출자의 `Spawn()` → `OnEnter` → `Enable`이다. 재대여는 `Awake`·`OnInit`이 빠진다. `OnGet`은 첫 대여 때 `Awake`보다 먼저 오므로 초기화를 두지 않는다.
+첫 대여는 다음 순서로 진행한다. 재대여는 2번이 빠진다.
+
+1. `GameObjectPool.Get`이 `IPoolable.OnGet`을 호출한다. Actor는 여기서 할 일이 없다.
+2. `SetActive(true)`가 `Awake`와 `OnInit`을 부른다.
+3. `OnEnable`이 오지만 상태가 `None`이라 무시한다.
+4. 호출자가 `Spawn()`을 호출해 `OnEnter`와 `Enable`이 실행된다.
+
+`OnGet`은 첫 대여 때 `Awake`보다 먼저 오므로 초기화를 두지 않는다.
 
 스폰 데이터는 파생 클래스의 설정 함수로 넘긴다. 스포너가 그 함수를 부른 뒤 `Spawn()`을 호출한다(`TurnBattleRunner.SpawnUnit`의 `unit.Setup(spec)`). 씬에 직접 배치한 Actor도 배치 담당 스크립트가 `Spawn()`을 호출한다. 자동 스폰 옵션은 없다.
 
-## 활성화와 비활성화
+## 비활성화는 입력을 먼저 분리하고 Disable을 마지막에 부른다
 
 활성화(`ActivateInternal`)는 상태를 `Active`로 바꾸고, 입력 컨텍스트를 Controller에 추가한 뒤 `Enable`을 호출한다. 컨텍스트 추가 중 콜백이 Actor를 비활성화하면 `Enable`을 부르지 않는다.
 
@@ -95,9 +108,9 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 
 콜백(`onReset`, 스킬 취소, `Disable`)이 Actor를 다시 활성화하면 활성화 쪽이 등록을 이어받고, 비활성화는 남은 단계를 건너뛰고 `Active`로 끝난다. 콜백이 재활성화한 뒤 다시 비활성화해 `Entered`로 끝났으면 바깥 비활성화가 남은 단계를 이어받고 반납 거부(`Deactivating`)를 다시 건다.
 
-## 스폰 종료
+## 반납과 파괴는 같은 스폰 종료 경로를 지난다
 
-풀 반납(`IPoolable.OnReturn`)과 파괴(`OnDestroy`)가 스폰을 끝낸다. 둘 다 `EndSpawnInternal`을 지나며, `Ending` 또는 `Destroying` 상태로 진행해 콜백에서의 재활성화를 막는다. 순서는 다음과 같다.
+반납(`IPoolable.OnReturn`)과 파괴(`OnDestroy`)가 스폰을 끝낸다. 둘 다 `EndSpawnInternal`을 지나며, `Ending` 또는 `Destroying` 상태로 진행해 콜백에서의 재활성화를 막는다. 순서는 다음과 같다.
 
 1. `SpawnSerial`을 1 올린다. 스폰하지 않은 동안 출처로 잡힌 효과도 반납·파괴 뒤에 이 Actor의 `Status`를 쓰지 않도록 상태와 관계없이 올린다.
 2. 이전 상태가 `None`, `EndFaulted`, `Destroyed`이면 끝낸다.
@@ -111,22 +124,28 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 
 ## 실패는 첫 예외를 전파하고 Actor를 격리한다
 
-생명주기 함수는 단계마다 try/finally를 겹치지 않는다. 함수마다 `completed` 플래그 하나를 두고, 예외가 나면 남은 단계를 건너뛴 채 finally에서 상태만 바꾸고 원래 예외를 그대로 전파한다. try/finally를 겹치면 앞 단계가 실패한 상태로 뒤 훅이 실행되고, 뒤에서 난 예외가 첫 예외를 가린다.
+생명주기 함수는 함수마다 `completed` 플래그 하나를 둔다. 예외가 나면 남은 단계를 건너뛰고, finally에서 상태만 바꾼 뒤 원래 예외를 그대로 전파한다.
 
-| 실패 지점 | 결과 상태 | 정리 |
+| 실패 지점 | 결과 상태 | 이후 처리 |
 | --- | --- | --- |
 | `OnInit` | 상태 변화 없음, `initialized`는 false | 다음 `Spawn()`이 다시 초기화한다 |
-| `OnEnter` | `EnterFailed` | 반납하면 스폰 종료를 실행해 `None`이 된다. 재스폰·활성화는 거부·무시한다 |
+| `OnEnter` | `EnterFailed`(진입 실패) | 반납하면 스폰 종료를 실행해 `None`이 된다. 재스폰은 `InvalidOperationException`으로 거부하고, 활성화는 무시한다 |
 | `Enable` | `Active` 유지 | 격리하지 않는다 |
-| 비활성화 단계 | `Faulted`. 콜백이 재활성화한 뒤 실패했으면 다시 등록된 입력도 분리한다 | 반납·스폰은 `InvalidOperationException`으로 거부하고, 재활성화(`OnEnable`)는 무시한다. 파괴가 스폰을 끝낸다 |
-| 스폰 종료 단계 | `EndFaulted` | 반납·스폰은 `InvalidOperationException`으로 거부하고, 재활성화는 무시한다. 파괴에서 다시 정리하지 않는다 |
+| 비활성화 단계 | `Faulted`. 콜백이 재활성화한 뒤 실패했으면 다시 등록된 입력도 분리한다 | 격리 상태 계약을 따른다. 파괴가 스폰 종료를 실행한다 |
+| 스폰 종료 단계 | `EndFaulted` | 격리 상태 계약을 따른다. 파괴에서 스폰 종료를 다시 실행하지 않는다 |
 
-격리된 Actor는 상태가 오염되었을 수 있으므로 다시 활성화·스폰·반납하지 않는다. 반납이 실패한 객체는 `Pool<T>`의 활성 목록에 남고(`OnReturn` 성공 뒤에만 비활성 목록으로 옮긴다), `PooledObject`도 콜백이 모두 성공해야 GameObject를 비활성화한다. 남은 Actor는 다음 경로에서 파괴된다.
+격리 상태 계약은 `Faulted`와 `EndFaulted`에 똑같이 적용된다.
+
+- `IPoolable.OnReturn`과 `Spawn()`은 `InvalidOperationException`을 던진다.
+- 다시 활성화해도(`OnEnable`) 무시된다. `ActivateInternal`은 상태가 `Entered`나 `Deactivating`이 아니면 돌아간다.
+- 프레임 처리와 스킬 틱은 `Active`에서만 진행하므로 멈춘다.
+
+격리된 Actor는 상태가 오염되었을 수 있으므로 파괴만 허용한다. 반납이 실패한 객체는 `Pool<T>`의 활성 목록에 남는다. `Pool<T>`는 `OnReturn`이 성공한 뒤에만 객체를 비활성 목록으로 옮기고, `PooledObject`도 콜백이 모두 성공해야 GameObject를 비활성화한다. 남은 Actor는 다음 경로에서 파괴된다.
 
 - `Global.Pool.Destroy(obj)`. `Pool<T>.Remove`가 `OnReturn` 예외와 관계없이 finally에서 파괴한다.
-- Scope 정리(`PoolManager.ClearScope`, `PoolManager.Clear`). `Pool<T>.ClearInternal`이 객체마다 `OnReturn`과 파괴를 시도하고 예외를 모아 마지막에 던진다.
+- 풀 정리(`PoolManager.ClearScope`, `PoolManager.Clear`). `Pool<T>.ClearInternal`이 객체마다 `OnReturn`과 파괴를 시도하고 예외를 모아 마지막에 던진다.
 
-Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다. 오류 보고는 Unity 실행 경계나 씬 종료 경계가 한 번 한다. 오류를 모으는 `ErrorCollector`는 풀·Scope 정리처럼 여러 객체를 한꺼번에 정리하는 경계에서만 쓴다.
+Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다. 오류 보고는 Unity 실행 경계나 씬 종료 경계가 한 번 한다. 오류를 모으는 `ErrorCollector`는 여러 객체를 한꺼번에 정리하는 풀 경계에서만 쓴다. catch 위치 전체는 [error-reporting.md](error-reporting.md)에 있다.
 
 ## 호출 중 반납은 거부한다
 
@@ -134,8 +153,9 @@ Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다
 
 - 스폰 전환 중(`Entering`, `Ending`, `Destroying`). 예를 들어 `OnEnter`나 `OnRelease` 안에서 자기 자신을 반납하는 경우다.
 - 일반 비활성화 중(`Deactivating`). `Disable`이나 `onReset` 안에서 반납하는 경우다.
-- 스킬·효과 호출 중(`SkillAgent.IsInCall`). 세는 호출은 [ability-system.md](ability-system.md#호출-중-반납-거부)에 있다.
-- Status 알림 중(`Status.IsInCall`). `OnStatChanged`, `OnResourceChanged` 구독자가 반납하는 경우다.
+- 스킬·효과 호출 중(`SkillAgent.IsInCall`). 세는 호출은 [ability-system.md](ability-system.md#스킬과-효과는-호출-깊이를-세어-반납을-막는다)에 있다.
+- Status 이벤트 호출 중(`Status.IsInCall`). `OnStatChanged`, `OnResourceChanged` 구독자가 반납하는 경우다.
+- 격리 상태(`Faulted`, `EndFaulted`).
 
 반납은 호출이 끝난 뒤에 한다. 스킬 틱 뒤에 오는 `OnUpdate`나, 스킬 호출이 반환된 뒤가 그 자리다.
 
@@ -143,19 +163,19 @@ Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다
 
 `ComBaseActor.Update`는 `Active`일 때 스킬을 먼저 틱하고(`AutoTickSkills`가 true일 때), 상태가 여전히 `Active`이면 `OnUpdate`를 호출한다. 만료와 쿨다운이 반영된 뒤 `OnUpdate`가 판단하게 하려는 순서다. 틱 중 비활성화·반납되면 `OnUpdate`를 호출하지 않는다.
 
-틱과 `OnUpdate`가 실패해도 Actor는 `Active`로 남는다. 다른 Actor에 건 효과의 실패도 이 경로로 올라오므로, 여기서 격리하면 실패하지 않은 Actor가 격리된다. 남은 태그와 수정자는 반납·파괴의 해제가 정리하고, 보고는 Unity 실행 경계가 한다.
+틱과 `OnUpdate`가 실패해도 Actor는 `Active`로 남는다. 다른 Actor에 건 효과의 실패도 이 경로로 올라오므로, 여기서 격리하면 실패하지 않은 Actor가 격리된다. 남은 태그와 수정자는 반납·파괴의 스폰 종료가 비우고, 보고는 Unity 실행 경계가 한다.
 
 턴제처럼 프레임 시간과 다른 단위로 효과와 쿨다운을 진행하려면 `AutoTickSkills`를 false로 재정의하고 `TickSkills(deltaTime)`을 직접 호출한다(`TurnUnit`). `TickSkills`도 `Active`일 때만 진행하므로 비활성·반납된 Actor의 효과와 쿨다운은 흐르지 않는다.
 
-## 스킬 시스템과의 연결 지점
+## 스킬 시스템은 OnInit에서 붙이고 스폰 종료에서 정리한다
 
 - `AddSkillAgent()`와 `AddStatus()`는 `OnInit`에서 한 번 호출한다.
 - `ComBaseActor`는 `IAbilityOwner`를 구현해 `SkillAgent`, `Status`, `SpawnSerial`을 노출한다. `SpawnSerial`은 스폰 시작과 모든 스폰 종료(파괴 포함)에서 오른다.
 - 스킬 등록은 `Spawn()`에서 열리고 `SkillAgent.ReleaseInternal()`에서 닫힌다.
 
-모듈 중복 추가와 등록이 닫힌 동안의 처리는 [ability-system.md의 Actor 생명주기 연동과 반납 계약](ability-system.md#actor-생명주기-연동과-반납-계약)을, `SpawnSerial`로 시전자를 판별하는 규칙은 [처리 규칙](ability-system.md#처리-규칙)을 본다.
+모듈 중복 추가와 등록이 닫힌 동안의 처리는 [ability-system.md의 Actor 연동](ability-system.md#actor는-oninit에서-모듈을-붙이고-스폰-종료에서-정리한다)을, `SpawnSerial`로 시전자를 판별하는 규칙은 [효과 처리 규칙](ability-system.md#효과는-정해진-순서로-적용하고-역순으로-제거한다)을 본다. 스킬·효과 콜백이 어느 격리 상태로 이어지는지는 [ability-system.md의 실패 원인](ability-system.md#스킬과-효과의-실패는-actor-생명주기-단계의-실패가-된다)에 있다.
 
-## 입력 컨텍스트
+## 입력 컨텍스트는 Actor가 Active인 동안만 입력을 받는다
 
 Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등록한다. 컨텍스트가 실제로 입력을 받는 것은 Actor가 `Active`이고 Controller에 붙어 있는 동안이다.
 
@@ -175,11 +195,11 @@ Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등
 
 ### 상태 변경을 먼저 끝내고 콜백은 마지막에 실행한다
 
-분리·등록·플래그 같은 상태 변경을 모든 대상에 먼저 끝내고, 사용자 콜백(`onReset`, 훅)은 마지막에 실행한다. 첫 예외는 원래 타입과 스택 그대로 전파하고 남은 콜백은 건너뛴다. Actor 비활성화는 모든 컨텍스트를 분리한 뒤 리셋하고, `Controller.Release`는 모든 컨텍스트를 분리한 뒤 리셋한다. 그래서 한 컨텍스트의 `onReset`이 실패해도 나머지 컨텍스트가 비활성화된 Actor에 입력을 전달하지 않는다.
+분리·등록·플래그 같은 상태 변경을 모든 대상에 먼저 끝내고, 사용자 콜백(`onReset`, 훅)은 마지막에 실행한다. 첫 예외는 원래 타입과 스택 그대로 전파하고 남은 콜백은 건너뛴다. Actor 비활성화와 `Controller.Release`는 모두 컨텍스트를 전부 분리한 뒤 리셋한다. 그래서 한 컨텍스트의 `onReset`이 실패해도 나머지 컨텍스트가 비활성화된 Actor에 입력을 전달하지 않는다.
 
 ### onReset은 멱등이어야 한다
 
-`onReset`은 입력으로 쌓인 값을 지우는 용도다(이동 벡터를 0으로, 차지 여부를 false로). 예외로 건너뛴 바인딩은 `Delivered`가 남아 그 컨텍스트의 다음 전체 리셋에서 `onReset`을 받으므로, 늦게 한 번 더 호출되어도 안전해야 한다. Actor 해제나 등록 해제로 버려진 컨텍스트는 늦은 리셋을 보장하지 않는다.
+`onReset`은 입력으로 쌓인 값을 지우는 용도다(이동 벡터를 0으로, 차지 여부를 false로). 예외로 건너뛴 바인딩은 `Delivered`가 남아 그 컨텍스트의 다음 전체 리셋에서 `onReset`을 받으므로, 늦게 한 번 더 호출되어도 안전해야 한다. Actor 파괴나 등록 해제로 버려진 컨텍스트는 늦은 리셋을 보장하지 않는다.
 
 ### 게임 입력 차단도 onReset으로 온다
 
@@ -189,11 +209,11 @@ Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등
 게임 입력 = 씬 허용 && !UI 포커스 && !장치 분실 && !장치 전환 프레임
 ```
 
-허용이 false가 되면 Controller가 액션을 끄고 등록된 모든 컨텍스트를 리셋한다. Actor는 `Active`인 채로 `onReset`을 받는다. 장치 분실은 페어링된 장치가 하나도 남지 않았을 때만이고, 분실 중에는 게임 입력만 막히고 UI 조작은 유지된다. 분실과 복구는 `NotificationId.InputDeviceLost`, `NotificationId.InputDeviceRegained`로 알린다.
+허용이 false가 되면 Controller가 액션을 끄고 등록된 모든 컨텍스트를 리셋한다. Actor는 `Active`인 채로 `onReset`을 받는다. 장치 분실은 페어링된 장치가 하나도 남지 않았을 때만이고, 분실 중에는 게임 입력만 막히고 UI 조작은 유지된다. 분실과 복구는 `NotificationId.InputDeviceLost`, `NotificationId.InputDeviceRegained`로 통지한다.
 
-## 풀과 씬 Scope
+## 씬 Scope 풀은 씬 정지 직후 정리된다
 
-씬 수명 Actor는 씬 Scope 풀에서 빌린다. `SceneManager`는 모든 씬 종료 경로(`StopEntryInternal`)에서 `SceneBase.Stop()` 직후 `Global.Pool.ClearScope(scope)`를 호출해 그 씬 Scope의 풀을 동기적으로 정리한다. 씬 Scope는 언로드 뒤에 해제되므로, 이 정리가 없으면 그 사이 씬 Scope 풀의 Actor가 입력과 프레임 처리를 계속한다. `Stop()`이 실패해도 풀 정리는 실행하고 두 예외를 씬 종료 경계로 함께 전달한다.
+씬 수명 Actor는 씬 Scope 풀에서 대여한다. `SceneManager`는 모든 씬 종료 경로(`StopEntryInternal`)에서 `SceneBase.Stop()` 직후 `Global.Pool.ClearScope(scope)`를 호출해 그 씬 Scope의 풀을 동기적으로 정리한다. 씬 Scope는 언로드 뒤에 해제되므로, 이 정리가 없으면 그 사이 씬 Scope 풀의 Actor가 입력과 프레임 처리를 계속한다. `Stop()`이 실패해도 풀 정리는 실행하고 두 예외를 씬 종료 경계로 함께 전달한다.
 
 `ClearScope`의 동작은 다음과 같다.
 
@@ -201,7 +221,7 @@ Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등
 2. 풀마다 목록에서 뺀 직후 `GameObjectPool.Dispose()`를 호출한다. 대여 중인 Actor는 `OnReturn`(스폰 종료) 뒤 파괴되고, 대기 중인 Actor는 바로 파괴된다.
 3. 이미 해제된 Scope면 닫지 않고 남은 풀만 정리한다.
 
-App Scope(`Global.Resource.AppScope`) 풀에서 빌린 Actor는 씬이 정지해도 반납되지 않는다. 소유자가 직접 반납하거나(`TurnBattleRunner.ClearUnits`) `PoolManager` 종료 때 정리된다. 씬 수명 Actor를 App Scope로 빌려 생기는 문제는 사용 코드의 버그로 본다. 씬에 직접 배치한 Actor는 씬 언로드 때 파괴되며, 씬 정지부터 언로드까지 멈추는 계약은 없다.
+앱 Scope(`Global.Resource.AppScope`) 풀에서 대여한 Actor는 씬이 정지해도 반납되지 않는다. 소유자가 직접 반납하거나(`TurnBattleRunner.ClearUnits`) `PoolManager` 종료 때 정리된다. 씬 수명 Actor를 앱 Scope로 대여해 생기는 문제는 사용 코드의 버그로 본다. 씬에 직접 배치한 Actor는 씬 언로드 때 파괴되며, 씬 정지부터 언로드까지 멈추는 계약은 없다.
 
 ### 풀 콜백 안에서 같은 풀을 바꾸지 않는다
 
@@ -214,12 +234,16 @@ App Scope(`Global.Resource.AppScope`) 풀에서 빌린 Actor는 씬이 정지해
 매니저는 등록의 역순으로 종료한다. 등록 순서는 [architecture.md](architecture.md#등록-순서가-초기화-순서다)에 있다. Actor에 관련된 순서는 다음과 같다.
 
 1. `SceneManager`가 씬을 정지하고 씬 Scope 풀을 정리한다. 이때 `PoolManager`는 아직 Ready라 `Global.Pool`로 조회한다.
-2. `PoolManager.Clear()`가 남은 모든 풀(App Scope 포함)을 해제한다.
+2. `PoolManager.Clear()`가 남은 모든 풀(앱 Scope 포함)을 해제한다.
 3. `InputManager`가 Controller를 해제한다. 모든 컨텍스트를 분리한 뒤 리셋한다.
 
-`Object.Destroy`는 프레임 끝에 실행되므로 Actor의 `OnDestroy`는 Controller 해제 뒤에 올 수 있다. 그래서 Actor는 종료 경로에서 `Global.Input`을 조회하지 않는다. 종료 토큰이 취소된 뒤에는 새 풀 생성과 대여를 시작하지 않는다.
+`Object.Destroy`는 프레임 끝에 실행되므로 Actor의 `OnDestroy`는 Controller 해제 뒤에 올 수 있다. 그래서 Actor는 종료 경로에서 `Global.Input`을 조회하지 않는다. 수명 토큰이 취소된 뒤에는 새 풀 생성과 대여를 시작하지 않는다.
 
 ## 설계 결정
+
+### 실패 단계마다 try/finally를 겹치지 않고 격리한다
+
+함수마다 `completed` 플래그 하나로 실패를 표시하고 Actor를 격리 상태로 바꾼다. 단계마다 try/finally를 겹치는 방식은 버렸다. 앞 단계가 실패한 상태로 뒤 훅이 실행되고, 뒤에서 난 예외가 첫 예외를 가리기 때문이다. 롤백 catch도 두지 않는다. [AGENTS.md](../AGENTS.md)의 오류 처리 규칙대로 실패는 버그로 전파하고, 남은 상태는 파괴가 치운다.
 
 ### 로직 객체와 컴포넌트를 나누지 않는다
 
@@ -247,7 +271,7 @@ App Scope(`Global.Resource.AppScope`) 풀에서 빌린 Actor는 씬이 정지해
 
 ### 입력과 서버 명령은 행동 함수로 모은다
 
-InputContext 콜백은 Actor의 행동 함수(이동, 점프 같은)를 호출하는 데서 끝낸다. AI나 서버 명령도 같은 함수를 호출하게 해 입력 경로가 늘어도 Actor 구조가 바뀌지 않게 한다. 서버 동기화는 아직 없다. 들어오면 동기화 대상 상태는 Actor를 참조하지 않는 C# 데이터 클래스로 두고, 처리는 매니저 계층(패킷 → 매니저 → Actor의 데이터 갱신 또는 행동 함수 호출)에 둔다. 개별 Actor는 패킷을 직접 처리하지 않는다.
+InputContext 콜백은 Actor의 행동 함수(이동, 점프 같은)를 호출하는 데서 끝낸다. AI나 서버 명령도 같은 함수를 호출하게 해 입력 경로가 늘어도 Actor 구조가 바뀌지 않게 한다. 서버 동기화는 아직 없다. 들어오면 동기화 대상 상태는 Actor를 참조하지 않는 C# 데이터 클래스로 둔다. 패킷은 매니저 계층이 받아 Actor의 데이터를 갱신하거나 행동 함수를 호출한다. 개별 Actor는 패킷을 직접 처리하지 않는다.
 
 ### 하지 않을 것
 
@@ -256,3 +280,10 @@ InputContext 콜백은 Actor의 행동 함수(이동, 점프 같은)를 호출�
 - 서버가 들어오기 전에 동기화용 데이터 클래스나 빙의(Controller) 계층을 추가하지 않는다.
 - `SceneBase`나 Actor에 `Global.Pool`, `Global.Resource` 기능을 다시 노출하는 전달 함수를 두지 않는다.
 - 스폰 데이터용 제네릭 `ComBaseActor<TData>.Spawn(TData)`는 사용 근거가 없어 두지 않는다.
+
+## 관련 문서
+
+- [architecture.md](architecture.md). 매니저 등록 순서, Ready 계약, 종료.
+- [ability-system.md](ability-system.md). 스킬·효과·태그·Status 규칙과 Actor 연동의 스킬 쪽 계약.
+- [error-reporting.md](error-reporting.md). catch 위치와 보고 경계.
+- [testing.md](testing.md#시스템별-테스트). Actor 생명주기를 검사하는 테스트.

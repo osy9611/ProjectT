@@ -1,6 +1,6 @@
 # PlayModeTests 실행
 
-이 폴더에는 README만 있다. 테스트 코드는 `Client/Assets/Tests/Editor`, 프로브는 `Client/Assets/Tests/Probes`에 있다. Unity 에디터에서 Window > General > Test Runner를 열고 EditMode 탭에서 아래 테스트를 실행한다. 테스트가 씬을 바꾸므로 열린 씬을 먼저 저장한다. 각 테스트는 Play Mode를 빠져나온 뒤 프로브 결과를 단언하며, 모두 초록색이면 통과다. 기대값은 각 테스트 코드의 단언에 있다. 전체 기준선과 수치는 [architecture.md의 테스트 절](../../Docs/architecture.md#테스트)에 있다.
+이 폴더에는 README만 있다. 테스트 코드는 `Client/Assets/Tests/Editor`, 프로브는 `Client/Assets/Tests/Probes`에 있다. Unity 에디터에서 Window > General > Test Runner를 열고 EditMode 탭에서 아래 테스트를 실행한다. 테스트가 씬을 바꾸므로 열린 씬을 먼저 저장한다. 각 테스트는 Play Mode를 빠져나온 뒤 프로브 결과를 단언하며, 모두 초록색이면 통과다. 기대값은 각 테스트 코드의 단언에 있다. 전체 기준선과 수치는 [testing.md](../../Docs/testing.md)에 있다.
 
 ## 무엇을 검사하나
 
@@ -35,6 +35,6 @@
 
 ## 관련 문서
 
-- Test Runner 테스트 목록과 도메인 리로드 규칙: [architecture.md의 Unity Test Runner](../../Docs/architecture.md#unity-test-runner)
+- Test Runner 테스트 목록과 도메인 리로드 규칙: [testing.md의 Unity 테스트](../../Docs/testing.md#unity-테스트)
 - [actor-lifecycle.md](../../Docs/actor-lifecycle.md)
 - [ability-system.md](../../Docs/ability-system.md)

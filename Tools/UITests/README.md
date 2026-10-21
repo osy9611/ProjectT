@@ -1,6 +1,6 @@
 # UITests 실행
 
-프로젝트 루트에서 `dotnet run --project Tools/UITests`를 실행한다. .NET 9 SDK와, Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지가 필요하다. 출력 마지막 줄 `<통과 수>/<전체 수> passed`에서 두 수가 같으면 통과다. 전체 기준선과 수치는 [architecture.md의 테스트 절](../../Docs/architecture.md#테스트)에 있다.
+프로젝트 루트에서 `dotnet run --project Tools/UITests`를 실행한다. .NET 9 SDK와, Unity가 `Client/Library/PackageCache`에 복원한 UniTask 패키지가 필요하다. 출력 마지막 줄 `<통과 수>/<전체 수> passed`에서 두 수가 같으면 통과다. 전체 기준선과 수치는 [testing.md](../../Docs/testing.md)에 있다.
 
 ## 무엇을 검사하나
 
