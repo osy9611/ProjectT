@@ -261,25 +261,21 @@ protected override void OnEnter()
 
 ### 호출 중 반납 거부
 
-스킬·효과 호출이나 Status 알림 중에는 Actor를 반납할 수 없다. 콜백에서 Actor가 반납되면 진행 중인 순회가 정리된 상태나 다음 스폰의 상태를 다루기 때문이다. 반납은 호출이 끝난 뒤(틱 뒤의 `OnUpdate`, 호출 반환 뒤) 한다.
+스킬·효과 호출이나 Status 알림 중에는 Actor를 반납할 수 없다. `IPoolable.OnReturn`의 거부 조건 전체와 반납할 자리는 [actor-lifecycle.md](actor-lifecycle.md#호출-중-반납은-거부한다)에 있다.
 
 - `SkillAgent`는 `ActivateSkill`, `CancelSkill`, `ApplyEffect`, `RemoveEffect`, 틱, 비활성화 취소, 정리, 스킬의 `End`·`Cancel`·`ApplyEffects`를 호출 깊이(`callDepth`)로 센다. `ApplyEffects`는 시전자의 호출로도 세므로, 앞선 효과의 콜백에서 시전자를 반납할 수 없다.
 - `Status`는 스탯·자원 알림 동안 호출 깊이를 센다.
 - 호출 중 `SkillAgent.ReleaseInternal()`과 `Status.ReleaseInternal()`은 `InvalidOperationException`을 던진다.
-- `IPoolable.OnReturn`도 같은 조건에서 거부한다. 스폰 전환 중(`Entering`, `Ending`, `Destroying`), 비활성화 중(`Deactivating`), 스킬·효과·Status 호출 중, 실패 상태(`Faulted`, `EndFaulted`)이면 예외다.
 - 이 때문에 `EffectHandle.Id`가 0인 경우는 `Instant`뿐이다. 적용 도중에 정리가 일어나지 않는다.
 
 ### 실패 상태
 
-`ComBaseActor`는 생명주기 단계가 실패하면 롤백 대신 상태를 격리하고 파괴로 정리한다.
+스킬·효과 콜백의 실패는 Actor 생명주기 단계의 실패로 올라온다. 상태별 처리는 [actor-lifecycle.md](actor-lifecycle.md#실패는-첫-예외를-전파하고-actor를-격리한다)에 있다.
 
-| 상태 | 원인 | 처리 |
-| --- | --- | --- |
-| `EnterFailed` | `OnEnter` 실패 | 활성화하지 않는다. 반납·파괴가 정리한다. |
-| `Faulted` | 비활성화 중 실패. 스킬 취소 실패도 포함한다. | 입력을 분리한다. 반납·스폰·재활성화를 거부하고, 파괴가 스폰을 끝낸다. |
-| `EndFaulted` | 스폰 종료(반납 정리) 중 실패. `OnRemove`·`OnEnd` 실패도 포함한다. | 반납·스폰을 거부한다. 이미 끝내다 실패했으므로 파괴에서 다시 정리하지 않는다. |
-
-틱과 `OnUpdate`의 실패는 Actor를 격리하지 않고 `Active`로 둔다. 다른 Actor에 건 효과의 실패도 이 경로로 올라오므로, 여기서 격리하면 실패하지 않은 Actor가 격리된다. 남은 태그와 수정자는 반납·파괴 정리가 비우고, 보고는 Unity 실행 경계가 한다.
+- `OnEnter`의 `GiveSkill`·`ApplyEffect`가 실패하면 `EnterFailed`가 된다.
+- 비활성화의 스킬 취소(`CancelActiveSkillsInternal`)가 실패하면 `Faulted`가 된다.
+- 반납 정리(`SkillAgent.ReleaseInternal()`)에서 효과의 `OnRemove`나 스킬의 `OnEnd`가 실패하면 `EndFaulted`가 된다.
+- 효과 틱과 활성 스킬 `OnUpdate`의 실패는 Actor를 격리하지 않는다. 이유는 [actor-lifecycle.md](actor-lifecycle.md#틱과-onupdate의-실패는-격리하지-않는다)에 있다.
 
 ## 어댑터
 
@@ -352,11 +348,10 @@ protected override void OnEnter()
 
 ## 테스트
 
-| 도구 | 범위 | 실행 |
-| --- | --- | --- |
-| `Tools/SkillTests` | 코어와 어댑터 단위 테스트. 실제 소스를 최소 스텁과 함께 컴파일한다. 151/151 통과 | `dotnet run --project Tools/SkillTests` |
-| `Tools/LifecycleTests` | 실제 `ComBaseActor`와 풀·매니저를 포함한 생명주기 통합 테스트. 스킬 연동은 `ActorSkillTests.cs`에 있다. ALL PASSED | `dotnet run --project Tools/LifecycleTests` |
-| 전체 | 위 두 프로젝트를 포함한 Tools 하위 테스트. `ALL PASSED: 10 test runs` | `Tools/run-tests.ps1` |
-| Unity Play Mode | Test Runner EditMode 탭의 `ProjectTSamplePlayModeTests.P0FeatureSample`이 FeatureSample 씬에서 `Client/Assets/Tests/Probes/ProjectTP0PlayProbe.cs`를 실행한다. skill 단계에서 `SampleActor`의 발동, 쿨다운, 버프, 스턴 차단·만료, 재스폰을 확인한다. 기준은 `pass=103 fail=0`이다. `ProjectTSamplePlayModeTests.TurnBattleSample`은 `ProjectTTurnBattleProbe.cs`로 `TurnUnit`의 수동 틱 경로를 확인하고 기준은 `pass=61 fail=0`이다. | Unity 에디터 Window > General > Test Runner |
+| 도구 | 범위 |
+| --- | --- |
+| `Tools/SkillTests` | 코어와 어댑터 단위 테스트. 실제 소스를 최소 스텁과 함께 컴파일한다. |
+| `Tools/LifecycleTests` | 실제 `ComBaseActor`와 풀·매니저를 포함한 생명주기 통합 테스트. 스킬 연동은 `ActorSkillTests.cs`에 있다. |
+| Unity Play Mode | `ProjectTSamplePlayModeTests.P0FeatureSample`이 FeatureSample 씬에서 `Client/Assets/Tests/Probes/ProjectTP0PlayProbe.cs`를 실행한다. skill 단계에서 `SampleActor`의 발동, 쿨다운, 버프, 스턴 차단·만료, 재스폰을 확인한다. `ProjectTSamplePlayModeTests.TurnBattleSample`은 `ProjectTTurnBattleProbe.cs`로 `TurnUnit`의 수동 틱 경로를 확인한다. |
 
-Play Mode 실행 절차는 `Tools/PlayModeTests/README.md`에 있다.
+실행 방법과 기준선은 [architecture.md의 테스트 절](architecture.md#테스트)에 있다. Play Mode 실행 절차는 `Tools/PlayModeTests/README.md`에 있다.

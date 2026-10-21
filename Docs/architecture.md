@@ -1,6 +1,6 @@
 # ProjectT 구조
 
-클라이언트는 Unity 6(6000.3.14f1) 프로젝트 하나(`Client/`)이고, 게임 코드는 `Client/Assets/Script/` 아래에 있다. 진입점은 `Global` 컴포넌트 하나다. `Global`이 매니저 9개를 정해진 순서로 초기화하고 역순으로 종료한다. 게임 코드는 어디서든 `Global.Resource`, `Global.UI`처럼 `Global`을 거쳐 매니저를 호출한다. asmdef는 없으며 모든 스크립트가 `Assembly-CSharp`(에디터 코드는 `Assembly-CSharp-Editor`)로 컴파일된다.
+클라이언트는 Unity 6(6000.3.14f1) 프로젝트 하나(`Client/`)이고, 게임 코드는 `Client/Assets/Script/` 아래에 있다. 진입점은 `Global` 컴포넌트 하나다. `Global`이 매니저 9개를 정해진 순서로 초기화하고 역순으로 종료한다. 게임 코드는 어디서든 `Global.Resource`, `Global.UI`처럼 `Global`을 거쳐 매니저를 호출한다. 어셈블리 구성은 [어셈블리](#어셈블리) 절에 있다.
 
 | 문서 | 내용 |
 | --- | --- |
@@ -153,21 +153,13 @@
 
 ## 오류 처리
 
-처리할 수 없는 오류는 호출자에게 전파하고, 실행 경계에서 `Global.LogException` 한 번으로 보고한다. `Global.LogException`은 `ErrorReporter.Report`를 호출한다. `ErrorReporter`의 함수는 모두 internal이고, 게임 코드는 `Global.LogException`과 `Global.LogError`만 쓴다. `Global.Update`와 앱 일시정지, 종료 때 `ErrorReporter.Flush`가 sink에 기록한다.
+처리할 수 없는 오류는 호출자에게 전파하고, 큰 흐름의 경계에서 `Global.LogException` 한 번으로 보고한다. 게임 코드는 `Global.LogException`과 `Global.LogError`만 쓰고, 두 함수의 오류는 `ErrorReporter`로 모인다. 여러 단계를 모두 실행해야 하는 정리 경로는 `ErrorCollector`로 예외를 모아 다시 던지고, 보고는 상위 경계에 맡긴다.
 
-catch는 큰 흐름의 경계에만 둔다. 지금 코드에서 경계는 다음과 같다.
-
-- 매니저 초기화와 종료: `Global.InitializeAsync`, `Global.Shutdown`
-- `Forget`의 실패 전달: `InitializeAsync().Forget(LogException)`, `Transition`의 콜백 경로
-- 확인된 정상 취소: 종료 중 초기화 취소만 삼키는 `Global.InitializeAsync`의 `when` 필터, `SuppressCancellationThrow`
-
-정리 경로처럼 여러 단계를 모두 실행해야 하는 곳은 `ErrorCollector.Run`으로 예외를 모은 뒤 `ErrorCollector.ThrowIfAny`로 다시 던진다. 원래 예외가 있으면 그 예외를 맨 앞에 둔 `AggregateException`을 던지고, 정리 오류가 없으면 호출자가 `throw;`로 원래 스택을 그대로 다시 던진다. `ErrorCollector`는 보고하지 않는다. 보고는 상위 경계가 한다.
-
-ErrorReporter의 구성, 묶음과 반복 제한, 자동 수집 경로는 [error-reporting.md](error-reporting.md)에 있다.
+규칙의 정본은 루트 [AGENTS.md](../AGENTS.md)의 "오류 처리"이고, catch 위치 목록의 정본은 [error-reporting.md의 try/catch 위치](error-reporting.md#12-trycatch-위치)다. ErrorReporter의 구성, 묶음과 반복 제한, 자동 수집 경로도 [error-reporting.md](error-reporting.md)에 있다.
 
 ## Actor와 Skill
 
-`ComBaseActor`(`Actor/ComBaseActor.cs`)는 모든 Actor의 기반 MonoBehaviour이고 `IPoolable`과 `IAbilityOwner`를 구현한다. 생명주기는 `Spawn()`으로 시작해 풀 반납(`IPoolable.OnReturn`)이나 파괴로 끝나며, 파생 클래스는 `OnInit`, `OnEnter`, `OnUpdate`, `OnLateUpdate`, `Enable`, `Disable`, `OnRelease` 훅을 재정의한다. 입력 컨텍스트(`RegisterInputContext`·`UnregisterInputContext`)와 `SkillAgent`·`Status`(`AddSkillAgent`, `AddStatus`)는 Actor가 소유한다. 비활성화나 스폰 종료 중에 실패한 Actor는 `Faulted` 상태가 되어 다시 활성화·스폰·반납하지 않고 파괴로 정리한다. 상태 전이와 실패 처리는 [actor-lifecycle.md](actor-lifecycle.md)에 있다.
+`ComBaseActor`(`Actor/ComBaseActor.cs`)는 모든 Actor의 기반 MonoBehaviour이고 `IPoolable`과 `IAbilityOwner`를 구현한다. 생명주기는 `Spawn()`으로 시작해 풀 반납(`IPoolable.OnReturn`)이나 파괴로 끝나며, 파생 클래스는 `OnInit`, `OnEnter`, `OnUpdate`, `OnLateUpdate`, `Enable`, `Disable`, `OnRelease` 훅을 재정의한다. 입력 컨텍스트(`RegisterInputContext`·`UnregisterInputContext`)와 `SkillAgent`·`Status`(`AddSkillAgent`, `AddStatus`)는 Actor가 소유한다. 상태 전이와 실패 계약은 [actor-lifecycle.md](actor-lifecycle.md)에 있다.
 
 Skill 시스템은 두 폴더로 나뉜다. `AbilitySystem/`(네임스페이스 `ProjectT.Skill`, `ProjectT.Stat`)은 `SkillAgent`, `Status`, 효과·액션 정의를 담은 코어다. 코어는 `System` 계열과 자기 네임스페이스만 `using`하고 `UnityEngine`, `Global`, 테이블을 참조하지 않는다. `SkillAdapter/`는 `SkillDefinitions`가 `Global.Table`의 행을 `SkillDefinition`·`EffectDefinition`으로 바꾸는 게임 쪽 어댑터다. 구조와 계약은 [ability-system.md](ability-system.md)에 있다.
 
@@ -189,11 +181,41 @@ partial 분할은 공개 API, 초기화·종료 순서, 직렬화 필드 위치�
 
 ## 테스트
 
+이 절이 테스트 실행법과 기준선의 정본이다. 다른 문서는 수치를 적지 않고 이 절로 링크한다. 작업 전후에 `Tools/run-tests.ps1`을 실행해 아래 기준선과 비교한다. 씬, 풀, UI, 입력에 닿는 변경은 Unity Test Runner 테스트 4개도 전후로 실행한다.
+
 테스트는 두 종류다. `Tools/` 아래 .NET 콘솔 테스트는 Unity 없이 제품 소스를 스텁과 함께 컴파일해 실행한다. `Client/Assets/Tests/`의 Unity Test Runner 테스트는 실제 에디터에서 Play Mode 경로를 실행한다.
+
+### 기준선
+
+콘솔 테스트 수치는 2026-10-21 `run-tests.ps1` 실행 결과이고, Unity Test Runner 수치는 테스트 코드의 단언에 적힌 기대값이다. 수치를 바꾸는 커밋에서 이 표도 함께 고친다.
+
+| 실행 | 기준선 | 다시 확인하는 방법 |
+| --- | --- | --- |
+| `run-tests.ps1` 전체 | `ALL PASSED: 10 test runs` | 출력의 마지막 줄 |
+| `LifecycleTests` | `PASS` 252줄, `ALL PASSED` | 이 프로젝트 출력에서 `PASS `로 시작하는 줄 수. 마지막 줄에는 개수가 없다 |
+| `NotificationTests` | `13/13 notification tests passed` | 프로젝트 출력의 마지막 줄 |
+| `SkillTests` | `151/151 passed` | 프로젝트 출력의 마지막 줄 |
+| `SoundTests` | `43/43 sound tests passed` | 프로젝트 출력의 마지막 줄 |
+| `UITests` | `42/42 passed` | 프로젝트 출력의 마지막 줄 |
+| `RefactoringTests/Downloader` | `ALL PASSED: 12 downloader scenarios` | 프로젝트 출력의 마지막 줄 |
+| `RefactoringTests/FirebaseCache` | `ALL PASSED: 19 firebase scenarios` | 프로젝트 출력의 마지막 줄 |
+| `RefactoringTests/UISoundTool` | `21/21 UISoundTool scenarios passed` | 프로젝트 출력의 마지막 줄 |
+| `RefactoringTests/UploadFlow` | `ALL PASSED: 3 upload scenarios` | 프로젝트 출력의 마지막 줄 |
+| `RefactoringTests/run-build.ps1` | `ALL PASSED: 11 build flow scenarios`, `ALL PASSED: 12 build argument scenarios` | 스크립트 출력의 두 `ALL PASSED` 줄 |
+| `ProjectTSamplePlayModeTests.P0FeatureSample` | `pass=103 fail=0` | `ProjectTSamplePlayModeTests.cs`의 `AssertSummary` 인자 |
+| `ProjectTSamplePlayModeTests.TurnBattleSample` | `pass=61 fail=0` | `ProjectTSamplePlayModeTests.cs`의 `AssertSummary` 인자 |
+| `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | `ProjectTUIPlayProbe.Verify()`가 끝까지 실행되고 `PROJECTT_UI_PLAYMODE_PASS` 로그를 남긴다 | `ProjectTUIPlayModeTests.cs`의 `Assert.That(verified, Is.True, ...)`와 `LogAssert.Expect` |
+| `RefactoringProbeTests.UISoundToolPrefabEdits` | 검사 14개 | `RefactoringProbeTests.cs`의 `Assert.That(RefactoringProbe.Checks, Is.EqualTo(14))` |
 
 ### 콘솔 테스트
 
-`Tools/run-tests.ps1`이 진입점이다. 아래 9개 프로젝트를 `dotnet run`으로 실행하고, 이어서 `RefactoringTests/run-build.ps1`을 실행한다. 모두 통과하면 `ALL PASSED: 10 test runs`를 출력하고, 하나라도 실패하면 실패 목록을 출력하고 exit 1로 끝난다.
+저장소 루트에서 다음 명령을 실행한다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/run-tests.ps1
+```
+
+`run-tests.ps1`은 아래 9개 프로젝트를 `dotnet run`으로 실행하고, 이어서 `RefactoringTests/run-build.ps1`을 실행한다. 모두 통과하면 `ALL PASSED: 10 test runs`를 출력한다. 하나라도 실패하면 `FAILED:` 뒤에 실패 목록을 출력하고 exit 1로 끝난다.
 
 | 프로젝트 | `UseUniTask` | `UseUnityStubs` | `UseRealGlobal` |
 | --- | --- | --- | --- |
@@ -207,17 +229,26 @@ partial 분할은 공개 API, 초기화·종료 순서, 직렬화 필드 위치�
 | `RefactoringTests/UISoundTool/UISoundTool.csproj` | | O | |
 | `RefactoringTests/UploadFlow/UploadFlow.csproj` | | | |
 
-`run-build.ps1`은 `RefactoringTests/BuildFlow/BuildFlow.csproj`를 빌드한 뒤 BuildMgr 흐름 특성 검사와 명령줄 인자 경우 12개를 반복 실행한다. `Tools/Tests.slnx`는 이 10개 csproj를 IDE에서 여는 솔루션이다.
+`run-build.ps1`은 `RefactoringTests/BuildFlow/BuildFlow.csproj`를 빌드한 뒤 BuildMgr 흐름 특성 검사와 명령줄 인자 경우 12개를 실행한다. `Tools/Tests.slnx`는 이 10개 csproj를 IDE에서 여는 솔루션이다.
+
+프로젝트 하나만 실행하려면 그 csproj나 스크립트를 지정한다.
+
+```powershell
+dotnet run --project Tools/LifecycleTests/LifecycleTests.csproj
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/RefactoringTests/run-build.ps1
+```
 
 모든 테스트 csproj는 `Tools/Tests.Build.props`를 명시적으로 Import한다. `Directory.Build.props`로 두면 `Tools/DesignGenerator`의 프로젝트까지 이 설정을 가져가 깨지기 때문이다. props는 net9.0 Exe와 `ProductScript`(`Client/Assets/Script/`) 경로를 정하고, 세 묶음을 프로젝트가 골라 켜게 한다.
 
 | 묶음 | 컴파일하는 것 |
 | --- | --- |
-| `UseUniTask` | `Client/Library/PackageCache/com.cysharp.unitask@*/Runtime`의 소스. PlayerLoop·UnityEngine에 의존하는 파일은 제외한다. 패키지가 없으면 "Open the Unity project once" 오류로 멈춘다 |
+| `UseUniTask` | `Client/Library/PackageCache/com.cysharp.unitask@*/Runtime`의 소스. PlayerLoop·UnityEngine에 의존하는 파일은 제외한다. Unity 프로젝트를 한 번도 열지 않아 패키지가 없으면 "Open the Unity project once to restore the UniTask package." 오류로 빌드가 멈춘다 |
 | `UseUnityStubs` | `Tools/Shared/UnityStubs/*.cs`의 공용 UnityEngine 스텁 |
 | `UseRealGlobal` | 실제 `Global.cs`, `ErrorCollector.cs`, `ManagerHost.cs`, `ManagerBase.cs`, `ErrorReport/*.cs`와 `Tools/Shared/GlobalTestSupport.cs`, `UtilFuncStub.cs` |
 
 `UseRealGlobal`을 켠 프로젝트는 `Global.Managers.cs`를 컴파일하지 않는다. 대신 `GlobalTestSupport.cs`가 `RegisterManagers`와 테스트용 진입점(`BindForTests`, `InitForTests`, `UpdateForTests`, `InitializeForTests`, `ResetStaticsForTests`)을 같은 partial 클래스로 제공하고, 각 프로젝트가 쓰는 접근자만 담은 partial을 둔다(예: `LifecycleTests/GlobalAccessors.cs`). private 멤버를 리플렉션 없이 호출하므로, 제품 쪽 이름이 바뀌면 런타임이 아니라 빌드에서 깨진다. `SoundTests`, `UITests`, `SkillTests`는 아직 각 `Stubs.cs`의 가짜 `Global`을 쓴다.
+
+`Tools/RefactoringTests/run-table-generator.ps1`(`TableGeneratorTests.cs`)은 `run-tests.ps1`에 포함되지 않는다. 생성기 경로(`-GeneratorPath`)와 출력 경로(`-OutputPath`)를 받아 따로 실행한다.
 
 ### Unity 참조 컴파일
 
@@ -227,20 +258,24 @@ partial 분할은 공개 API, 초기화·종료 순서, 직렬화 필드 위치�
 - `Input`, `Managers`, `SkillAdapter`, `AbilitySystem` 폴더의 새 소스를 추가한다.
 - 삭제된 소스를 목록에서 뺀다.
 
-Unity 프로젝트를 한 번 열어 Bee 응답 파일이 있어야 실행된다. 기본 Unity 경로는 `-UnityData`로 바꾼다.
+Unity 프로젝트를 한 번 열어 Bee 응답 파일이 있어야 실행된다. 기본 Unity 경로(`6000.3.14f1`)는 `-UnityData`로 바꾼다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Tools/SoundTests/compile-unity.ps1
+```
 
 ### Unity Test Runner
 
-`Client/Assets/Tests/Editor`에 EditMode 테스트 4개가 있다. Window > General > Test Runner의 EditMode 탭에서 실행한다.
+`Client/Assets/Tests/Editor`에 EditMode 테스트 4개가 있다. Window > General > Test Runner의 EditMode 탭에서 실행한다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다. 기대값은 [기준선](#기준선) 표에 있다.
 
 | 테스트 | 하는 일 |
 | --- | --- |
-| `ProjectTSamplePlayModeTests.P0FeatureSample` | FeatureSample 씬에서 Play Mode에 들어가 `Global.IsReady`를 기다린 뒤 `ProjectTP0PlayProbe.Run()`을 실행한다. Play Mode를 나온 뒤 `pass=103 fail=0`을 단언한다 |
-| `ProjectTSamplePlayModeTests.TurnBattleSample` | TurnBattleSample 씬에서 `ProjectTTurnBattleProbe.Run()`을 실행하고 `pass=61 fail=0`을 단언한다 |
+| `ProjectTSamplePlayModeTests.P0FeatureSample` | FeatureSample 씬에서 Play Mode에 들어가 `Global.IsReady`를 기다린 뒤 `ProjectTP0PlayProbe.Run()`을 실행한다. Play Mode를 나온 뒤 프로브 요약을 단언한다 |
+| `ProjectTSamplePlayModeTests.TurnBattleSample` | TurnBattleSample 씬에서 `ProjectTTurnBattleProbe.Run()`을 실행하고 프로브 요약을 단언한다 |
 | `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | 빈 씬에 `Global`(`UseRemoteResource`, `LoadData` 끔)을 만들고 `ProjectTUIPlayProbe.Verify()`를 끝까지 실행한다 |
-| `RefactoringProbeTests.UISoundToolPrefabEdits` | 프리팹 픽스처를 만들어 `RefactoringProbe.PrefabSoundEdits()`를 실행하고 검사 14개를 단언한다 |
+| `RefactoringProbeTests.UISoundToolPrefabEdits` | 프리팹 픽스처를 만들어 `RefactoringProbe.PrefabSoundEdits()`를 실행하고 검사 수를 단언한다 |
 
-asmdef가 없으므로 `Tests/Editor`의 테스트는 `Assembly-CSharp-Editor`로 컴파일된다. 프로브(`Tests/Probes/*.cs`)는 Editor 폴더 밖에 있어 `Assembly-CSharp`로 컴파일되고, 파일 전체가 `#if UNITY_EDITOR`로 감싸여 플레이어 빌드에서 빠진다. P0 테스트는 의도한 예외 2건(`Scene transition is unavailable.`, `[Sample] SampleSceneB OnEnter failure test`)을 `LogAssert.Expect`로 처리하고, 다른 Error·Exception 로그는 실패로 본다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다.
+asmdef가 없으므로 `Tests/Editor`의 테스트는 `Assembly-CSharp-Editor`로 컴파일된다. 프로브(`Tests/Probes/*.cs`)는 Editor 폴더 밖에 있어 `Assembly-CSharp`로 컴파일되고, 파일 전체가 `#if UNITY_EDITOR`로 감싸여 플레이어 빌드에서 빠진다. P0 테스트는 의도한 예외 2건(`Scene transition is unavailable.`, `[Sample] SampleSceneB OnEnter failure test`)을 `LogAssert.Expect`로 처리하고, 다른 Error·Exception 로그는 실패로 본다.
 
 EditMode 테스트 안의 `EnterPlayMode`·`ExitPlayMode`는 도메인을 다시 로드한다. Unity Test Framework는 리로드 뒤 열거자의 위치와 `JsonUtility`로 저장한 테스트 객체의 필드만 복원한다. 그래서 리로드를 넘는 상태는 다음 규칙을 따른다.
 
@@ -248,6 +283,27 @@ EditMode 테스트 안의 `EnterPlayMode`·`ExitPlayMode`는 도메인을 다시
 - 리로드를 넘는 값은 `[SerializeField]` 필드로만 넘긴다.
 - `JsonUtility`가 null 문자열을 `""`로 되돌리므로 null에 의미를 두지 않는다. 필드는 `string.Empty`로 초기화하고 비었는지로 판단한다.
 - yield를 넘어 지역 변수를 캡처하는 람다를 쓰지 않는다. 첫 yield 전에 만든 클로저 객체는 리로드 뒤 null이 된다.
+
+### 시스템별 테스트
+
+시스템을 바꿀 때 실행할 테스트다. 콘솔 테스트는 각 csproj의 `Compile Include`를, Unity Test Runner는 P0 프로브의 검사 그룹(`setup`, `actor`, `skill`, `input`, `ui`, `scene`)을 기준으로 정리했다.
+
+| 시스템 | 콘솔 테스트(대상 제품 소스) | Unity Test Runner |
+| --- | --- | --- |
+| 매니저 생명주기 | `LifecycleTests`, `NotificationTests` (실제 `Global`·`ManagerHost`·`ManagerBase`) | P0 `setup` |
+| Resource | `LifecycleTests`의 `ResourceTests` (`ResourceManager`, `Resource`, `ResourceBase`, `ResourceScope`, `SpriteAtlasResource`) | |
+| Scene | `LifecycleTests`의 `SceneTests`, `SceneContractTests` (`SceneManager`, `SceneBase`) | P0 `scene` |
+| Pool | `LifecycleTests`의 `PoolTests`, `SoundTests` (`PoolManager`, `GameObjectPool`, `Pool`, `PooledObject`) | P0 `actor` |
+| ErrorReporter | `LifecycleTests`의 `ErrorReporterTests` (`ErrorReport/*.cs`) | |
+| UI | `UITests` (`UIManager`, `UIContainer`, `UIBase`, `UIDefine`) | P0 `ui`, `UIContainerStackAndNativeActivation` |
+| Input | `LifecycleTests`의 `Controller*Tests`, `ActorInputTests` (`InputManager`, `Controller`, `InputContext`) | P0 `input` |
+| Notification | `NotificationTests` (`NotificationManager`) | |
+| Sound | `SoundTests` (`SoundManager`, `UIClickSound`), `RefactoringTests/UISoundTool` (`UISoundTool`) | `UISoundToolPrefabEdits` |
+| Actor | `LifecycleTests`의 `ActorTests`, `ActorSpawnTests`, `ActorReturnTests`, `ActorInputTests`, `ActorSkillTests` (`ComBaseActor`) | P0 `actor` |
+| Skill | `SkillTests` (`AbilitySystem/**`, `SkillAdapter`), `LifecycleTests`의 `ActorSkillTests` | P0 `skill`, `TurnBattleSample` |
+| Build | `run-build.ps1` (`BuildMgr`, `AddressableBuild`), `RefactoringTests/UploadFlow` (`FirebaseUploader`) | |
+| Patch(원격 번들) | `RefactoringTests/Downloader` (`Addressable/Downloader.cs`), `RefactoringTests/FirebaseCache` (`Addressable/FireBase/*.cs`) | |
+| TableGenerator | `run-table-generator.ps1` (`run-tests.ps1` 밖) | |
 
 ## 빌드
 

@@ -62,7 +62,7 @@
 | `Tools/DesignGenerator/DesignGenerator/Enum/EnumGenerator.cs` | 레거시 `EnumInfo` 모델과 `ToLegacy`, DOM 리더 `XmlDocumentEnumRecordSource`, 호출 없는 `Create`가 남아 있다. `SetEnumInfo`는 진단을 `Console.Write`로 바로 출력해 `--format=json`에 enum 오류가 빠진다. | 리뷰 06 F4 | 정리 |
 | `Tools/DesignGenerator/DesignGenerator/Util/ExcelIO.cs`, `Program.cs`, `DesignGenerator.csproj` | `ExcelIO.cs`가 889줄이다. `KillAllExcel`, `MoveDllFile`, 콜백형 `LoadXML`·`LoadAllXML` 같은 죽은 함수가 있고 `GeneratorUtils.WriteIfChanged`가 `GeneratedFileWriter.WriteIfChanged`와 중복된다. csproj가 ILRepack·Costura·Fody를 참조한다. `Program.cs`의 `#if DEBUG` 블록에 `D:\Project\ProjectT` 절대 경로가 있다. | 리뷰 06 F5 | 정리 |
 | `Tools/DesignGenerator/DesignGenerator/Table/TableGenerator.cs` | 결과를 `OnMgrSet`·`OnSerializerSet` 델리게이트로 넘기고, `Load`와 `LoadAll`이 같은 흐름을 반복한다. | 리뷰 06 F6 | 정리 |
-| `Tools/DesignGenerator/DesignGenerator/Table/TableGenerator.cs` | 7개·9개 복합 PK 입력에서 `datas` 필드 타입이 잘못 생성되어 CS1003·CS0305로 컴파일에 실패한다. 재현 기록 이후 이 파일은 바뀌지 않았다. | `ADDITIONAL_REFACTORING_ANALYSIS.md` 4절 | 결함 |
+| `Tools/DesignGenerator/DesignGenerator/Table/TableGenerator.cs` | 7개·9개 복합 PK 입력에서 `datas` 필드 타입이 잘못 생성되어 CS1003·CS0305로 컴파일에 실패한다. 재현 기록 이후 이 파일은 바뀌지 않았다. | `Docs/archive/ADDITIONAL_REFACTORING_ANALYSIS.md` 4절(로컬 보관) | 결함 |
 | `Sample/FeatureSampleRunner.cs`, `UISampleRunner.cs`, `SoundSampleRunner.cs`, `SceneSampleRunner.cs`, `TurnBattle/TurnBattleRunner.cs` | 대기 부트스트랩이 다섯 벌이다. 샘플 6개 파일이 `FeatureSampleRunner.Write`에 의존한다. | 리뷰 06 F7 | 구조 |
 | 루트 `Assembly-CSharp.csproj`, `Tools/TEMP/`, `Tools/LifecycleTests/*.cs.meta` | 0바이트 untracked csproj, 파일 없는 디렉터리 트리, 추적 중인 `.cs.meta` 7개가 남아 있다. | 리뷰 06 F11 | 정리 |
 | `AbilitySystem/Skill/Effect/EffectController.cs:8`, `Common/Global.cs:163` | 주석이 지금 코드와 맞지 않는다. 핸들 0은 이제 Instant에서만 나오는데 "적용 중 정리"를 적고 있다. `Log` 주석은 삭제된 "소켓 스레드"를 적고 있다. | 백로그 6, 코드 대조 | 정리 |
@@ -76,9 +76,9 @@
 | Firebase 실환경 | 4·22c·22d·22f·22h는 실제 Firebase 접속, 원격 번들, DownloadOnly를 검증하지 않았다. 배포 저장소가 S3로 바뀔 수 있어 범위에서 뺐다. | 배포 저장소가 정해질 때 |
 | 25에서 유지한 리플렉션 | `PoolTests.ScopeEntries`는 Scope 등록과 닫힘 표시를 공개 API로 관찰할 수 없어 `scopes`·`IsClosed`를 직접 센다. `ErrorReporterTests`의 `s_counts`, `OnEnable`·`Start`·`OnDestroy` 같은 엔진 메시지 호출, `UITests`의 `type`·`firstSelected`, `ProjectTUIPlayProbe`의 `type`·`uiDatas`도 남겼다. | 해당 내부 구조를 바꾸는 작업을 할 때 |
 | 28 컨텍스트 누수 검사 축소 | P0 프로브가 Controller 전체 대신 Actor 기준(`ContextOwned`, `RegisteredContexts`)으로 센다. Actor 밖에서 생긴 컨텍스트 누수는 잡지 못한다. | 입력 컨텍스트를 Actor 밖에서 등록하는 코드가 생길 때 |
-| 20 콜백 중 반납 거부 | `ComBaseActor.OnReturn`이 스킬·효과·Status 호출 중 반납을 `InvalidOperationException`으로 거부한다. 그래서 "효과 틱 안에서 HP 0이 되면 즉시 반납"은 할 수 없다. | 콜백 안 즉시 반납이 필요한 콘텐츠가 생길 때 |
+| 20 콜백 중 반납 거부 | 스킬·효과·Status 호출 중 반납은 거부된다([actor-lifecycle.md](actor-lifecycle.md#호출-중-반납은-거부한다)). 그래서 "효과 틱 안에서 HP 0이 되면 즉시 반납"은 할 수 없다. | 콜백 안 즉시 반납이 필요한 콘텐츠가 생길 때 |
 | 25a OnRemove 실패 시 이벤트 없음 | `OnRemove`가 실패하면 효과는 목록에서 빠지지만 `OnEffectRemoved`는 나가지 않는다. 의도된 동작으로 판정하고 `EffectBehavior.cs` 주석과 테스트로 고정했다. | 버프 UI처럼 제거 이벤트에 의존하는 구독자가 생길 때 |
-| 25b 틱 실패 비격리 | Tick·OnUpdate 실패는 Actor를 Faulted로 바꾸지 않고 Active로 둔다. 다른 Actor에 건 효과의 실패도 같은 경로로 올라와, 격리하면 실패하지 않은 Actor가 격리된다(`ComBaseActor.Update` 주석). | 틱 실패 뒤 남은 태그가 실제 문제를 일으킬 때 |
+| 25b 틱 실패 비격리 | Tick·OnUpdate 실패는 Actor를 Faulted로 바꾸지 않고 Active로 둔다([actor-lifecycle.md](actor-lifecycle.md#틱과-onupdate의-실패는-격리하지-않는다)). | 틱 실패 뒤 남은 태그가 실제 문제를 일으킬 때 |
 | 22e 초기화 OCE 스택 | 초기화가 `OperationCanceledException` 하나로 실패하면 `AggregateException`으로 감싸 메시지는 보존하지만, 원래 스택은 UniTask 특성상 복구할 수 없다. | UniTask를 올리거나 초기화 오류 전달 방식을 바꿀 때 |
 | UI F5·F7a 유지 | 22에서 `UIManager`의 위젯 API 전달과 HUD의 `UIContainer` 내부 루트 의존(F5), `AttachWidget`의 롤백 catch(F7a)를 판단 후 유지했다. | UI 계층을 다시 나눌 때 |
 | 15 HUD 소유권 | 씬 전환은 HUD를 반납하지 않고 Actor가 `ComHudAgent.Release()`로만 반납한다. pivot이 먼저 파괴되면 `UpdatePositionInternal`이 `pivotInfo.PivotTr`에서 매 프레임 `MissingReferenceException`을 낸다. "Actor 반납이 먼저"라는 순서는 계약으로만 있다(UI 리뷰 02 부수 관찰). | Actor 밖에서 pivot을 파괴하는 경로가 생길 때 |
@@ -96,4 +96,4 @@
 - 항목 하나를 별도 세션에서 진행하고, 원래 세션에는 결과와 다음 작업만 보고한다.
 - 선택지를 판정한 뒤 착수 전에 사용자 확인을 받는다. 커밋, 병합, push도 승인 뒤에 한다.
 - 단계마다 patch와 커밋을 나눠 각 단계가 검증된 상태로 끝나게 한다.
-- 시작 전과 끝난 뒤 `Tools/run-tests.ps1`을 실행해 기준선 10 test runs와 비교한다. 씬, 풀, UI, 입력에 닿으면 `Client/Assets/Tests/Editor`의 Unity Test Runner 테스트 4개도 전후로 실행한다.
+- 시작 전과 끝난 뒤 `Tools/run-tests.ps1`을 실행해 [architecture.md의 기준선](architecture.md#테스트)과 비교한다. 씬, 풀, UI, 입력에 닿으면 `Client/Assets/Tests/Editor`의 Unity Test Runner 테스트도 전후로 실행한다.

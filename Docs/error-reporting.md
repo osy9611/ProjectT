@@ -197,9 +197,10 @@ Flush()
       · 로그 훅, UniTask 훅 구독 (-= 후 += 로 중복 방지)
       · 이 시점부터 오류를 큐에 받음 (sink는 아직 없음)
 
-Global.Awake → Init (활성 인스턴스만)
+Global.Awake → Init, [AfterSceneLoad] 활성 Global마다 Init 재호출
  ├─ SetSinks(FileErrorSink)          · 교체 방식이라 재생성돼도 sink 중복 없음
- │                                   · 중복 Global은 Init에서 반환해 여기까지 오지 않음
+ │                                   · 이미 등록된 인스턴스는 Init에서 바로 반환하고,
+ │                                     중복 Global은 파괴되어 여기까지 오지 않음
  └─ InitializeAsync().Forget(LogException)
       · 초기화 실패: ManagerHost가 시작한 매니저를 정리하고 Failed가 된 뒤 오류를 초기화 결과로 전달
         정리 오류가 있거나 원래 오류가 취소 예외면 AggregateException으로 감싼다
@@ -278,6 +279,10 @@ AGENTS.md의 "catch는 큰 흐름의 경계에만" 규칙에 따라 오류 보�
 
 나머지는 플래그·묶음 정리용 `try/finally`다.
 
+catch가 아닌 보고 경계도 있다. `Global.Init`의 `InitializeAsync().Forget(LogException)`과 `SceneManager`의 콜백형 `Transition`이 쓰는 `Forget(Global.LogException)`은 Forget 경계에서 실패를 한 번 보고한다. 콜백형 `Transition`은 정상 취소를 `SuppressCancellationThrow`로 받아 `Canceled` 결과로 바꾼다.
+
+여러 단계를 모두 실행해야 하는 정리 경로는 `ErrorCollector.Run`으로 예외를 모은 뒤 `ErrorCollector.ThrowIfAny`로 다시 던진다. 원래 예외가 있으면 그 예외를 맨 앞에 둔 `AggregateException`을 던지고, 정리 오류가 없으면 호출자가 `throw;`로 원래 스택을 그대로 다시 던진다. `ErrorCollector`는 보고하지 않는다. 보고는 상위 경계가 한다.
+
 ## 13. 사용 가이드
 
 ### 13.1 게임 코드
@@ -290,7 +295,7 @@ throw new InvalidOperationException($"[SkillAgent] Registration is closed. Skill
 DoAsync().Forget(Global.LogException);
 
 // 예외를 잡고도 흐름을 이어가야 하는 경계(씬 전환, 매니저 종료 등)에서만 직접 보고
-// SceneManager.TransitionWithCallbackAsync: 실패를 보고한 뒤 completed 콜백은 항상 호출한다
+// SceneManager의 콜백형 Transition: 실패를 보고한 뒤 completed 콜백은 항상 호출한다
 catch (Exception error)
 {
     Global.LogException(error);
@@ -344,11 +349,12 @@ ErrorReporter.SetSinks(
 
 ## 14. 테스트
 
-테스트는 `Tools/LifecycleTests/ErrorReporterTests.cs`에 있고 `LifecycleTests` 프로젝트로 실행된다. 시나리오는 20개다. 초기화 실패 보고 시나리오는 대기자 0·1·3명으로 세 번 실행한다. Unity API는 `Tools/Shared/UnityStubs/UnityEngine.cs`가 흉내 내며, `Debug.LogError`는 Unity 형식 스택을 로그 훅에 넘긴다. Unity 엔진 위의 테스트(`Client/Assets/Tests`)에는 ErrorReporter 테스트가 없다.
+테스트는 `Tools/LifecycleTests/ErrorReporterTests.cs`에 있고 `LifecycleTests` 프로젝트로 실행된다. 테스트 함수는 18개이고, 초기화 실패 보고 테스트를 대기자 0·1·3명으로 세 번 실행하므로 실행 단위는 20개다. 아래 표는 검증 내용별로 묶어 16행이다(12행이 테스트 3개, 13행이 실행 3회). Unity API는 `Tools/Shared/UnityStubs/UnityEngine.cs`가 흉내 내며, `Debug.LogError`는 Unity 형식 스택을 로그 훅에 넘긴다. Unity 엔진 위의 테스트(`Client/Assets/Tests`)에는 ErrorReporter 테스트가 없다.
+
+실행 방법과 기준선은 [architecture.md의 테스트 절](architecture.md#테스트)에 있다. LifecycleTests만 실행하려면 다음 명령을 쓴다.
 
 ```
-powershell -File Tools/run-tests.ps1                              # 전체. 통과 시 "ALL PASSED: 10 test runs"
-dotnet run --project Tools/LifecycleTests/LifecycleTests.csproj   # LifecycleTests만
+dotnet run --project Tools/LifecycleTests/LifecycleTests.csproj
 ```
 
 | # | 검증 내용 |

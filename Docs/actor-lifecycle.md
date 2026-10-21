@@ -118,8 +118,8 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)이고, 풀에서 꺼낸 뒤 `Spawn
 | `OnInit` | 상태 변화 없음, `initialized`는 false | 다음 `Spawn()`이 다시 초기화한다 |
 | `OnEnter` | `EnterFailed` | 반납하면 스폰 종료를 실행해 `None`이 된다. 재스폰·활성화는 거부·무시한다 |
 | `Enable` | `Active` 유지 | 격리하지 않는다 |
-| 비활성화 단계 | `Faulted`. 콜백이 재활성화한 뒤 실패했으면 다시 등록된 입력도 분리한다 | 반납을 거부하고, 파괴가 스폰을 끝낸다 |
-| 스폰 종료 단계 | `EndFaulted` | 반납을 거부하고, 파괴에서 다시 정리하지 않는다 |
+| 비활성화 단계 | `Faulted`. 콜백이 재활성화한 뒤 실패했으면 다시 등록된 입력도 분리한다 | 반납·스폰은 `InvalidOperationException`으로 거부하고, 재활성화(`OnEnable`)는 무시한다. 파괴가 스폰을 끝낸다 |
+| 스폰 종료 단계 | `EndFaulted` | 반납·스폰은 `InvalidOperationException`으로 거부하고, 재활성화는 무시한다. 파괴에서 다시 정리하지 않는다 |
 
 격리된 Actor는 상태가 오염되었을 수 있으므로 다시 활성화·스폰·반납하지 않는다. 반납이 실패한 객체는 `Pool<T>`의 활성 목록에 남고(`OnReturn` 성공 뒤에만 비활성 목록으로 옮긴다), `PooledObject`도 콜백이 모두 성공해야 GameObject를 비활성화한다. 남은 Actor는 다음 경로에서 파괴된다.
 
@@ -134,7 +134,7 @@ Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다
 
 - 스폰 전환 중(`Entering`, `Ending`, `Destroying`). 예를 들어 `OnEnter`나 `OnRelease` 안에서 자기 자신을 반납하는 경우다.
 - 일반 비활성화 중(`Deactivating`). `Disable`이나 `onReset` 안에서 반납하는 경우다.
-- 스킬·효과 호출 중(`SkillAgent.IsInCall`). 스킬 틱, 스킬 취소, 효과 콜백이 여기에 든다.
+- 스킬·효과 호출 중(`SkillAgent.IsInCall`). 세는 호출은 [ability-system.md](ability-system.md#호출-중-반납-거부)에 있다.
 - Status 알림 중(`Status.IsInCall`). `OnStatChanged`, `OnResourceChanged` 구독자가 반납하는 경우다.
 
 반납은 호출이 끝난 뒤에 한다. 스킬 틱 뒤에 오는 `OnUpdate`나, 스킬 호출이 반환된 뒤가 그 자리다.
@@ -149,11 +149,11 @@ Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다
 
 ## 스킬 시스템과의 연결 지점
 
-- `AddSkillAgent()`와 `AddStatus()`는 `OnInit`에서 한 번 호출한다. 두 번 호출하면 `InvalidOperationException`이다.
-- `ComBaseActor`는 `IAbilityOwner`를 구현해 `SkillAgent`, `Status`, `SpawnSerial`을 노출한다. 효과는 잡아 둔 시전자가 반납·재스폰·파괴되었는지 `SpawnSerial`의 변화로 판단하므로, 이 값은 스폰 시작과 모든 스폰 종료(파괴 포함)에서 오른다.
-- 스킬 등록은 `Spawn()`에서 열리고 `SkillAgent.ReleaseInternal()`에서 닫힌다. 닫힌 동안의 `GiveSkill`, `ActivateSkill`, `ApplyEffect` 처리는 ability-system.md를 따른다.
+- `AddSkillAgent()`와 `AddStatus()`는 `OnInit`에서 한 번 호출한다.
+- `ComBaseActor`는 `IAbilityOwner`를 구현해 `SkillAgent`, `Status`, `SpawnSerial`을 노출한다. `SpawnSerial`은 스폰 시작과 모든 스폰 종료(파괴 포함)에서 오른다.
+- 스킬 등록은 `Spawn()`에서 열리고 `SkillAgent.ReleaseInternal()`에서 닫힌다.
 
-자세한 내용은 [ability-system.md](ability-system.md)를 본다.
+모듈 중복 추가와 등록이 닫힌 동안의 처리는 [ability-system.md의 Actor 생명주기 연동과 반납 계약](ability-system.md#actor-생명주기-연동과-반납-계약)을, `SpawnSerial`로 시전자를 판별하는 규칙은 [처리 규칙](ability-system.md#처리-규칙)을 본다.
 
 ## 입력 컨텍스트
 
@@ -211,7 +211,7 @@ App Scope(`Global.Resource.AppScope`) 풀에서 빌린 Actor는 씬이 정지해
 
 ### 종료 순서
 
-매니저는 등록의 역순으로 종료한다. 등록 순서는 `Global.Managers.cs`의 `Input`, `Patch`, `Resource`, `Notification`, `Data`, `Pool`, `Scene`, `UI`, `Sound`다. Actor에 관련된 순서는 다음과 같다.
+매니저는 등록의 역순으로 종료한다. 등록 순서는 [architecture.md](architecture.md#등록-순서가-초기화-순서다)에 있다. Actor에 관련된 순서는 다음과 같다.
 
 1. `SceneManager`가 씬을 정지하고 씬 Scope 풀을 정리한다. 이때 `PoolManager`는 아직 Ready라 `Global.Pool`로 조회한다.
 2. `PoolManager.Clear()`가 남은 모든 풀(App Scope 포함)을 해제한다.
