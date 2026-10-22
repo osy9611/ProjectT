@@ -1,6 +1,6 @@
 # ProjectT
 
-ProjectT는 여러 게임 프로젝트에 공통으로 필요한 최소 기능을 모듈로 묶어 새 프로젝트의 개발 기반으로 쓰기 위해 만든 Unity 프로젝트다. 리소스 로드, 테이블 생성, UI, 씬 전환, 풀, 빌드 자동화, 스킬 시스템을 모듈로 나누고, 모듈마다 담당 매니저와 공개 진입점을 두었으며 매니저 생명주기와 오류 처리 규칙을 하나로 맞췄다.
+ProjectT는 여러 게임 프로젝트에서 함께 쓰는 Unity 기반 모듈 모음이다. 리소스, 테이블, UI, 씬, 풀, 빌드, 스킬 등 공통 기능을 담당 매니저와 공개 진입점으로 나누고, 매니저 생명주기와 오류 처리 규칙을 통일한다.
 
 ## 사용 기술
 
@@ -29,7 +29,7 @@ ProjectT는 AI를 활용해 코드를 작성할 때 적용할 규칙을 만들�
 | --- | --- | --- | --- |
 | 테이블 처리 | XML 기반 테이블 관리와 코드 생성 | CodeDom으로 클래스 생성, 다국어 문자열 생성 추가 | [TableGenerator](https://github.com/osy9611/ProjectT/wiki/TableGenerator) |
 | 리소스 관리 | Addressables와 기본 풀링, 코루틴 로드 | UniTask 비동기 로드, `ResourceScope` 단위 수명 관리 | [ResourceManager](https://github.com/osy9611/ProjectT/wiki/ResourceManager) |
-| UI | Scene, Popup, Element UI 구조 | Static, Dynamic, System UI 구조 | [UI System](https://github.com/osy9611/ProjectT/wiki/UI-System) |
+| UI | Scene, Popup, Element UI 구조 | Static, Dynamic, System, HUD UI 구조 | [UI System](https://github.com/osy9611/ProjectT/wiki/UI-System) |
 | 씬 관리 | Addressables 기반 씬 로드 | 씬 전환 중 데이터 유지와 씬 상태 관리 | [SceneManager](https://github.com/osy9611/ProjectT/wiki/SceneManager) |
 | 빌드 | Jenkins 빌드 | 빌드 단계 세분화, Firebase용 Addressables 빌드와 업로드 | [Build System](https://github.com/osy9611/ProjectT/wiki/Build-System) |
 | 스킬 | switch 문으로 등록하고 직접 실행 | `SkillAgent`, 효과, 태그(`SkillTag`), `Status`로 모듈화, `SkillDefinition`·`EffectDefinition` 팩토리 등록 | [Skill System](https://github.com/osy9611/ProjectT/wiki/Skill-System) |
@@ -43,11 +43,13 @@ ProjectT는 AI를 활용해 코드를 작성할 때 적용할 규칙을 만들�
 | 테이블 | `Global.Data`, `Global.Table` | 테이블 원본에서 생성한 클래스와 다국어 문자열 로드 |
 | 풀 | `Global.Pool` | 오브젝트 대여와 반납 |
 | 씬 | `Global.Scene` | 씬 전환, 전환 중 데이터 유지와 씬 상태 관리 |
-| UI | `Global.UI` | Static, Dynamic, System UI 구조 |
+| UI | `Global.UI` | Static, HUD, Dynamic, System UI 구조 |
 | 사운드 | `Global.Sound` | 채널별 2D 재생, 풀을 쓰는 공간 음원 재생 |
 | 통지 | `Global.Notify` | `NotificationId` 단위 구독과 통지 |
 | 입력 | `Global.Input` | 입력 컨텍스트 관리, 씬 전환·UI 포커스·장치 상태에 따른 입력 허용 판정 |
+| Actor | `ComBaseActor` | 스폰 생명주기, 입력·스킬 연동, 풀 반납 처리 |
 | 스킬 시스템(`AbilitySystem`) | `SkillAgent` | 스킬, 효과, 태그(`SkillTag`), `Status`의 조립과 팩토리 등록 |
+| 오류 보고 | `Global.LogException`, `Global.LogError` | 오류 수집, 중복 제한, sink 전달 |
 | 빌드 | `Tools/Build/build.ps1`, `Jenkinsfile` | 빌드 단계 실행, Addressables 빌드와 업로드 |
 | 테이블 생성기 | `Tools/DesignGenerator` | 테이블 원본에서 클래스와 다국어 문자열 생성 |
 
@@ -61,7 +63,7 @@ ProjectT는 AI를 활용해 코드를 작성할 때 적용할 규칙을 만들�
 | `Tools/` | 콘솔 테스트, 빌드 스크립트(`Tools/Build/build.ps1`), 테이블 생성기(`Tools/DesignGenerator`) |
 | `DesignTable/` | 테이블 원본(`DesignTable/Data`)과 생성 도구 실행 파일(`DesignTable/Gen`) |
 | `Server/` | 빌드 서버용 Docker 구성(Jenkins, GitLab) |
-| `Docs/` | 현재 코드 기준의 설계 문서 |
+| `Docs/` | 공통 구조·계약, 일부 시스템의 상세 규칙, 테스트와 남은 과제 |
 
 ## 문서 안내
 
@@ -70,12 +72,12 @@ ProjectT는 AI를 활용해 코드를 작성할 때 적용할 규칙을 만들�
 | 독자 | 알고 싶은 것 | 읽을 순서 |
 | --- | --- | --- |
 | 포트폴리오 방문자 | 무엇을 왜 만들었고 결과가 무엇인지 | 이 문서, [위키 Home](https://github.com/osy9611/ProjectT/wiki), [위키 Refactoring](https://github.com/osy9611/ProjectT/wiki/Refactoring), 위키 시스템 페이지의 "설계 결정" |
-| 처음 온 개발자 | 구조와 계약, 코드 위치 | 이 문서, [구조](Docs/architecture.md), 필요한 시스템의 `Docs/*.md`, [테스트](Docs/testing.md) |
+| 처음 온 개발자 | 구조와 시스템 사용 계약, 코드 위치 | 이 문서, [구조](Docs/architecture.md), [위키 Home](https://github.com/osy9611/ProjectT/wiki), 필요한 시스템 페이지, [테스트](Docs/testing.md) |
 | 유지보수자(사람·에이전트) | 작업 규칙, 검증 방법, 남은 과제 | [작업 규칙](AGENTS.md), [리팩토링 판정 기준](REFACTORING_CRITERIA.md), [테스트](Docs/testing.md), `Tools/*/README.md`, [남은 과제](Docs/open-issues.md) |
 
 ### 문서 지도
 
-저장소의 `Docs/`가 현재 코드 기준의 정본이다. 위키는 설계 이유와 이력을 요약하고 세부 계약은 `Docs/`로 링크한다.
+시스템별 현재 사용 계약은 위키에서 찾고, 여러 시스템에 공통된 규칙과 검증 기준은 `Docs/`에서 확인한다. 매니저 생명주기, Actor, AbilitySystem, 오류 보고의 상세 규칙은 연결된 `Docs/` 문서가 정본이다. 위키는 각 시스템의 구조·사용 계약·연동 흐름과 설계 이유·변경 이력을 설명하고, 상세 규칙은 해당 `Docs/` 문서로 연결한다.
 
 | 문서 | 내용 |
 | --- | --- |
@@ -88,6 +90,16 @@ ProjectT는 AI를 활용해 코드를 작성할 때 적용할 규칙을 만들�
 | [Docs/open-issues.md](Docs/open-issues.md) | 남은 지적과 보류한 결정 |
 | [AGENTS.md](AGENTS.md) | 작업 규칙 |
 | [REFACTORING_CRITERIA.md](REFACTORING_CRITERIA.md) | 리팩토링 착수와 판정 기준 |
+
+### 위키: 시스템 계약과 설계 이력
+
+| 분류 | 문서 |
+| --- | --- |
+| 진입·전체 이력 | [Home](https://github.com/osy9611/ProjectT/wiki), [Refactoring](https://github.com/osy9611/ProjectT/wiki/Refactoring) |
+| 기반 시스템 | [Manager Lifecycle](https://github.com/osy9611/ProjectT/wiki/Manager-Lifecycle), [ResourceManager](https://github.com/osy9611/ProjectT/wiki/ResourceManager), [SceneManager](https://github.com/osy9611/ProjectT/wiki/SceneManager), [Pool System](https://github.com/osy9611/ProjectT/wiki/Pool-System), [Error Reporter](https://github.com/osy9611/ProjectT/wiki/Error-Reporter) |
+| 게임 시스템 | [UI System](https://github.com/osy9611/ProjectT/wiki/UI-System), [Input System](https://github.com/osy9611/ProjectT/wiki/Input-System), [Notification](https://github.com/osy9611/ProjectT/wiki/Notification), [Sound](https://github.com/osy9611/ProjectT/wiki/Sound), [Actor](https://github.com/osy9611/ProjectT/wiki/Actor), [Skill System](https://github.com/osy9611/ProjectT/wiki/Skill-System) |
+| 도구 | [TableGenerator](https://github.com/osy9611/ProjectT/wiki/TableGenerator), [Build System](https://github.com/osy9611/ProjectT/wiki/Build-System) |
+| 제거된 기능의 이력 | [Wiki Home](https://github.com/osy9611/ProjectT/wiki)의 이력 분류에서 Client Local Storage 페이지로 이동. 현재 런타임에는 구현되어 있지 않음 |
 
 ## 참고 링크와 시연
 
