@@ -52,6 +52,7 @@ namespace ProjectT.UGUI
         internal void DetachInternal() { Pivot = null; }
         internal void UpdatePositionInternal(UnityEngine.Camera worldCamera, UnityEngine.RectTransform root, UnityEngine.Camera uiCamera) { PositionUpdates++; }
     }
+    public class UIDefine { public enum eUIType { Test } public static string GetUIPath(eUIType type)=>"UI"; }
     public static class HudDefine { public enum eHudType { Test } public static string GetPath(eHudType type)=>"Hud"; }
 }
 namespace ProjectT.Pivot { public class PivotInfo { } }
