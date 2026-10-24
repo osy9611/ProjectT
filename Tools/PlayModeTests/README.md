@@ -9,6 +9,7 @@
 | `ProjectTSamplePlayModeTests.P0FeatureSample` | FeatureSample 씬을 열고 Play Mode에서 `Global.IsReady`를 기다린 뒤 `ProjectTP0PlayProbe.Run()`을 실행한다. 프로브 요약 문자열(`pass=... fail=...`)을 단언한다. |
 | `ProjectTSamplePlayModeTests.TurnBattleSample` | TurnBattleSample 씬에서 `ProjectTTurnBattleProbe.Run()`을 실행하고 프로브 요약 문자열을 단언한다. |
 | `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | 빈 씬에 원격 리소스와 데이터 로드를 끈 `Global`을 띄우고 `ProjectTUIPlayProbe.Verify()`를 끝까지 실행한다. `PROJECTT_UI_PLAYMODE_PASS` 로그를 기대한다. |
+| `ProjectTRuntimePlayModeTests.RuntimeFixtures` | 빈 씬에 데이터 로드를 켠 `Global`을 띄우고 `ProjectTRuntimePlayProbe.Run()`을 실행한다. 샘플 없이 프로브가 만든 픽스처와 테스트 전용 씬 `TestSceneA`·`TestSceneB`로 확인하며, 프로브 요약 문자열을 단언한다. |
 | `RefactoringProbeTests.UISoundToolPrefabEdits` | SetUp이 `Assets/Tests/RefactoringFixtures`에 프리팹 픽스처를 만들고 TearDown이 지운다. `RefactoringProbe.PrefabSoundEdits()`의 검사가 모두 실행됐는지 단언한다. |
 
 `ProjectTP0PlayProbe`는 FeatureSample 씬의 샘플 경로를 actor, skill, input, ui, scene, cleanup, ui-probe 단계 순서로 실행한다. 샘플 버튼 함수는 internal 메서드로 직접 호출하고, 입력은 가상 Gamepad 상태 이벤트로 넣는다. 마지막 ui-probe 단계는 같은 세션에서 `ProjectTUIPlayProbe.Verify()`를 실행한다. 한 단계가 예외로 끝나도 다음 단계를 계속 실행한다.

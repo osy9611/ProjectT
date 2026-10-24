@@ -7,7 +7,7 @@
 ## 변경 전후로 테스트를 비교한다
 
 1. [시스템별 테스트](#시스템별-테스트) 표에서 바꿀 시스템에 해당하는 테스트를 찾는다.
-2. 변경 전에 [콘솔 테스트](#콘솔-테스트)를 실행한다. 씬, 풀, UI, 입력에 닿는 변경이면 [Unity 테스트](#unity-테스트) 4개도 실행한다.
+2. 변경 전에 [콘솔 테스트](#콘솔-테스트)를 실행한다. 씬, 풀, UI, 입력에 닿는 변경이면 [Unity 테스트](#unity-테스트) 5개도 실행한다.
 3. 변경한 뒤 같은 테스트를 다시 실행하고, 결과를 [기준선](#기준선) 표와 비교한다.
 4. 테스트가 실패하면 기대값을 고쳐 맞추지 않고, 출력을 그대로 결함 후보로 보고한다. 보고 규칙은 [작업 규칙](../AGENTS.md)의 "검증과 보고"를 따른다.
 
@@ -18,7 +18,7 @@
 | 실행 | 기준선 | 다시 확인하는 방법 |
 | --- | --- | --- |
 | `run-tests.ps1` 전체 | `ALL PASSED: 10 test runs` | 출력의 마지막 줄 |
-| `LifecycleTests` | `PASS` 252줄, `ALL PASSED` | 이 프로젝트 출력에서 `PASS `로 시작하는 줄 수. 마지막 줄에는 개수가 없다 |
+| `LifecycleTests` | `PASS` 253줄, `ALL PASSED` | 이 프로젝트 출력에서 `PASS `로 시작하는 줄 수. 마지막 줄에는 개수가 없다 |
 | `NotificationTests` | `13/13 notification tests passed` | 프로젝트 출력의 마지막 줄 |
 | `SkillTests` | `151/151 passed` | 프로젝트 출력의 마지막 줄 |
 | `SoundTests` | `43/43 sound tests passed` | 프로젝트 출력의 마지막 줄 |
@@ -31,6 +31,7 @@
 | `ProjectTSamplePlayModeTests.P0FeatureSample` | `pass=103 fail=0` | `ProjectTSamplePlayModeTests.cs`의 `AssertSummary` 인자 |
 | `ProjectTSamplePlayModeTests.TurnBattleSample` | `pass=61 fail=0` | `ProjectTSamplePlayModeTests.cs`의 `AssertSummary` 인자 |
 | `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | `ProjectTUIPlayProbe.Verify()`가 끝까지 실행되고 `PROJECTT_UI_PLAYMODE_PASS` 로그를 남긴다 | `ProjectTUIPlayModeTests.cs`의 `Assert.That(verified, Is.True, ...)`와 `LogAssert.Expect` |
+| `ProjectTRuntimePlayModeTests.RuntimeFixtures` | `pass=98 fail=0` | `ProjectTRuntimePlayModeTests.cs`의 `Assert.That(summary, ...)` 기대값 |
 | `RefactoringProbeTests.UISoundToolPrefabEdits` | 검사 14개 | `RefactoringProbeTests.cs`의 `Assert.That(RefactoringProbe.Checks, Is.EqualTo(14))` |
 
 ## 콘솔 테스트
@@ -92,13 +93,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/SoundTests/compile-uni
 
 ## Unity 테스트
 
-`Client/Assets/Tests/Editor`에 EditMode 테스트 4개가 있다. **Window > General > Test Runner**의 **EditMode** 탭에서 실행한다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다. 기대값은 [기준선](#기준선) 표에 있다.
+`Client/Assets/Tests/Editor`에 EditMode 테스트 5개가 있다. **Window > General > Test Runner**의 **EditMode** 탭에서 실행한다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다. 기대값은 [기준선](#기준선) 표에 있다.
 
 | 테스트 | 하는 일 |
 | --- | --- |
 | `ProjectTSamplePlayModeTests.P0FeatureSample` | FeatureSample 씬에서 Play Mode에 들어가 `Global.IsReady`를 기다린 뒤 `ProjectTP0PlayProbe.Run()`을 실행한다. Play Mode를 나온 뒤 프로브 요약을 단언한다 |
 | `ProjectTSamplePlayModeTests.TurnBattleSample` | TurnBattleSample 씬에서 `ProjectTTurnBattleProbe.Run()`을 실행하고 프로브 요약을 단언한다 |
 | `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | 빈 씬에 `Global`(`UseRemoteResource`, `LoadData` 끔)을 만들고 `ProjectTUIPlayProbe.Verify()`를 끝까지 실행한다 |
+| `ProjectTRuntimePlayModeTests.RuntimeFixtures` | 빈 씬에 `Global`(`LoadData` 켬, `UseRemoteResource` 끔)을 만들고 `ProjectTRuntimePlayProbe.Run()`을 실행한다. 프로브가 만든 Actor 템플릿과 `Global.UI` 컨테이너에 직접 등록한 위젯, 테스트 전용 씬 `TestSceneA`·`TestSceneB`로 actor, skill, input, ui, scene, cleanup 단계를 확인한다. Play Mode를 나온 뒤 프로브 요약을 단언한다 |
 | `RefactoringProbeTests.UISoundToolPrefabEdits` | 프리팹 픽스처를 만들어 `RefactoringProbe.PrefabSoundEdits()`를 실행하고 검사 수를 단언한다 |
 
 asmdef가 없으므로 `Tests/Editor`의 테스트는 `Assembly-CSharp-Editor`로 컴파일된다. 프로브(`Tests/Probes/*.cs`)는 Editor 폴더 밖에 있어 `Assembly-CSharp`로 컴파일되고, 파일 전체가 `#if UNITY_EDITOR`로 감싸여 플레이어 빌드에서 빠진다. P0 테스트는 의도한 예외 2건(`Scene transition is unavailable.`, `[Sample] SampleSceneB OnEnter failure test`)을 `LogAssert.Expect`로 처리하고, 다른 Error·Exception 로그는 실패로 본다.

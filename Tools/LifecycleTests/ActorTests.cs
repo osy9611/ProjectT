@@ -91,6 +91,20 @@ static partial class Program
         }
     }
 
+    sealed class ManualTickActorProbe : ActorProbe
+    {
+        protected override bool AutoTickSkills => false;
+
+        public void Tick(float deltaTime) => TickSkills(deltaTime);
+
+        protected override void OnInit()
+        {
+            TestSkillAction.Trace = TestBehavior.Trace = Trace;
+            AddSkillAgent();
+            base.OnInit();
+        }
+    }
+
     sealed class StatusActorProbe : ActorProbe
     {
         protected override void OnInit()
@@ -335,10 +349,11 @@ static partial class Program
         });
     }
 
-    const int TestSkillId = 1, AtkEffectId = 4;
+    const int TestSkillId = 1, InstantSkillId = 2, AtkEffectId = 4;
     // Like table skills, the test skill is blocked and cancelled by the adapter stun tag.
     static readonly SkillTag[] StunTags = { SkillDefinitions.StunTag };
     static readonly SkillDefinition TestSkill = new SkillDefinition(TestSkillId, 0f, () => new TestSkillAction(), StunTags, StunTags, default, Array.Empty<EffectDefinition>(), Array.Empty<SkillCost>());
+    static readonly SkillDefinition InstantSkill = new SkillDefinition(InstantSkillId, 1f, () => new InstantTestAction(), StunTags, StunTags, default, Array.Empty<EffectDefinition>(), Array.Empty<SkillCost>());
     static readonly EffectDefinition LongEffect = TestEffect(1, 5f, 0f), IntervalEffect = TestEffect(2, 5f, 1f), ShortEffect = TestEffect(3, 0.01f, 0f), StunEffect = TestEffect(5, 5f, 0f, new[] { SkillDefinitions.StunTag });
 
     // Test effects attach a tracing behavior through the definition factory and keep the production modifier, tag and damage handling.
@@ -415,6 +430,15 @@ namespace ProjectT.Skill.LifecycleTests
             CancelAction?.Invoke();
             if (CancelFailure != null)
                 throw CancelFailure;
+        }
+    }
+
+    public sealed class InstantTestAction : BaseSkillAction
+    {
+        protected override void Activate()
+        {
+            TestSkillAction.Trace.Add("instant-activate");
+            End();
         }
     }
 

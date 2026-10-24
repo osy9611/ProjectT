@@ -18,4 +18,12 @@
 		<SceneName>SampleSceneB</SceneName>
 		<Path>Assets/Scenes/Sample/SampleSceneB.unity</Path>
 	</record>
+	<record>
+		<SceneName>TestSceneA</SceneName>
+		<Path>Assets/Scenes/Test/TestSceneA.unity</Path>
+	</record>
+	<record>
+		<SceneName>TestSceneB</SceneName>
+		<Path>Assets/Scenes/Test/TestSceneB.unity</Path>
+	</record>
 </SceneData>

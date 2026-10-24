@@ -102,6 +102,46 @@ static partial class Program
             Check(actor.Releases == 1 && actor.Count("skill-cancel") == 1, "Destruction after a tick deactivation repeated the cancel or skipped the release hook");
         });
 
+        await RunSkillActorCase("a manual tick actor does not tick skills in update and progresses only through TickSkills while active", () =>
+        {
+            var actor = new GameObject("Actor").AddComponent<ManualTickActorProbe>();
+            actor.EnterAction = () =>
+            {
+                actor.SkillAgent.GiveSkill(TestSkill);
+                actor.SkillAgent.GiveSkill(InstantSkill);
+                actor.SkillAgent.ActivateSkill(TestSkillId);
+                actor.SkillAgent.ApplyEffect(ShortEffect, actor);
+            };
+            AttachActor(actor);
+            actor.SkillAgent.ActivateSkill(InstantSkillId);
+            float deltaTime = Time.deltaTime;
+            Time.deltaTime = 10f;
+            try
+            {
+                ActorMessage(actor, "Update");
+            }
+            finally
+            {
+                Time.deltaTime = deltaTime;
+            }
+            actor.SkillAgent.ActivateSkill(InstantSkillId);
+            Check(actor.Updates == 1 && TraceOf(actor) == "init,enter,skill-activate,effect-apply:3,enable,instant-activate", "Update ticked the effects, skills or cooldowns of a manual tick actor");
+            actor.Tick(10f);
+            actor.SkillAgent.ActivateSkill(InstantSkillId);
+            Check(TraceOf(actor).EndsWith(",instant-activate,effect-remove:3:Expired,skill-tick,instant-activate"), "TickSkills did not expire effects, tick skills or finish the cooldown");
+            actor.SkillAgent.ApplyEffect(LongEffect, actor);
+            actor.gameObject.SetActive(false);
+            ActorMessage(actor, "OnDisable");
+            int traced = actor.Trace.Count;
+            actor.Tick(10f);
+            bool idle = actor.Trace.Count == traced;
+            actor.gameObject.SetActive(true);
+            ActorMessage(actor, "OnEnable");
+            actor.Tick(10f);
+            Check(idle && TraceOf(actor).EndsWith(",enable,effect-remove:1:Expired"), "TickSkills progressed a deactivated actor or stopped after reactivation");
+            ActorMessage(actor, "OnDestroy");
+        });
+
         await RunSkillActorCase("deactivation cancels active skills before the disable hook and a cancel failure skips the disable hook and quarantines the actor", () =>
         {
             var actor = new GameObject("Actor").AddComponent<SkillActorProbe>();
