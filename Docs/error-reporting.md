@@ -159,7 +159,7 @@ Flush()
 | --- | --- |
 | `SkillActionController.RegisterSkill`에서 던진 `InvalidOperationException` | `System.InvalidOperationException\|ProjectT.Skill.SkillActionController.RegisterSkill (ProjectT.Skill.SkillDefinition definition)  in …/SkillActionController.cs:40` |
 | `Global.LogError(msg)` (빌드) | `Log\|[ERROR][#-#-# #:#:#] [Global] <msg 첫 줄>\|<호출 위치 프레임>` |
-| `FeatureSampleRunner`의 `Debug.LogError("[Sample] repeated error")` | `Log\|[Sample] repeated error\|ProjectT.Sample.FeatureSampleRunner:DrawErrorInternal () (at Assets/Script/Sample/FeatureSampleRunner.cs:198)` |
+| 반복 호출되는 `Debug.LogError("repeated error")` | `Log\|repeated error\|ProjectT.Foo:Baz () (at Assets/…/Foo.cs:57)` |
 | Addressables 내부의 `Debug.LogError` | `Log\|<메시지 첫 줄>\|` |
 | `Update`에서 빠져나간 NRE | `NullReferenceException\|ProjectT.Foo:Bar () (at Assets/…/Foo.cs:42)` |
 
@@ -244,10 +244,10 @@ Report(ex)
 2026-10-04T06:39:13.1234567Z [3f2a…c91e] #1 System.InvalidOperationException|ProjectT.Skill.SkillActionController.RegisterSkill (…) in …/SkillActionController.cs:40
 System.InvalidOperationException: [SkillActionController] ActionFactory returned an action that is already registered. SkillID 1001
   at ProjectT.Skill.SkillActionController.RegisterSkill (ProjectT.Skill.SkillDefinition definition) …
-2026-10-04T06:39:14.0000000Z [77b0…01aa] #10 Log|[Sample] repeated error|ProjectT.Sample.FeatureSampleRunner:DrawErrorInternal () (at …:198)
-[Sample] repeated error
+2026-10-04T06:39:14.0000000Z [77b0…01aa] #10 Log|repeated error|ProjectT.Foo:Baz () (at …:57)
+repeated error
 UnityEngine.Debug:LogError (object)
-ProjectT.Sample.FeatureSampleRunner:DrawErrorInternal () (at Assets/Script/Sample/FeatureSampleRunner.cs:198)
+ProjectT.Foo:Baz () (at Assets/…/Foo.cs:57)
 …
 2026-10-04T06:40:02.5000000Z 3 error batches dropped
 ```

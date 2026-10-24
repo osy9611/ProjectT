@@ -114,7 +114,7 @@ Client/Assets/Script/
 | `ApplyEffects(SkillAgent target)` | 정의의 `Effects`를 대상에 건다. 시전자는 소유자다. 대상 선택은 실행 클래스가 하고, 자신에게 걸 때는 `Owner.SkillAgent`를 넘긴다. |
 | `Spec` | `Definition`, `CoolDownRemaining`, `IsOnCoolDown` |
 
-예시는 `Client/Assets/Script/Sample/TurnBattle/TurnBattleDefinitions.cs`의 `TargetedAction`(즉시형)과 `MeditateAction`(여러 틱 유지)이다.
+예시는 `Tools/LifecycleTests/ActorTests.cs`의 `InstantTestAction`(즉시형)과 `TestSkillAction`(여러 틱 유지)이다.
 
 ### SkillDefinition 필드
 
@@ -200,7 +200,7 @@ Client/Assets/Script/
 
 - 연쇄 효과(만료 시 다음 효과 적용)는 `reason == Expired`일 때만 다음 효과를 건다. `Released`는 스폰 종료 중이라 등록이 닫혀 있다.
 - `OnRemove`가 실패하면 태그·수정자 회수와 `OnEffectRemoved` 없이 예외가 전파된다. 남은 태그와 수정자는 스폰 종료의 정리가 비운다.
-- `Owner`, `Source`, `Definition`을 읽을 수 있다. 예시는 `TurnBattleDefinitions.cs`의 `ManaRegenBehavior`다.
+- `Owner`, `Source`, `Definition`을 읽을 수 있다. 예시는 `Tools/LifecycleTests/ActorTests.cs`의 `TestBehavior`다.
 
 ## 태그는 부여 횟수를 세고 0과 1 사이를 넘을 때만 이벤트를 낸다
 
@@ -233,7 +233,7 @@ Client/Assets/Script/
 
 ![ComBaseActor 생명주기 연동](images/actor_lifecycle.svg)
 
-필요한 Actor만 `OnInit`에서 모듈을 추가한다. 추가하지 않은 Actor는 비용이 없다. 지금 호출하는 Actor는 `SampleActor`(`Client/Assets/Script/Sample/SampleActor.cs`)와 `TurnUnit`(`Client/Assets/Script/Sample/TurnBattle/TurnUnit.cs`)이다. Actor의 상태, 전이, 격리 상태, 반납 거부는 [actor-lifecycle.md](actor-lifecycle.md)가 상세 문서다. 여기에는 스킬 시스템 쪽 계약만 적는다.
+필요한 Actor만 `OnInit`에서 모듈을 추가한다. 추가하지 않은 Actor는 비용이 없다. 지금 제품 코드에는 모듈을 추가하는 Actor가 없다. 사용 예는 `Tools/LifecycleTests/ActorTests.cs`의 `SkillActorProbe`·`ManualTickActorProbe`와 `Client/Assets/Tests/Probes/ProjectTRuntimePlayProbe.cs`의 `ProbeActor`다. Actor의 상태, 전이, 격리 상태, 반납 거부는 [actor-lifecycle.md](actor-lifecycle.md)가 상세 문서다. 여기에는 스킬 시스템 쪽 계약만 적는다.
 
 ```csharp
 protected override void OnInit()
@@ -256,7 +256,7 @@ protected override void OnEnter()
 | `OnInit` | `AddSkillAgent()`, `AddStatus()` | 모듈 생성, 등록은 닫혀 있다. 같은 모듈을 두 번 추가하면 예외다. 실패한 `OnInit`을 `Spawn`이 다시 시도할 때는 이전에 추가한 모듈을 버린다. |
 | `Spawn` | `SkillAgent.OpenInternal()`, 그다음 `OnEnter` | `OnEnter`에서 `GiveSkill`·`ApplyEffect`를 쓸 수 있다. 등록은 스폰 종료가 해제를 보장하는 상태부터 연다. |
 | `Update` | `Active`이고 `AutoTickSkills`가 true면 `TickInternal(Time.deltaTime)` | 효과 틱, 활성 스킬 `OnUpdate`, 쿨다운 순으로 진행한다. |
-| `TickSkills(float)` | `Active`일 때만 `TickInternal` | `AutoTickSkills => false`인 Actor의 수동 경로. `TurnUnit`은 턴이 끝날 때 `TickSkills(1f)`를 호출한다. |
+| `TickSkills(float)` | `Active`일 때만 `TickInternal` | `AutoTickSkills => false`인 Actor의 수동 경로. |
 | `OnDisable` | `CancelActiveSkillsInternal()` | 활성 스킬을 취소한다. 파생 클래스가 `Disable`에서 구독을 해제하기 전에 취소 이벤트를 받는다. |
 | 스폰 종료(반납, 파괴) | `SkillAgent.ReleaseInternal()`, 그다음 `Status.ReleaseInternal()` | 아래 정리 내용을 따른다. |
 
@@ -357,5 +357,5 @@ protected override void OnEnter()
 
 - [actor-lifecycle.md](actor-lifecycle.md). Actor 상태, 전이, 격리 상태, 반납 거부의 상세 문서.
 - [architecture.md](architecture.md). 매니저와 어셈블리 구성.
-- [testing.md](testing.md#시스템별-테스트). 스킬 시스템을 검사하는 콘솔 테스트(`Tools/SkillTests`, `Tools/LifecycleTests`의 `ActorSkillTests`)와 Unity 테스트. Unity 테스트의 P0 프로브는 skill 단계에서 `SampleActor`의 발동, 쿨다운, 버프, 스턴 차단·만료, 재스폰을 확인하고, `TurnBattleSample`은 `TurnUnit`의 수동 틱 경로를 확인한다.
+- [testing.md](testing.md#시스템별-테스트). 스킬 시스템을 검사하는 콘솔 테스트(`Tools/SkillTests`, `Tools/LifecycleTests`의 `ActorSkillTests`)와 Unity 테스트. Unity 테스트의 `RuntimeFixtures`는 skill 단계에서 테이블 스킬을 가진 프로브 Actor의 발동, 쿨다운, 버프, 스턴 차단·만료, 재스폰을 확인한다. 수동 틱 경로는 `ActorSkillTests`가 확인한다.
 - `Tools/PlayModeTests/README.md`. Play Mode 실행 절차.

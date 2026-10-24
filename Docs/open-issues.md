@@ -36,7 +36,7 @@
 | `AbilitySystem/Skill/SkillAgent.cs`, `AbilitySystem/Skill/Action/SkillActionController.cs` | `GiveSkill`·`ActivateSkill`·`CancelSkill`이 `SkillActionController`로 넘기기만 하고, 세 객체가 서로를 역참조한다. | 리뷰 03 F6 | 구조 |
 | `AbilitySystem/Skill/Action/BaseSkillAction.cs`, `SkillActionController.cs` | 발동 순서(`TryActivateInternal`, `CompleteActivationInternal`, `Activating`·`Ending`, `pendingEndReason`)가 두 클래스의 네 메서드에 나뉘어 있다. | 리뷰 03 F7 | 구조 |
 | `SkillAdapter/Action_Normal.cs`, `Action_Melee.cs`, `Action_Range.cs` | 내용이 같은 자리표시자 세 벌이다. | 리뷰 03 F9 | 정리 |
-| `AbilitySystem/Skill/SkillAgent.cs`의 `ReleaseInternal`, `AbilitySystem/Stat/Status.cs`의 `ReleaseInternal` | "정리는 알리지 않는다"가 "구독자는 Disable에서 해제한다"는 관례에 기댄다. `TurnUnit`은 `OnInit`에서 구독하고 `OnRelease`의 `tags.Clear()`로 보정한다. | 리뷰 03 F11 | 구조 |
+| `AbilitySystem/Skill/SkillAgent.cs`의 `ReleaseInternal`, `AbilitySystem/Stat/Status.cs`의 `ReleaseInternal` | "정리는 알리지 않는다"가 "구독자는 Disable에서 해제한다"는 관례에 기댄다. | 리뷰 03 F11 | 구조 |
 | `SkillActionController.cs`의 `OnUpdate` | `OnUpdate(float deletaTime)` 매개변수 이름이 오타다. | 리뷰 03 기타 | 정리 |
 
 ### UI와 Sound
@@ -55,12 +55,10 @@
 | 위치 | 문제 | 근거 | 성격 |
 |---|---|---|---|
 | `Tools/SoundTests/Stubs.cs`, `Tools/UITests/Stubs.cs`, `Tools/SkillTests/Stubs.cs`, `Tools/LifecycleTests/PoolConsumerStubs.cs` | Sound·UI·Skill 테스트가 가짜 `Global`을 쓴다. SkillTests는 가짜 `ComBaseActor`도 쓴다. LifecycleTests의 `SkillType`·`BuffType`은 `sbyte`이고 실제 `DesignEnum.cs`는 `int`다. Sound·UI의 실물 Global 전환이 남았다. SkillTests는 `SkillDefinitions`의 `Global.Table` 의존 때문에 가짜를 유지하기로 했다. | 리뷰 06 F2, 리뷰 07, 리뷰 08 | 구조 |
-| `Sample/TurnBattle/TurnUnit.cs`, `TurnBattleDefinitions.cs` | `Events`, `ResourceOutOfRange`, `HasTagEvent`, `MageNoRegen`은 `ProjectTTurnBattleProbe`만 쓰는 계측이다. | 리뷰 06 F3 | 정리 |
 | `Tools/DesignGenerator/DesignGenerator/Enum/EnumGenerator.cs` | 레거시 `EnumInfo` 모델과 `ToLegacy`, DOM 리더 `XmlDocumentEnumRecordSource`, 호출 없는 `Create`가 남아 있다. `SetEnumInfo`는 진단을 `Console.Write`로 바로 출력해 `--format=json`에 enum 오류가 빠진다. | 리뷰 06 F4 | 정리 |
 | `Tools/DesignGenerator/DesignGenerator/Util/ExcelIO.cs`, `Program.cs`, `DesignGenerator.csproj` | `ExcelIO.cs`가 889줄이다. `KillAllExcel`, `MoveDllFile`, 콜백형 `LoadXML`·`LoadAllXML` 같은 죽은 함수가 있고 `GeneratorUtils.WriteIfChanged`가 `GeneratedFileWriter.WriteIfChanged`와 중복된다. csproj가 ILRepack·Costura·Fody를 참조한다. `Program.cs`의 `#if DEBUG` 블록에 `D:\Project\ProjectT` 절대 경로가 있다. | 리뷰 06 F5 | 정리 |
 | `Tools/DesignGenerator/DesignGenerator/Table/TableGenerator.cs` | 결과를 `OnMgrSet`·`OnSerializerSet` 델리게이트로 넘기고, `Load`와 `LoadAll`이 같은 흐름을 반복한다. | 리뷰 06 F6 | 정리 |
 | `Tools/DesignGenerator/DesignGenerator/Table/TableGenerator.cs` | 7개·9개 복합 PK 입력에서 `datas` 필드 타입이 잘못 생성되어 CS1003·CS0305로 컴파일에 실패한다. 재현 기록 이후 이 파일은 바뀌지 않았다. | `Docs/archive/ADDITIONAL_REFACTORING_ANALYSIS.md` 4절(로컬 보관) | 결함 |
-| `Sample/FeatureSampleRunner.cs`, `UISampleRunner.cs`, `SoundSampleRunner.cs`, `SceneSampleRunner.cs`, `TurnBattle/TurnBattleRunner.cs` | 대기 부트스트랩이 다섯 벌이다. 샘플 6개 파일이 `FeatureSampleRunner.Write`에 의존한다. | 리뷰 06 F7 | 구조 |
 | 루트 `Assembly-CSharp.csproj`, `Tools/TEMP/`, `Tools/LifecycleTests/*.cs.meta` | 0바이트 untracked csproj, 파일 없는 디렉터리 트리, 추적 중인 `.cs.meta` 7개가 남아 있다. | 리뷰 06 F11 | 정리 |
 | `AbilitySystem/Skill/Effect/EffectController.cs`의 `EffectHandle.Id`, `Common/Global.cs`의 `Log` | 주석이 지금 코드와 맞지 않는다. 핸들 0은 이제 Instant에서만 나오는데 "적용 중 정리"를 적고 있다. `Log` 주석은 삭제된 "소켓 스레드"를 적고 있다. | 백로그 6, 코드 대조 | 정리 |
 | `DesignTable/Gen/` | `DesignGenerator.exe.config`와 `DesignTool.exe.config`가 없다. `App.config`의 bindingRedirect가 실행 시 적용되지 않을 수 있다(추정). | 백로그 24a | 결함 |
@@ -73,8 +71,8 @@
 | 항목 | 남긴 것과 이유 | 다시 볼 조건 |
 |---|---|---|
 | Firebase 실환경 | 4·22c·22d·22f·22h는 실제 Firebase 접속, 원격 번들, DownloadOnly를 검증하지 않았다. 배포 저장소가 S3로 바뀔 수 있어 범위에서 뺐다. | 배포 저장소가 정해질 때 |
-| 25에서 유지한 리플렉션 | `PoolTests.ScopeEntries`는 Scope 등록과 닫힘 표시를 공개 API로 관찰할 수 없어 `scopes`·`IsClosed`를 직접 센다. `ErrorReporterTests`의 `s_counts`, `OnEnable`·`Start`·`OnDestroy` 같은 엔진 메시지 호출, `UITests`의 `type`·`firstSelected`, `ProjectTUIPlayProbe`의 `type`·`uiDatas`도 남겼다. | 해당 내부 구조를 바꾸는 작업을 할 때 |
-| 28 컨텍스트 누수 검사 축소 | P0 프로브가 Controller 전체 대신 Actor 기준(`ContextOwned`, `RegisteredContexts`)으로 센다. Actor 밖에서 생긴 컨텍스트 누수는 잡지 못한다. | 입력 컨텍스트를 Actor 밖에서 등록하는 코드가 생길 때 |
+| 25에서 유지한 리플렉션 | `PoolTests.ScopeEntries`는 Scope 등록과 닫힘 표시를 공개 API로 관찰할 수 없어 `scopes`·`IsClosed`를 직접 센다. `ErrorReporterTests`의 `s_counts`, `OnEnable`·`Start`·`OnDestroy` 같은 엔진 메시지 호출, `UITests`의 `type`·`firstSelected`, `ProjectTUIPlayProbe`의 `type`·`uiDatas`, `ProjectTRuntimePlayProbe`의 `uiContainer`·`type`·`uiDatas`도 남겼다. | 해당 내부 구조를 바꾸는 작업을 할 때 |
+| 28 컨텍스트 누수 검사 축소 | `RuntimeFixtures` 프로브가 Controller 전체 대신 Actor 기준(`ContextOwned`, `RegisteredContexts`)으로 센다. Actor 밖에서 생긴 컨텍스트 누수는 잡지 못한다. | 입력 컨텍스트를 Actor 밖에서 등록하는 코드가 생길 때 |
 | 20 콜백 중 반납 거부 | 스킬·효과·Status 호출 중 반납은 거부된다([actor-lifecycle.md](actor-lifecycle.md#호출-중-반납은-거부한다)). 그래서 "효과 틱 안에서 HP 0이 되면 즉시 반납"은 할 수 없다. | 콜백 안 즉시 반납이 필요한 콘텐츠가 생길 때 |
 | 25a OnRemove 실패 시 이벤트 없음 | `OnRemove`가 실패하면 효과는 목록에서 빠지지만 `OnEffectRemoved`는 나가지 않는다. 의도된 동작으로 판정하고 `EffectBehavior.cs` 주석과 테스트로 고정했다. | 버프 UI처럼 제거 이벤트에 의존하는 구독자가 생길 때 |
 | 25b 틱 실패 비격리 | Tick·OnUpdate 실패는 Actor를 Faulted로 바꾸지 않고 Active로 둔다([actor-lifecycle.md](actor-lifecycle.md#틱과-onupdate의-실패는-격리하지-않는다)). | 틱 실패 뒤 남은 태그가 실제 문제를 일으킬 때 |

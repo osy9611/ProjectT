@@ -6,11 +6,11 @@
 
 러너는 다음 제품 소스를 그대로 컴파일한다.
 
-- `UGUI/UI/UIContainer.cs`, `UGUI/UI/UIBase.cs`, `UGUI/UI/UIDefine.cs`.
+- `UGUI/UI/UIContainer.cs`, `UGUI/UI/UIBase.cs`.
 - `Managers/UIManager.cs`, `Common/ErrorCollector.cs`.
 - 설치된 UniTask 소스 중 엔진에 의존하지 않는 파일.
 
-UnityEngine 타입(Canvas, Camera, EventSystem 등)은 `Tools/Shared/UnityStubs`와 `Stubs.cs`가 대체한다. `ManagerBase`, `Global`, 리소스 로딩, 풀, 입력, HUD 타입도 `Stubs.cs`의 가짜가 대체한다.
+UnityEngine 타입(Canvas, Camera, EventSystem 등)은 `Tools/Shared/UnityStubs`와 `Stubs.cs`가 대체한다. `ManagerBase`, `Global`, 리소스 로딩, 풀, 입력, HUD 타입, UI 경로 정의(`UIDefine`)도 `Stubs.cs`의 가짜가 대체한다.
 
 검사 범위는 다음과 같다.
 

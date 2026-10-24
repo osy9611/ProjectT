@@ -7,7 +7,7 @@
 ## 변경 전후로 테스트를 비교한다
 
 1. [시스템별 테스트](#시스템별-테스트) 표에서 바꿀 시스템에 해당하는 테스트를 찾는다.
-2. 변경 전에 [콘솔 테스트](#콘솔-테스트)를 실행한다. 씬, 풀, UI, 입력에 닿는 변경이면 [Unity 테스트](#unity-테스트) 5개도 실행한다.
+2. 변경 전에 [콘솔 테스트](#콘솔-테스트)를 실행한다. 씬, 풀, UI, 입력에 닿는 변경이면 [Unity 테스트](#unity-테스트) 3개도 실행한다.
 3. 변경한 뒤 같은 테스트를 다시 실행하고, 결과를 [기준선](#기준선) 표와 비교한다.
 4. 테스트가 실패하면 기대값을 고쳐 맞추지 않고, 출력을 그대로 결함 후보로 보고한다. 보고 규칙은 [작업 규칙](../AGENTS.md)의 "검증과 보고"를 따른다.
 
@@ -28,8 +28,6 @@
 | `RefactoringTests/UISoundTool` | `21/21 UISoundTool scenarios passed` | 프로젝트 출력의 마지막 줄 |
 | `RefactoringTests/UploadFlow` | `ALL PASSED: 3 upload scenarios` | 프로젝트 출력의 마지막 줄 |
 | `RefactoringTests/run-build.ps1` | `ALL PASSED: 11 build flow scenarios`, `ALL PASSED: 12 build argument scenarios` | 스크립트 출력의 두 `ALL PASSED` 줄 |
-| `ProjectTSamplePlayModeTests.P0FeatureSample` | `pass=103 fail=0` | `ProjectTSamplePlayModeTests.cs`의 `AssertSummary` 인자 |
-| `ProjectTSamplePlayModeTests.TurnBattleSample` | `pass=61 fail=0` | `ProjectTSamplePlayModeTests.cs`의 `AssertSummary` 인자 |
 | `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | `ProjectTUIPlayProbe.Verify()`가 끝까지 실행되고 `PROJECTT_UI_PLAYMODE_PASS` 로그를 남긴다 | `ProjectTUIPlayModeTests.cs`의 `Assert.That(verified, Is.True, ...)`와 `LogAssert.Expect` |
 | `ProjectTRuntimePlayModeTests.RuntimeFixtures` | `pass=98 fail=0` | `ProjectTRuntimePlayModeTests.cs`의 `Assert.That(summary, ...)` 기대값 |
 | `RefactoringProbeTests.UISoundToolPrefabEdits` | 검사 14개 | `RefactoringProbeTests.cs`의 `Assert.That(RefactoringProbe.Checks, Is.EqualTo(14))` |
@@ -93,17 +91,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Tools/SoundTests/compile-uni
 
 ## Unity 테스트
 
-`Client/Assets/Tests/Editor`에 EditMode 테스트 5개가 있다. **Window > General > Test Runner**의 **EditMode** 탭에서 실행한다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다. 기대값은 [기준선](#기준선) 표에 있다.
+`Client/Assets/Tests/Editor`에 EditMode 테스트 3개가 있다. **Window > General > Test Runner**의 **EditMode** 탭에서 실행한다. 테스트는 씬을 바꾸므로 열린 씬을 먼저 저장한다. 기대값은 [기준선](#기준선) 표에 있다.
 
 | 테스트 | 하는 일 |
 | --- | --- |
-| `ProjectTSamplePlayModeTests.P0FeatureSample` | FeatureSample 씬에서 Play Mode에 들어가 `Global.IsReady`를 기다린 뒤 `ProjectTP0PlayProbe.Run()`을 실행한다. Play Mode를 나온 뒤 프로브 요약을 단언한다 |
-| `ProjectTSamplePlayModeTests.TurnBattleSample` | TurnBattleSample 씬에서 `ProjectTTurnBattleProbe.Run()`을 실행하고 프로브 요약을 단언한다 |
 | `ProjectTUIPlayModeTests.UIContainerStackAndNativeActivation` | 빈 씬에 `Global`(`UseRemoteResource`, `LoadData` 끔)을 만들고 `ProjectTUIPlayProbe.Verify()`를 끝까지 실행한다 |
 | `ProjectTRuntimePlayModeTests.RuntimeFixtures` | 빈 씬에 `Global`(`LoadData` 켬, `UseRemoteResource` 끔)을 만들고 `ProjectTRuntimePlayProbe.Run()`을 실행한다. 프로브가 만든 Actor 템플릿과 `Global.UI` 컨테이너에 직접 등록한 위젯, 테스트 전용 씬 `TestSceneA`·`TestSceneB`로 actor, skill, input, ui, scene, cleanup 단계를 확인한다. Play Mode를 나온 뒤 프로브 요약을 단언한다 |
 | `RefactoringProbeTests.UISoundToolPrefabEdits` | 프리팹 픽스처를 만들어 `RefactoringProbe.PrefabSoundEdits()`를 실행하고 검사 수를 단언한다 |
 
-asmdef가 없으므로 `Tests/Editor`의 테스트는 `Assembly-CSharp-Editor`로 컴파일된다. 프로브(`Tests/Probes/*.cs`)는 Editor 폴더 밖에 있어 `Assembly-CSharp`로 컴파일되고, 파일 전체가 `#if UNITY_EDITOR`로 감싸여 플레이어 빌드에서 빠진다. P0 테스트는 의도한 예외 2건(`Scene transition is unavailable.`, `[Sample] SampleSceneB OnEnter failure test`)을 `LogAssert.Expect`로 처리하고, 다른 Error·Exception 로그는 실패로 본다.
+asmdef가 없으므로 `Tests/Editor`의 테스트는 `Assembly-CSharp-Editor`로 컴파일된다. 프로브(`Tests/Probes/*.cs`)는 Editor 폴더 밖에 있어 `Assembly-CSharp`로 컴파일되고, 파일 전체가 `#if UNITY_EDITOR`로 감싸여 플레이어 빌드에서 빠진다. `RuntimeFixtures`는 의도한 예외 2건(`Scene transition is unavailable.`, `[Probe] TestSceneB OnEnter failure test`)을 `LogAssert.Expect`로 처리하고, 다른 Error·Exception 로그는 실패로 본다.
 
 EditMode 테스트 안의 `EnterPlayMode`·`ExitPlayMode`는 도메인을 다시 로드한다. Unity Test Framework는 리로드 뒤 열거자의 위치와 `JsonUtility`로 저장한 테스트 객체의 필드만 복원한다. 그래서 리로드를 넘는 상태는 다음 규칙을 따른다.
 
@@ -114,21 +110,21 @@ EditMode 테스트 안의 `EnterPlayMode`·`ExitPlayMode`는 도메인을 다시
 
 ## 시스템별 테스트
 
-시스템을 바꿀 때 실행할 테스트다. 콘솔 테스트는 각 csproj의 `Compile Include`를, Unity 테스트는 P0 프로브의 검사 그룹(`setup`, `actor`, `skill`, `input`, `ui`, `scene`)을 기준으로 정리했다.
+시스템을 바꿀 때 실행할 테스트다. 콘솔 테스트는 각 csproj의 `Compile Include`를, Unity 테스트는 `RuntimeFixtures` 프로브의 검사 그룹(`setup`, `actor`, `skill`, `input`, `ui`, `scene`)을 기준으로 정리했다.
 
 | 시스템 | 콘솔 테스트(대상 제품 소스) | Unity 테스트 |
 | --- | --- | --- |
-| 매니저 생명주기 | `LifecycleTests`, `NotificationTests` (실제 `Global`·`ManagerHost`·`ManagerBase`) | P0 `setup` |
+| 매니저 생명주기 | `LifecycleTests`, `NotificationTests` (실제 `Global`·`ManagerHost`·`ManagerBase`) | `RuntimeFixtures` `setup` |
 | Resource | `LifecycleTests`의 `ResourceTests` (`ResourceManager`, `Resource`, `ResourceBase`, `ResourceScope`, `SpriteAtlasResource`) | |
-| Scene | `LifecycleTests`의 `SceneTests`, `SceneContractTests` (`SceneManager`, `SceneBase`) | P0 `scene` |
-| Pool | `LifecycleTests`의 `PoolTests`, `SoundTests` (`PoolManager`, `GameObjectPool`, `Pool`, `PooledObject`) | P0 `actor` |
+| Scene | `LifecycleTests`의 `SceneTests`, `SceneContractTests` (`SceneManager`, `SceneBase`) | `RuntimeFixtures` `scene` |
+| Pool | `LifecycleTests`의 `PoolTests`, `SoundTests` (`PoolManager`, `GameObjectPool`, `Pool`, `PooledObject`) | `RuntimeFixtures` `actor` |
 | ErrorReporter | `LifecycleTests`의 `ErrorReporterTests` (`ErrorReport/*.cs`) | |
-| UI | `UITests` (`UIManager`, `UIContainer`, `UIBase`, `UIDefine`) | P0 `ui`, `UIContainerStackAndNativeActivation` |
-| Input | `LifecycleTests`의 `Controller*Tests`, `ActorInputTests` (`InputManager`, `Controller`, `InputContext`) | P0 `input` |
+| UI | `UITests` (`UIManager`, `UIContainer`, `UIBase`) | `RuntimeFixtures` `ui`, `UIContainerStackAndNativeActivation` |
+| Input | `LifecycleTests`의 `Controller*Tests`, `ActorInputTests` (`InputManager`, `Controller`, `InputContext`) | `RuntimeFixtures` `input` |
 | Notification | `NotificationTests` (`NotificationManager`) | |
 | Sound | `SoundTests` (`SoundManager`, `UIClickSound`), `RefactoringTests/UISoundTool` (`UISoundTool`) | `UISoundToolPrefabEdits` |
-| Actor | `LifecycleTests`의 `ActorTests`, `ActorSpawnTests`, `ActorReturnTests`, `ActorInputTests`, `ActorSkillTests` (`ComBaseActor`) | P0 `actor` |
-| Skill | `SkillTests` (`AbilitySystem/**`, `SkillAdapter`), `LifecycleTests`의 `ActorSkillTests` | P0 `skill`, `TurnBattleSample` |
+| Actor | `LifecycleTests`의 `ActorTests`, `ActorSpawnTests`, `ActorReturnTests`, `ActorInputTests`, `ActorSkillTests` (`ComBaseActor`) | `RuntimeFixtures` `actor` |
+| Skill | `SkillTests` (`AbilitySystem/**`, `SkillAdapter`), `LifecycleTests`의 `ActorSkillTests` | `RuntimeFixtures` `skill` |
 | Build | `run-build.ps1` (`BuildMgr`, `AddressableBuild`), `RefactoringTests/UploadFlow` (`FirebaseUploader`) | |
 | Patch(원격 번들) | `RefactoringTests/Downloader` (`Addressable/Downloader.cs`), `RefactoringTests/FirebaseCache` (`Addressable/FireBase/*.cs`) | |
 | TableGenerator | `run-table-generator.ps1` (`run-tests.ps1` 밖) | |

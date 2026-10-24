@@ -95,7 +95,7 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)다. 풀에서 대여한 뒤 `Spawn
 
 `OnGet`은 첫 대여 때 `Awake`보다 먼저 오므로 초기화를 두지 않는다.
 
-스폰 데이터는 파생 클래스의 설정 함수로 넘긴다. 스포너가 그 함수를 부른 뒤 `Spawn()`을 호출한다(`TurnBattleRunner.SpawnUnit`의 `unit.Setup(spec)`). 씬에 직접 배치한 Actor도 배치 담당 스크립트가 `Spawn()`을 호출한다. 자동 스폰 옵션은 없다.
+스폰 데이터는 파생 클래스의 설정 함수로 넘긴다. 스포너가 그 함수를 부른 뒤 `Spawn()`을 호출한다. 씬에 직접 배치한 Actor도 배치 담당 스크립트가 `Spawn()`을 호출한다. 자동 스폰 옵션은 없다.
 
 ## 비활성화는 입력을 먼저 분리하고 Disable을 마지막에 부른다
 
@@ -167,7 +167,7 @@ Actor 생명주기에는 롤백이나 오류 집계용 catch를 두지 않는다
 
 틱과 `OnUpdate`가 실패해도 Actor는 `Active`로 남는다. 다른 Actor에 건 효과의 실패도 이 경로로 올라오므로, 여기서 격리하면 실패하지 않은 Actor가 격리된다. 남은 태그와 수정자는 반납·파괴의 스폰 종료가 비우고, 보고는 Unity 실행 경계가 한다.
 
-턴제처럼 프레임 시간과 다른 단위로 효과와 쿨다운을 진행하려면 `AutoTickSkills`를 false로 재정의하고 `TickSkills(deltaTime)`을 직접 호출한다(`TurnUnit`). `TickSkills`도 `Active`일 때만 진행하므로 비활성·반납된 Actor의 효과와 쿨다운은 흐르지 않는다.
+턴제처럼 프레임 시간과 다른 단위로 효과와 쿨다운을 진행하려면 `AutoTickSkills`를 false로 재정의하고 `TickSkills(deltaTime)`을 직접 호출한다. `TickSkills`도 `Active`일 때만 진행하므로 비활성·반납된 Actor의 효과와 쿨다운은 흐르지 않는다.
 
 ## 스킬 시스템은 OnInit에서 붙이고 스폰 종료에서 정리한다
 
@@ -223,7 +223,7 @@ Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등
 2. 풀마다 목록에서 뺀 직후 `GameObjectPool.Dispose()`를 호출한다. 대여 중인 Actor는 `OnReturn`(스폰 종료) 뒤 파괴되고, 대기 중인 Actor는 바로 파괴된다.
 3. 이미 해제된 Scope면 닫지 않고 남은 풀만 정리한다.
 
-앱 Scope(`Global.Resource.AppScope`) 풀에서 대여한 Actor는 씬이 정지해도 반납되지 않는다. 소유자가 직접 반납하거나(`TurnBattleRunner.ClearUnits`) `PoolManager` 종료 때 정리된다. 씬 수명 Actor를 앱 Scope로 대여해 생기는 문제는 사용 코드의 버그로 본다. 씬에 직접 배치한 Actor는 씬 언로드 때 파괴되며, 씬 정지부터 언로드까지 멈추는 계약은 없다.
+앱 Scope(`Global.Resource.AppScope`) 풀에서 대여한 Actor는 씬이 정지해도 반납되지 않는다. 소유자가 직접 반납하거나 `PoolManager` 종료 때 정리된다. 씬 수명 Actor를 앱 Scope로 대여해 생기는 문제는 사용 코드의 버그로 본다. 씬에 직접 배치한 Actor는 씬 언로드 때 파괴되며, 씬 정지부터 언로드까지 멈추는 계약은 없다.
 
 ### 풀 콜백 안에서 같은 풀을 바꾸지 않는다
 
