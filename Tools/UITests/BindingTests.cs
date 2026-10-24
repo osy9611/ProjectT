@@ -43,8 +43,8 @@ static class BindingTests
         Probe.EnterAction = ui => ui.gameObject.AddComponent<BindingProbe>().BindEnum(typeof(Missing));
         try
         {
-            Expect<InvalidOperationException>(() => container.CreateWidget<Probe>(UIDefine.eUIType.Test, "UI"));
-            if (container.FindWidget<Probe>(UIDefine.eUIType.Test) != null)
+            Expect<InvalidOperationException>(() => container.CreateWidget<Probe>((UIDefine.eUIType)0, "UI"));
+            if (container.FindWidget<Probe>((UIDefine.eUIType)0) != null)
                 throw new Exception("Invalid bindings were registered.");
         }
         finally { Probe.EnterAction = null; container.Shutdown(); }

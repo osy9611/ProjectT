@@ -203,7 +203,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 2063723009}
-        m_TargetAssemblyTypeName: Test, Assembly-CSharp
+        m_TargetAssemblyTypeName: SceneNavigator, Assembly-CSharp
         m_MethodName: GoTitle
         m_Mode: 1
         m_Arguments:
@@ -654,13 +654,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f10505072731b91488db4e6a90f4c5b1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Test
-  testObj: {fileID: 0}
-  defaultLabel:
-    m_LabelString: 
-  matLabel:
-    m_LabelString: 
-  sprite: {fileID: 0}
+  m_EditorClassIdentifier: Assembly-CSharp::SceneNavigator
 --- !u!114 &2063723010
 MonoBehaviour:
   m_ObjectHideFlags: 0

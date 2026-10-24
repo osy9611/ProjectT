@@ -12,11 +12,8 @@
 |---|---|---|---|
 | `Managers/SceneManager.cs` | `EnterEntryAsync`가 `scenes.Add`를 GameObject 생성 뒤에 해서 catch에 `else if (!scenes.ContainsKey)` 분기가 생겼다. `SceneEntry.IsAddressable`은 `Instance`에서 알 수 있는 값이다. | 리뷰 01 F6 | 정리 |
 | `Managers/SceneManager.cs` | 콜백형 `Transition<T>`과 `eSceneTransitionResult`가 `TransitionAsync`와 함께 공개 진입점을 둘로 만든다. `PrevSceneName`은 샘플 라벨에만 쓰인다. 공개 API 변경이다. | 리뷰 01 F7 | 구조 |
-| `Test.cs` | Title·Download 씬 버튼(`GoTitle`, `GoDownload`)의 씬 이동 진입점이 테스트 클래스다. 호출 없는 `TESTTask`·`InitAddressable`·`CheckUpdateFile`·`AddSpriteAtlas`, 미사용 필드, 주석 코드 약 50줄이 있다. | 리뷰 01 F8 | 구조 |
-| `TestReflection.cs`, `TestTutorial.cs` | 두 파일 모두 씬·프리팹 참조가 없다. `TestReflection`은 본문 대부분이 주석이고 `ParallelJob`은 쓰는 곳이 없다. | 리뷰 01 F8 | 정리 |
 | `Server/Firebase/FirebaseDB.cs` | `GetBuildVersion`이 `ContinueWith`로 실패를 삼키고 빈 문자열을 돌려준다. 미사용 `async void SaveBuildData`와 `using Unity.VisualScripting`이 남아 있다. | 리뷰 01 F8 | 결함 |
-| `Scenes/Test.unity` | `m_Target`이 `{fileID: 0}`인 UnityEvent 4개(`CreateLocalStorage`, `LoadLocalStorage`, `CreateUI`, `StartSkill`)가 남아 있다. | 리뷰 01 F8 | 정리 |
-| `Common/Define.cs`, `Util/UtilFunc.cs`, `Util/ComUtilFunc.cs` | `Define`은 빈 클래스다. 유틸이 두 클래스로 나뉘어 있고 `GetOrAddChildComponent`·`AddChildComponent`는 호출이 없다. `LoadAtlasAndImage`는 `Test.SetSprite`만 쓰는 매니저 밖 전달 함수다. | 리뷰 01 F9 | 정리 |
+| `Common/Define.cs`, `Util/UtilFunc.cs`, `Util/ComUtilFunc.cs` | `Define`은 빈 클래스다. 유틸이 두 클래스로 나뉘어 있고 `GetOrAddChildComponent`·`AddChildComponent`는 호출이 없다. | 리뷰 01 F9 | 정리 |
 | `Managers/DataManager.cs` | `isDone`이 `tableData != null`과 같은 뜻이다. 같은 일을 하는 catch가 2개 있고 `GetLocalString`은 호출이 없다. | 리뷰 01 F10 | 정리 |
 | `Scene/TitleScene.cs`, `Managers/SceneManager.cs` | 테이블 로드는 `TitleScene.OnEnter`가 하는데 `ResolvePath`는 `Global.Table`을 읽는다. "테이블이 있어야 씬 이름 전환이 된다"는 전제가 한 씬 구현에 숨어 있다. | 리뷰 01 F10 | 구조 |
 
@@ -40,7 +37,7 @@
 | `AbilitySystem/Skill/Action/BaseSkillAction.cs`, `SkillActionController.cs` | 발동 순서(`TryActivateInternal`, `CompleteActivationInternal`, `Activating`·`Ending`, `pendingEndReason`)가 두 클래스의 네 메서드에 나뉘어 있다. | 리뷰 03 F7 | 구조 |
 | `SkillAdapter/Action_Normal.cs`, `Action_Melee.cs`, `Action_Range.cs` | 내용이 같은 자리표시자 세 벌이다. | 리뷰 03 F9 | 정리 |
 | `AbilitySystem/Skill/SkillAgent.cs`의 `ReleaseInternal`, `AbilitySystem/Stat/Status.cs`의 `ReleaseInternal` | "정리는 알리지 않는다"가 "구독자는 Disable에서 해제한다"는 관례에 기댄다. `TurnUnit`은 `OnInit`에서 구독하고 `OnRelease`의 `tags.Clear()`로 보정한다. | 리뷰 03 F11 | 구조 |
-| `Actor/TestActor.cs`, `SkillActionController.cs`의 `OnUpdate` | `TestActor`는 `Scenes/Test.unity`만 참조하는 빈 파생 클래스다. `OnUpdate(float deletaTime)` 매개변수 이름이 오타다. | 리뷰 03 기타 | 정리 |
+| `SkillActionController.cs`의 `OnUpdate` | `OnUpdate(float deletaTime)` 매개변수 이름이 오타다. | 리뷰 03 기타 | 정리 |
 
 ### UI와 Sound
 
@@ -50,7 +47,7 @@
 | `Managers/UIManager.cs`, `UGUI/HUD/ComHudAgent.cs` | `GetHud`·`GetHudAsync`·`AttachInternal`이 `PivotTr` 하나를 쓰려고 `PivotInfo` 전체를 받는다. 공개 API 변경이다. | 리뷰 04 F15 | 구조 |
 | `Sound/UIClickSound.cs`, `Sound/Editor/UISoundTool.cs` | `UIClickSound`는 GUID 참조가 0건이다. `clickSoundType`은 실제로 Addressable 경로이고, 경로를 비울 때 `"None"` 문자열 센티널을 쓴다. `isToggle`·`GetUIComponent`가 public이다. 이름 변경은 직렬화 필드 변경이다. | 리뷰 04 F18 | 정리 |
 | `UGUI/UI/UIContainer.cs` | `uiDatas`만 `readonly`가 없다. `#region Methods`는 두 함수만 감싼다. `AttachWidget`은 `Instantiate(prefab, layer, false)`로 부모를 정한 뒤 `StretchInternal`이 같은 부모를 다시 지정한다. | UI 리뷰 05 | 정리 |
-| `Scenes/TitleScene.unity`, `Scenes/DownloadScene.unity` | 씬에 직접 배치한 버튼은 Static UI가 아니어서 패드로 조작할 수 없다. `Test.cs` 항목과 같은 버튼이다. | `INPUT_MANAGER_REFACTORING_REPORT.md` 9절 | 구조 |
+| `Scenes/TitleScene.unity`, `Scenes/DownloadScene.unity` | 씬에 직접 배치한 버튼은 Static UI가 아니어서 패드로 조작할 수 없다. `SceneNavigator`의 `GoTitle`·`GoDownload`에 연결된 버튼이다. | `INPUT_MANAGER_REFACTORING_REPORT.md` 9절 | 구조 |
 | `Common/ErrorReport/` | 운영 sink가 `FileErrorSink` 하나뿐이고 Crashlytics sink는 도입하지 않았다. | `Docs/error-reporting.md` | 구조 |
 
 ### 도구와 테스트

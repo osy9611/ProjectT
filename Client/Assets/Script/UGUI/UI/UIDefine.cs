@@ -6,7 +6,6 @@ namespace ProjectT.UGUI
     {
         public enum eUIType
         {
-            Test,
             SampleStaticA,
             SampleStaticB,
             SampleDynamic,
@@ -17,7 +16,6 @@ namespace ProjectT.UGUI
         {
             switch (type)
             {
-                case eUIType.Test: return "Assets/BundleRes/UI/Test.prefab";
                 case eUIType.SampleStaticA: return "Assets/BundleRes/UI/Sample/SampleStaticA.prefab";
                 case eUIType.SampleStaticB: return "Assets/BundleRes/UI/Sample/SampleStaticB.prefab";
                 case eUIType.SampleDynamic: return "Assets/BundleRes/UI/Sample/SampleDynamic.prefab";

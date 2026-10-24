@@ -1,4 +1,3 @@
-using ProjectT;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -25,20 +24,5 @@ public static class UtilFunc
             string colorString = string.Format("<color={0}>{1}</color>", colorHex, original);
             return colorString;
         }
-    }
-
-    public static bool LoadAtlasAndImage(UnityEngine.UI.Image image, DesignEnum.AtlasType type, string name)
-    {
-        if (image == null)
-            return false;
-
-        var tbData = Global.Table.AtlasDataInfos.Get((int)type);
-        if (tbData == null)
-            return false;
-
-        var sprite = Global.Resource.GetSprite(tbData.Path, name, Global.Resource.AppScope);
-        image.sprite = sprite;
-
-        return sprite != null;
     }
 }

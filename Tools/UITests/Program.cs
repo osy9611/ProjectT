@@ -19,7 +19,7 @@ class OtherProbe : UIBase { protected override void OnShow() { } protected overr
 static class Program
 {
     static int failures, count;
-    static readonly UIDefine.eUIType Key = UIDefine.eUIType.Test;
+    static readonly UIDefine.eUIType Key = (UIDefine.eUIType)0;
     static GameObject Prefab(eUIContainerType type = eUIContainerType.Static)
     {
         var go = new GameObject("Probe", typeof(RectTransform));
