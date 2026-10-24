@@ -22,6 +22,20 @@ $rules = $rulesBlock -split '\r?\n' | Where-Object { $_ } | ForEach-Object {
     [pscustomobject]@{ Name = $cols[0]; Scope = $cols[1]; Regex = [regex]$cols[2] }
 }
 
+$sourceLines = New-Object System.Collections.Generic.HashSet[string]
+foreach ($dir in @('Client/Assets', 'Tools', 'DesignTable'))
+{
+    Get-ChildItem (Join-Path $root $dir) -Filter *.cs -Recurse -File |
+        Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
+        ForEach-Object {
+            foreach ($sourceLine in [IO.File]::ReadAllLines($_.FullName, $utf8))
+            {
+                [void]$sourceLines.Add($sourceLine.Trim())
+                [void]$sourceLines.Add(($sourceLine -replace '//.*$', '').Trim())
+            }
+        }
+}
+
 $errors = New-Object System.Collections.Generic.List[string]
 $anchorCache = @{}
 
@@ -120,17 +134,24 @@ foreach ($file in $files)
     $rel = Get-RelativePath $file
     $isWiki = $rel -like 'Docs/wiki-drafts/*'
     $inFence = $false
+    $inCSharp = $false
     $lineNo = 0
     foreach ($line in [IO.File]::ReadAllLines($file, $utf8))
     {
         $lineNo++
-        if ($line -match '^\s*```')
+        if ($line -match '^\s*```(\S*)')
         {
             $inFence = -not $inFence
+            $inCSharp = $inFence -and $Matches[1] -eq 'csharp'
             continue
         }
         if ($inFence)
         {
+            $code = $line.Trim()
+            if ($isWiki -and $inCSharp -and $code -and -not $code.StartsWith('//') -and -not $sourceLines.Contains($code))
+            {
+                $errors.Add("${rel}:${lineNo}: 코드에 없는 예시 줄 $code")
+            }
             continue
         }
 
