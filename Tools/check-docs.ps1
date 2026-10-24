@@ -2,7 +2,7 @@
 $root = Split-Path -Parent $PSScriptRoot
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $repoUrl = 'https://github.com/osy9611/ProjectT'
-$wikiDir = Join-Path $root 'Docs/wiki-drafts'
+$wikiDir = Join-Path $root 'Wiki'
 
 $files = @('README.md', 'AGENTS.md', 'REFACTORING_CRITERIA.md') | ForEach-Object { Join-Path $root $_ }
 $files += Get-ChildItem (Join-Path $root 'Docs') -Filter *.md | ForEach-Object FullName
@@ -132,7 +132,7 @@ function Test-Target($file, $lineNo, $target)
 foreach ($file in $files)
 {
     $rel = Get-RelativePath $file
-    $isWiki = $rel -like 'Docs/wiki-drafts/*'
+    $isWiki = $rel -like 'Wiki/*'
     $inFence = $false
     $inCSharp = $false
     $lineNo = 0
