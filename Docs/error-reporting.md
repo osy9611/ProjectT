@@ -310,7 +310,7 @@ catch가 아닌 보고 경계도 있다. `Global.Init`의 `InitializeAsync().For
 
 ### 보고를 정적 클래스 한 곳에 모았다
 
-이전 `Global.LogException`은 예외를 문자열로 바꿔 `Debug.LogError`로 출력했다. 그래서 타입과 내부 예외 구조가 사라졌고 외부로 추적할 수단이 없었다. Unity 콜백 예외, 메인 스레드 밖의 로그, `Console.WriteLine`처럼 프로젝트 코드가 받지 못하거나 빌드에서 사라지는 경로도 있었다.
+이전 `Global.LogException`은 예외를 문자열로 바꿔 `Debug.LogError`로 출력했다. 그래서 타입과 내부 예외 구조가 사라졌고 외부로 추적할 수단이 없었다. Unity 콜백 예외, 메인 스레드 밖의 로그, `Console.WriteLine`처럼 프로젝트 코드가 받지 못하거나 빌드에서 사라지는 경로도 있었다. `LogError`는 인스턴스 메서드라 `Global.Instance.LogError`로 불렀고, 인스턴스가 없는 종료 중이나 소켓 스레드에서 NRE를 냈다. Actor, UI, Pool, 입력 경로마다 try/catch와 `ErrorCollector` 집계가 있어 같은 오류가 중간 계층과 경계에서 여러 번 보고될 수 있었다.
 
 버린 대안은 둘이다.
 

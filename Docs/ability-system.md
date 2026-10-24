@@ -338,16 +338,18 @@ protected override void OnEnter()
 
 ## 설계 결정
 
+아래 결정은 Project J의 Switch 분기를 `BaseSkillAction`·`BaseBuff` 파생 클래스로 나눈 1차 구조를 바꾼 것이다. 1차 구조에는 `End()`를 호출하는 곳이 없어 스킬이 한 번만 발동했다.
+
 | 주제 | 고른 것 | 이유와 버린 대안 |
 | --- | --- | --- |
-| 소유 | `SkillAgent`가 스킬, 효과, 태그를 소유하고 스탯은 별도 `Status`에 둔다. | `SkillAgent`가 없는 Actor도 스탯을 가질 수 있다. |
+| 소유 | `SkillAgent`가 스킬, 효과, 태그를 소유하고 스탯은 별도 `Status`에 둔다. | `SkillAgent`가 없는 Actor도 스탯을 가질 수 있다. 실행 인스턴스와 버프를 `Global.Pool`에서 대여하던 1차 구조는 버렸다. 효과가 Actor보다 오래 살지 않으므로 Actor 수명 밖의 정리가 필요 없다. |
 | 생명주기 | 필요한 Actor만 opt-in하고 구동·정리는 `ComBaseActor`가 한다. 정리 순서는 `SkillAgent`, `Status`, `OnRelease` 순이다. | 효과가 건 수정자를 Status를 비우기 전에 제거해야 한다. |
-| 시간 | 비동기 대기 없이 deltaTime으로 진행한다. 시간 계산은 한 함수(`EffectController.AdvanceInternal`)에 모은다. | 구동 방식만 바꿀 수 있다. 프레임 시간과 다른 단위는 `AutoTickSkills`와 `TickSkills`로 구동한다. |
+| 시간 | 비동기 대기 없이 deltaTime으로 진행한다. 시간 계산은 한 함수(`EffectController.AdvanceInternal`)에 모은다. | 구동 방식만 바꿀 수 있다. 프레임 시간과 다른 단위는 `AutoTickSkills`와 `TickSkills`로 구동한다. 버프마다 `UniTask.Delay`와 `CancellationTokenSource`를 쓰던 방식은 Actor 수명과 연결되지 않아 버렸다. |
 | 데이터 | 런타임은 자체 정의 타입만 본다. 테이블 해석은 어댑터 한 곳에 있다. | 정책 값의 작성 주체는 기획(엑셀)이고, 테이블 열이 바뀌어도 코어는 그대로다. |
-| 확장 | 효과와 스킬 모두 데이터와 팩토리로 확장한다. | 코어에 리플렉션이 없어 IL2CPP 스트리핑 위험이 없다. |
-| 태그·스탯 | 이름을 정수 id로 바꾸는 구조체다. | 계층 매칭은 쓰는 곳이 생기면 추가한다. |
+| 확장 | 효과와 스킬 모두 데이터와 팩토리로 확장한다. | 코어에 리플렉션이 없어 IL2CPP 스트리핑 위험이 없다. 네임스페이스로 거르던 리플렉션 자동 등록은 버렸다. 그 등록은 `IsAbstract` 필터가 반대로 되어 스킬을 등록하지 못했다. |
+| 태그·스탯 | 이름을 정수 id로 바꾸는 구조체다. | 계층 매칭은 쓰는 곳이 생기면 추가한다. 버프 종류와 스턴을 코어 enum(`BuffKind`)에 두던 방식은 종류를 늘릴 때 코어를 고쳐야 해서 버렸다. |
 | 시전자 생존 | `SpawnSerial` 비교로 반납·재스폰·파괴를 판별한다. | 강한 참조는 반납·재스폰된 Actor를 같은 시전자로 본다. |
-| 재진입 | 정리 시작 때 등록을 닫고, 호출·이벤트 중 반납을 거부한다. | 콜백 중 상태가 바뀌어도 진행 중인 순회가 정리된 상태를 다루지 않는다. |
+| 재진입 | 정리 시작 때 등록을 닫고, 호출·이벤트 중 반납을 거부한다. | 콜백 중 상태가 바뀌어도 진행 중인 순회가 정리된 상태를 다루지 않는다. 발동 단계마다 반납 횟수를 비교하던 방식(`IsReleasedSinceInternal`, `ReleaseCount`)은 버렸다. |
 | 종료 사유 | `SkillEndReason`은 `Completed`, `Cancelled` 두 값이다. 정리 중 취소도 `Cancelled`다. | 정리와 게임 중 취소를 구분할 실행 클래스가 생기면 `Released`를 추가한다. `OnTagChanged(SkillTag, bool)`의 bool은 "지금 태그를 가졌는지"라 그대로 둔다. |
 | 오류 | 데이터 오류와 계약 위반은 예외로 드러낸다. 검증 순서로 부분 상태를 막을 수 있으면(효과 적용 전 Status·자원 확인) 그 방법을 쓴다. | 개별 경로의 롤백 catch는 버렸다. 남은 상태는 반납·파괴의 스폰 종료에 맡긴다. |
 

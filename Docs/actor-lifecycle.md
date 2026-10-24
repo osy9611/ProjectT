@@ -38,6 +38,8 @@ Actor는 MonoBehaviour 하나(`ComBaseActor`)다. 풀에서 대여한 뒤 `Spawn
 | `OnRelease` | 스폰 종료(반납, 파괴). `OnEnter`를 시작한 스폰에만 호출한다 |
 | `OnUpdate`, `OnLateUpdate` | `Active`인 동안 매 프레임 |
 
+훅은 기반 클래스에서 비어 있으므로 재정의할 때 base를 호출하지 않아도 된다. 입력 등록과 정리는 기반 클래스의 private Unity 메시지(`OnEnable`, `OnDisable`, `Update`, `LateUpdate`, `OnDestroy`)가 하므로, 파생 클래스는 같은 이름의 메시지를 선언하지 않고 훅을 재정의한다.
+
 ## 상태는 ActorState 하나가 정한다
 
 | 값 | 뜻 |
@@ -243,7 +245,19 @@ Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등
 
 ### 실패 단계마다 try/finally를 겹치지 않고 격리한다
 
-함수마다 `completed` 플래그 하나로 실패를 표시하고 Actor를 격리 상태로 바꾼다. 단계마다 try/finally를 겹치는 방식은 버렸다. 앞 단계가 실패한 상태로 뒤 훅이 실행되고, 뒤에서 난 예외가 첫 예외를 가리기 때문이다. 롤백 catch도 두지 않는다. [AGENTS.md](../AGENTS.md)의 오류 처리 규칙대로 실패는 버그로 전파하고, 남은 상태는 파괴가 치운다.
+함수마다 `completed` 플래그 하나로 실패를 표시하고 Actor를 격리 상태로 바꾼다. 단계마다 try/finally를 겹치는 방식은 버렸다. 앞 단계가 실패한 상태로 뒤 훅이 실행되고, 뒤에서 난 예외가 첫 예외를 가리기 때문이다. 롤백 catch도 두지 않는다. [AGENTS.md](../AGENTS.md)의 오류 처리 규칙대로 실패는 버그로 전파하고, 남은 상태는 파괴가 치운다. 예전에는 Actor와 입력 경로에도 try/catch와 `ErrorCollector`, `AggregateException` 집계가 있어 같은 오류가 여러 번 보고될 수 있었다.
+
+### 상태는 ActorState 하나로 둔다
+
+예전에는 `SpawnState`와 `destroying`, `faulted`, `spawnTransitioning` 플래그가 함께 상태를 정했다. 이를 `ActorState` 하나로 합쳐 상태 하나만 보고 스폰, 반납, 활성화 허용 여부를 알 수 있게 했다. 초기화 여부(`initialized`)만 따로 둔다.
+
+### 스폰의 진입점과 종료 경로를 고정한다
+
+예전에는 `Start`에서 초기화를 다시 시도하고 진입했으며, 이를 위해 `ComponentState`를 두었다. 지금은 `Spawn()`이 초기화 보정과 진입을 함께 하므로 `ComponentState`와 `Start`를 지웠다. 스폰 종료는 반납과 파괴 두 경로로 고정하고 `Despawn`을 두지 않는다. 진입점이 늘면 정리 순서를 맞출 곳도 늘어나기 때문이다.
+
+### 호출 중 반납은 반납 진입점에서 거부한다
+
+예전에는 콜백 안의 반납과 재스폰에 대비해 스킬 시스템의 상태 변경 지점마다 세대 비교(`IsReleasedSinceInternal`)를 두었다. 지금은 `SkillAgent`와 `Status`가 호출 깊이를 세고, `IPoolable.OnReturn`이 상태를 바꾸기 전에 반납을 거부한다.
 
 ### 로직 객체와 컴포넌트를 나누지 않는다
 
@@ -257,7 +271,7 @@ Actor는 `RegisterInputContext`, `UnregisterInputContext`로 컨텍스트를 등
 | 입력 스키마 분리 | project-wide Input Actions 하나를 공유하고 `"Map/Action"` 경로로 바인딩하므로 GameObject 활성 수명을 따르는 편이 맞다 |
 | 대여마다 새 상태 | 유일한 실질 이점이었다. `OnEnter`/`OnRelease`에서 스폰 단위 상태를 초기화하는 계약으로 대신한다 |
 
-합친 뒤로 소유자 재검사(`IsCurrentInternal`)가 사라지고, 훅 뒤의 확인은 `ActorState` 비교만 남았다.
+나뉜 구조에서는 두 객체의 수명이 따로 움직여 `ValidateOwnerInternal`, `AttachInternal`과 훅마다의 소유자 재검사가 필요했다. 합친 뒤로 소유자 재검사(`IsCurrentInternal`)가 사라지고, 훅 뒤의 확인은 `ActorState` 비교만 남았다.
 
 ### 참고 프로젝트에서 가져온 규칙
 
