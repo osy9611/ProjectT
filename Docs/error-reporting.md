@@ -1,6 +1,6 @@
 # ErrorReporter
 
-게임 실행 중 생긴 오류는 `Global.LogException`, `Global.LogError`와 자동 수집 경로를 거쳐 `ErrorReporter`의 큐에 들어간다. 메인 스레드의 `ErrorReporter.Flush`가 같은 오류를 지문으로 묶고 반복 전달을 제한한 뒤 교체 가능한 전송 대상(`IErrorSink`)에 넘긴다. 한 오류는 큰 흐름의 경계에서 한 번만 보고하며, 이 문서가 catch 위치와 보고 경계의 정본이다.
+게임 실행 중 생긴 오류는 `Global.LogException`, `Global.LogError`와 자동 수집 경로를 거쳐 `ErrorReporter`의 큐에 들어간다. 메인 스레드의 `ErrorReporter.Flush`가 같은 오류를 지문으로 묶고 반복 전달을 제한한 뒤 교체 가능한 전송 대상(`IErrorSink`)에 넘긴다. 한 오류는 큰 흐름의 경계에서 한 번만 보고하며, 이 문서가 catch 위치와 보고 경계의 상세 문서다.
 
 ## 대상 코드
 
@@ -412,7 +412,7 @@ ErrorReporter.SetSinks(
 
 ## 관련 문서
 
-- 오류 처리 규칙의 정본: [AGENTS.md의 오류 처리](../AGENTS.md#오류-처리)
+- 오류 처리 규칙의 상세 문서: [AGENTS.md의 오류 처리](../AGENTS.md#오류-처리)
 - 매니저 초기화, Ready 계약, 종료: [architecture.md](architecture.md)
 - 테스트 실행법과 기준선: [testing.md](testing.md)
 - 남은 과제: [open-issues.md](open-issues.md)

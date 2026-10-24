@@ -1,6 +1,6 @@
 # ProjectT 구조
 
-클라이언트의 진입점은 `Global` 컴포넌트 하나이고, `Global`이 매니저 9개를 등록 순서대로 초기화하고 역순으로 종료한다. 게임 코드는 `Global.Resource`, `Global.UI`처럼 `Global`을 거쳐 Ready인 매니저만 호출한다. 이 문서는 매니저 등록 순서, Ready 계약, 종료 순서의 정본이고, 매니저별 공개 진입점과 어셈블리, 빌드 흐름을 정리한다.
+클라이언트의 진입점은 `Global` 컴포넌트 하나이고, `Global`이 매니저 9개를 등록 순서대로 초기화하고 역순으로 종료한다. 게임 코드는 `Global.Resource`, `Global.UI`처럼 `Global`을 거쳐 Ready인 매니저만 호출한다. 이 문서는 매니저 등록 순서, Ready 계약, 종료 순서의 상세 문서고, 매니저별 공개 진입점과 어셈블리, 빌드 흐름을 정리한다.
 
 ## 대상 코드
 
@@ -236,7 +236,7 @@ HUD는 `AppScope` 풀에서 대여해 HUD 루트에 붙이고, `UIManager`가 �
 
 처리할 수 없는 오류는 호출자에게 전파하고, 큰 흐름의 경계에서 `Global.LogException` 한 번으로 보고한다. 게임 코드는 `Global.LogException`과 `Global.LogError`만 쓰고, 두 함수의 오류는 `ErrorReporter`로 모인다. 여러 단계를 모두 실행해야 하는 정리 경로는 `ErrorCollector`로 예외를 모아 다시 던지고, 보고는 상위 경계에 맡긴다.
 
-규칙의 정본은 루트 [AGENTS.md](../AGENTS.md)의 "오류 처리"이고, catch 위치 목록의 정본은 [error-reporting.md의 catch 위치와 보고 경계](error-reporting.md#catch-위치와-보고-경계)다. ErrorReporter의 구성, 묶음과 반복 제한, 자동 수집 경로도 [error-reporting.md](error-reporting.md)에 있다.
+규칙의 상세 문서는 루트 [AGENTS.md](../AGENTS.md)의 "오류 처리"이고, catch 위치 목록의 상세 문서는 [error-reporting.md의 catch 위치와 보고 경계](error-reporting.md#catch-위치와-보고-경계)다. ErrorReporter의 구성, 묶음과 반복 제한, 자동 수집 경로도 [error-reporting.md](error-reporting.md)에 있다.
 
 ## Actor와 스킬 시스템
 

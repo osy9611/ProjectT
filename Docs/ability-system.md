@@ -233,7 +233,7 @@ Client/Assets/Script/
 
 ![ComBaseActor 생명주기 연동](images/actor_lifecycle.svg)
 
-필요한 Actor만 `OnInit`에서 모듈을 추가한다. 추가하지 않은 Actor는 비용이 없다. 지금 호출하는 Actor는 `SampleActor`(`Client/Assets/Script/Sample/SampleActor.cs`)와 `TurnUnit`(`Client/Assets/Script/Sample/TurnBattle/TurnUnit.cs`)이다. Actor의 상태, 전이, 격리 상태, 반납 거부는 [actor-lifecycle.md](actor-lifecycle.md)가 정본이다. 여기에는 스킬 시스템 쪽 계약만 적는다.
+필요한 Actor만 `OnInit`에서 모듈을 추가한다. 추가하지 않은 Actor는 비용이 없다. 지금 호출하는 Actor는 `SampleActor`(`Client/Assets/Script/Sample/SampleActor.cs`)와 `TurnUnit`(`Client/Assets/Script/Sample/TurnBattle/TurnUnit.cs`)이다. Actor의 상태, 전이, 격리 상태, 반납 거부는 [actor-lifecycle.md](actor-lifecycle.md)가 상세 문서다. 여기에는 스킬 시스템 쪽 계약만 적는다.
 
 ```csharp
 protected override void OnInit()
@@ -353,7 +353,7 @@ protected override void OnEnter()
 
 ## 관련 문서
 
-- [actor-lifecycle.md](actor-lifecycle.md). Actor 상태, 전이, 격리 상태, 반납 거부의 정본.
+- [actor-lifecycle.md](actor-lifecycle.md). Actor 상태, 전이, 격리 상태, 반납 거부의 상세 문서.
 - [architecture.md](architecture.md). 매니저와 어셈블리 구성.
 - [testing.md](testing.md#시스템별-테스트). 스킬 시스템을 검사하는 콘솔 테스트(`Tools/SkillTests`, `Tools/LifecycleTests`의 `ActorSkillTests`)와 Unity 테스트. Unity 테스트의 P0 프로브는 skill 단계에서 `SampleActor`의 발동, 쿨다운, 버프, 스턴 차단·만료, 재스폰을 확인하고, `TurnBattleSample`은 `TurnUnit`의 수동 틱 경로를 확인한다.
 - `Tools/PlayModeTests/README.md`. Play Mode 실행 절차.
